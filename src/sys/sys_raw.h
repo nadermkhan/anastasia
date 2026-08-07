@@ -20,6 +20,9 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
 int   raw_mprotect(void* addr, size_t length, int prot);
 int   raw_munmap(void* addr, size_t length);
 int64_t raw_write(int fd, const void* buf, size_t count);
+int64_t raw_read(int fd, void* buf, size_t count);
+int   raw_open(const char* pathname, int flags, int mode);
+int   raw_close(int fd);
 void  raw_exit(int code) __attribute__((noreturn));
 void  clear_icache(void* addr, size_t size);
 

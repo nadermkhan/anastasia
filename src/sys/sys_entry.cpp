@@ -3,10 +3,30 @@
 
 extern int ana_main(int argc, char** argv);
 
-// Freestanding C++ operator new & delete overrides
-void* operator new(size_t size) { return malloc(size); }
-void operator delete(void* ptr) noexcept { free(ptr); }
-void operator delete(void* ptr, size_t) noexcept { free(ptr); }
+// Freestanding C++ operator new & delete overrides using bare-metal malloc/free
+void* operator new(size_t size) {
+    return malloc(size);
+}
+
+void* operator new[](size_t size) {
+    return malloc(size);
+}
+
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
+void operator delete[](void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete[](void* ptr, size_t) noexcept {
+    free(ptr);
+}
 
 namespace __cxxabiv1 {
     class __class_type_info {
@@ -65,27 +85,19 @@ void __stack_chk_fail(void) {
 void __chkstk(void) {}
 
 #if defined(__ELF__) || defined(__linux__)
-__attribute__((noreturn)) void _start() {
+extern "C" __attribute__((noreturn)) void _start_c(int argc, char** argv) {
     ana::sys::detect_cpu_features();
-
-    int argc = 0;
-    char** argv = nullptr;
-
-#if defined(__x86_64__)
-    uintptr_t* sp;
-    __asm__ __volatile__("mov %%rsp, %0" : "=r"(sp));
-    argc = static_cast<int>(sp[0]);
-    argv = reinterpret_cast<char**>(&sp[1]);
-#elif defined(__aarch64__)
-    uintptr_t* sp;
-    __asm__ __volatile__("mov %0, sp" : "=r"(sp));
-    argc = static_cast<int>(sp[0]);
-    argv = reinterpret_cast<char**>(&sp[1]);
-#endif
-
     int result = ana_main(argc, argv);
     ana::sys::raw_exit(result);
 }
+
+__asm__(
+    ".global _start\n"
+    "_start:\n"
+    "    mov (%rsp), %rdi\n"
+    "    lea 8(%rsp), %rsi\n"
+    "    jmp _start_c\n"
+);
 #elif defined(_WIN32)
 int mainCRTStartup() {
     ana::sys::detect_cpu_features();

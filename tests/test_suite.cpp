@@ -7,6 +7,8 @@
 #include "../src/backend/vmem_provider.h"
 #include "../src/backend/ana_lowerer.h"
 #include "../src/backend/inline_cache.h"
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace ana {
 namespace tests {
@@ -16,22 +18,24 @@ static void print_msg(const char* msg) {
 }
 
 static void print_int(int64_t val) {
+    char buf[32];
     if (val == 0) {
-        print_msg("0");
+        sys::raw_write(1, "0", 1);
         return;
     }
+    bool neg = false;
     if (val < 0) {
-        print_msg("-");
+        neg = true;
         val = -val;
     }
-    char buf[32];
-    int pos = 31;
-    buf[pos] = '\0';
+    int idx = 30;
+    buf[31] = '\0';
     while (val > 0) {
-        buf[--pos] = '0' + (val % 10);
+        buf[idx--] = '0' + static_cast<char>(val % 10);
         val /= 10;
     }
-    print_msg(&buf[pos]);
+    if (neg) buf[idx--] = '-';
+    sys::raw_write(1, &buf[idx + 1], 31 - (idx + 1));
 }
 
 static bool test_freestanding_memory_and_syscalls() {
@@ -510,6 +514,87 @@ static bool test_atomic_wx_patching_and_clflush() {
     return true;
 }
 
+static bool test_aot_elf_compilation() {
+    print_msg("[Test 14/14] AOT Relocatable ELF Object File Emitter (ElfEmitter)... ");
+    const char* code =
+        ".fn aot_demo(p0: i64, p1: i64) -> i64\n"
+        ".registers 2 local\n"
+        "add-int/64 v0, p0, p1\n"
+        "sub-int/64 v1, v0, p0\n"
+        "return-val v1\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(code, arena);
+    frontend::Program* prog = parser.parse_program();
+
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (AST Parsing)\n");
+        return false;
+    }
+
+    backend::AnastasiaJitRuntime runtime;
+    backend::AnaLowerer lowerer(runtime);
+
+    const char* test_obj_path = "test_aot_demo.o";
+    bool success = lowerer.compile_to_elf(prog, test_obj_path);
+    if (!success) {
+        print_msg("FAILED (ELF Generation)\n");
+        return false;
+    }
+
+    // Read generated test_aot_demo.o header bytes to verify ELF 64-bit structure
+    uint8_t* header = static_cast<uint8_t*>(malloc(64));
+    sys::freestanding_memset(header, 0, 64);
+
+    int fd = sys::raw_open(test_obj_path, 0 /* O_RDONLY */, 0);
+    if (fd < 0) {
+        print_msg("FAILED (File Open fd=");
+        print_int(fd);
+        print_msg(")\n");
+        free(header);
+        return false;
+    }
+
+    int64_t read_bytes = sys::raw_read(fd, header, 64);
+    sys::raw_close(fd);
+
+    if (read_bytes < 64) {
+        print_msg("FAILED (Header Size ");
+        print_int(read_bytes);
+        print_msg(")\n");
+        free(header);
+        return false;
+    }
+
+    // Verify \x7fELF Magic Bytes
+    if (header[0] != 0x7f || header[1] != 'E' || header[2] != 'L' || header[3] != 'F') {
+        print_msg("FAILED (Invalid ELF Magic)\n");
+        free(header);
+        return false;
+    }
+
+    // Verify ELFCLASS64 (2) and ELFDATA2LSB (1)
+    if (header[4] != 2 || header[5] != 1) {
+        print_msg("FAILED (Invalid ELF64 Class/Data)\n");
+        free(header);
+        return false;
+    }
+
+    // Verify ET_REL (1) and EM_X86_64 (62)
+    uint16_t e_type = *reinterpret_cast<uint16_t*>(&header[16]);
+    uint16_t e_machine = *reinterpret_cast<uint16_t*>(&header[18]);
+    if (e_type != 1 || e_machine != 62) {
+        print_msg("FAILED (Invalid ET_REL or EM_X86_64)\n");
+        free(header);
+        return false;
+    }
+
+    free(header);
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -529,10 +614,11 @@ bool run_all_tests() {
     ok &= test_unbounded_registers_and_spilling();
     ok &= test_object_instantiation_and_heap();
     ok &= test_atomic_wx_patching_and_clflush();
+    ok &= test_aot_elf_compilation();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 13 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 14 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

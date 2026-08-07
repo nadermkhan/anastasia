@@ -23,6 +23,7 @@ set(SOURCES
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp
     src/backend/ana_regalloc.cpp
+    src/backend/elf_emitter.cpp
     src/backend/inline_cache.cpp
     src/backend/ana_lowerer.cpp
     tests/test_suite.cpp

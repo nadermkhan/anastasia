@@ -10,28 +10,28 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
         prot &= ~ANA_PROT_EXEC;
     }
 
-    register int64_t rax __asm__("rax") = 9;
-    register int64_t rdi __asm__("rdi") = reinterpret_cast<int64_t>(addr);
-    register int64_t rsi __asm__("rsi") = static_cast<int64_t>(length);
-    register int64_t rdx __asm__("rdx") = static_cast<int64_t>(prot);
-    register int64_t r10 __asm__("r10") = static_cast<int64_t>(flags);
-    register int64_t r8  __asm__("r8")  = static_cast<int64_t>(fd);
-    register int64_t r9  __asm__("r9")  = static_cast<int64_t>(offset);
+    int64_t ret;
+    int64_t flg = static_cast<int64_t>(flags);
+    int64_t f   = static_cast<int64_t>(fd);
+    int64_t off = static_cast<int64_t>(offset);
 
     __asm__ __volatile__(
+        "movq %5, %%r10\n\t"
+        "movq %6, %%r8\n\t"
+        "movq %7, %%r9\n\t"
         "syscall"
-        : "+r"(rax)
-        : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
-        : "rcx", "r11", "memory"
+        : "=a"(ret)
+        : "a"(9), "D"(addr), "S"(length), "d"(prot), "r"(flg), "r"(f), "r"(off)
+        : "r10", "r8", "r9", "rcx", "r11", "memory"
     );
 
-    if (static_cast<uintptr_t>(rax) >= static_cast<uintptr_t>(-4095UL)) {
+    if (static_cast<uintptr_t>(ret) >= static_cast<uintptr_t>(-4095UL)) {
         return reinterpret_cast<void*>(-1);
     }
-    return reinterpret_cast<void*>(rax);
+    return reinterpret_cast<void*>(ret);
 #else
     (void)addr; (void)length; (void)prot; (void)flags; (void)fd; (void)offset;
-    return nullptr;
+    return reinterpret_cast<void*>(-1);
 #endif
 }
 
@@ -42,18 +42,14 @@ int raw_mprotect(void* addr, size_t length, int prot) {
     uintptr_t aligned_start = start & ~(page_size - 1);
     size_t aligned_len = length + (start - aligned_start);
 
-    register int64_t rax __asm__("rax") = 10;
-    register int64_t rdi __asm__("rdi") = static_cast<int64_t>(aligned_start);
-    register int64_t rsi __asm__("rsi") = static_cast<int64_t>(aligned_len);
-    register int64_t rdx __asm__("rdx") = static_cast<int64_t>(prot);
-
+    int64_t ret;
     __asm__ __volatile__(
         "syscall"
-        : "+r"(rax)
-        : "r"(rdi), "r"(rsi), "r"(rdx)
+        : "=a"(ret)
+        : "a"(10), "D"(aligned_start), "S"(aligned_len), "d"(prot)
         : "rcx", "r11", "memory"
     );
-    return static_cast<int>(rax);
+    return static_cast<int>(ret);
 #else
     (void)addr; (void)length; (void)prot;
     return -1;
@@ -67,17 +63,14 @@ int raw_munmap(void* addr, size_t length) {
     uintptr_t aligned_start = start & ~(page_size - 1);
     size_t aligned_len = length + (start - aligned_start);
 
-    register int64_t rax __asm__("rax") = 11;
-    register int64_t rdi __asm__("rdi") = static_cast<int64_t>(aligned_start);
-    register int64_t rsi __asm__("rsi") = static_cast<int64_t>(aligned_len);
-
+    int64_t ret;
     __asm__ __volatile__(
         "syscall"
-        : "+r"(rax)
-        : "r"(rdi), "r"(rsi)
+        : "=a"(ret)
+        : "a"(11), "D"(aligned_start), "S"(aligned_len)
         : "rcx", "r11", "memory"
     );
-    return static_cast<int>(rax);
+    return static_cast<int>(ret);
 #else
     (void)addr; (void)length;
     return -1;
@@ -86,20 +79,71 @@ int raw_munmap(void* addr, size_t length) {
 
 int64_t raw_write(int fd, const void* buf, size_t count) {
 #if defined(__linux__) && defined(__x86_64__)
-    register int64_t rax __asm__("rax") = 1;
-    register int64_t rdi __asm__("rdi") = static_cast<int64_t>(fd);
-    register int64_t rsi __asm__("rsi") = reinterpret_cast<int64_t>(buf);
-    register int64_t rdx __asm__("rdx") = static_cast<int64_t>(count);
-
+    int64_t ret;
+    int64_t fd64 = static_cast<int64_t>(fd);
     __asm__ __volatile__(
         "syscall"
-        : "+r"(rax)
-        : "r"(rdi), "r"(rsi), "r"(rdx)
+        : "=a"(ret)
+        : "a"(1), "D"(fd64), "S"(buf), "d"(count)
         : "rcx", "r11", "memory"
     );
-    return rax;
+    return ret;
 #else
     (void)fd; (void)buf; (void)count;
+    return -1;
+#endif
+}
+
+int64_t raw_read(int fd, void* buf, size_t count) {
+#if defined(__linux__) && defined(__x86_64__)
+    int64_t ret;
+    int64_t fd64 = static_cast<int64_t>(fd);
+    __asm__ __volatile__(
+        "syscall"
+        : "=a"(ret)
+        : "a"(0), "D"(fd64), "S"(buf), "d"(count)
+        : "rcx", "r11", "memory"
+    );
+    return ret;
+#else
+    (void)fd; (void)buf; (void)count;
+    return -1;
+#endif
+}
+
+int raw_open(const char* pathname, int flags, int mode) {
+#if defined(__linux__) && defined(__x86_64__)
+    int64_t ret;
+    int64_t dfd = -100LL; // AT_FDCWD
+    int64_t flg = static_cast<int64_t>(flags);
+    int64_t md  = static_cast<int64_t>(mode);
+
+    __asm__ __volatile__(
+        "movq %5, %%r10\n\t"
+        "syscall"
+        : "=a"(ret)
+        : "a"(257), "D"(dfd), "S"(pathname), "d"(flg), "r"(md)
+        : "r10", "rcx", "r11", "memory"
+    );
+    return static_cast<int>(ret);
+#else
+    (void)pathname; (void)flags; (void)mode;
+    return -1;
+#endif
+}
+
+int raw_close(int fd) {
+#if defined(__linux__) && defined(__x86_64__)
+    int64_t ret;
+    __asm__ __volatile__(
+        "syscall"
+        : "=a"(ret)
+        : "a"(3), "D"(fd)
+        : "rcx", "r11", "memory"
+    );
+    return static_cast<int>(ret);
+#else
+    (void)fd;
     return -1;
 #endif
 }

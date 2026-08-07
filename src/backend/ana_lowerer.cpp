@@ -1,6 +1,10 @@
 #include "ana_lowerer.h"
-#include "inline_cache.h"
+#include "ana_encoder.h"
+#include "ana_regalloc.h"
+#include "elf_emitter.h"
+#include "../sys/cpu_features.h"
 #include "../sys/object_heap.h"
+#include "inline_cache.h"
 
 namespace ana {
 namespace backend {
@@ -463,6 +467,170 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
     }
 
     return fn_ptr;
+}
+
+bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filename) {
+    if (!prog || !out_filename) return false;
+
+    ElfEmitter* elf = new ElfEmitter();
+    SimpleByteBuffer* text_buf = new SimpleByteBuffer();
+
+    for (frontend::Function* fn = prog->functions; fn != nullptr; fn = fn->next) {
+        uint64_t func_offset = text_buf->size();
+
+        AnaRegAlloc regalloc;
+        regalloc.allocate_registers(fn);
+
+        AnaEncoder* enc = new AnaEncoder();
+
+        struct BlockLabelEntry {
+            frontend::BasicBlock* block;
+            uint32_t label_id;
+        } block_labels[64];
+        uint32_t block_count = 0;
+
+        for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr && block_count < 64; bb = bb->next) {
+            block_labels[block_count].block = bb;
+            block_labels[block_count].label_id = enc->new_label();
+            block_count++;
+        }
+
+        auto get_block_label = [&](const char* lbl_name, frontend::BasicBlock* target_bb) -> uint32_t {
+            if (target_bb) {
+                for (uint32_t i = 0; i < block_count; ++i) {
+                    if (block_labels[i].block == target_bb) return block_labels[i].label_id;
+                }
+            }
+            if (lbl_name) {
+                for (uint32_t i = 0; i < block_count; ++i) {
+                    if (block_labels[i].block->label && streq_impl(block_labels[i].block->label, lbl_name)) {
+                        return block_labels[i].label_id;
+                    }
+                }
+            }
+            return 0;
+        };
+
+        if (regalloc.requires_frame()) {
+            enc->push_reg(X86Reg::RBP);
+            enc->mov_reg_reg(X86Reg::RBP, X86Reg::RSP);
+            enc->sub_reg_imm32(X86Reg::RSP, static_cast<int32_t>(regalloc.stack_frame_size()));
+        }
+
+        if (fn->params) {
+            uint32_t p_idx = 0;
+            for (frontend::Parameter* p = fn->params; p != nullptr; p = p->next, ++p_idx) {
+                X86Reg raw_reg = regalloc.get_param_raw_reg(p_idx);
+                RegLocation p_loc = regalloc.get_param_loc(p_idx);
+                if (p_loc.kind == RegLocKind::STACK_SPILL) {
+                    enc->mov_mem_reg(X86Reg::RBP, -p_loc.stack_disp, raw_reg);
+                }
+            }
+        }
+
+        auto load_operand = [&](const frontend::Operand& op, X86Reg scratch) -> X86Reg {
+            if (op.kind == frontend::OperandKind::CONST_INT) {
+                enc->mov_reg_imm64(scratch, op.const_val);
+                return scratch;
+            } else if (op.kind == frontend::OperandKind::REGISTER) {
+                RegLocation loc = regalloc.get_reg_loc(op.reg);
+                if (loc.kind == RegLocKind::PHYSICAL_REG) {
+                    return loc.phys_reg;
+                } else {
+                    enc->mov_reg_mem(scratch, X86Reg::RBP, -loc.stack_disp);
+                    return scratch;
+                }
+            }
+            return scratch;
+        };
+
+        auto store_operand = [&](frontend::Register reg, X86Reg src_reg) {
+            RegLocation loc = regalloc.get_reg_loc(reg);
+            if (loc.kind == RegLocKind::PHYSICAL_REG) {
+                if (loc.phys_reg != src_reg) {
+                    enc->mov_reg_reg(loc.phys_reg, src_reg);
+                }
+            } else {
+                enc->mov_mem_reg(X86Reg::RBP, -loc.stack_disp, src_reg);
+            }
+        };
+
+        for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+            uint32_t current_lbl = get_block_label(bb->label, bb);
+            enc->bind_label(current_lbl);
+
+            for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+                switch (insn->op) {
+                    case frontend::Opcode::ADD_I64: {
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        enc->mov_reg_reg(dst_reg, s1);
+                        enc->add_reg_reg(dst_reg, s2);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::SUB_I64: {
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        enc->mov_reg_reg(dst_reg, s1);
+                        enc->sub_reg_reg(dst_reg, s2);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::MOVE_CONST: {
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        enc->mov_reg_imm64(dst_reg, insn->src1.const_val);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::RETURN_VAL: {
+                        X86Reg ret_reg = load_operand(insn->src1, X86Reg::RAX);
+                        if (ret_reg != X86Reg::RAX) {
+                            enc->mov_reg_reg(X86Reg::RAX, ret_reg);
+                        }
+                        if (regalloc.requires_frame()) {
+                            enc->mov_reg_reg(X86Reg::RSP, X86Reg::RBP);
+                            enc->pop_reg(X86Reg::RBP);
+                        }
+                        enc->ret();
+                        break;
+                    }
+                    case frontend::Opcode::RETURN_VOID: {
+                        if (regalloc.requires_frame()) {
+                            enc->mov_reg_reg(X86Reg::RSP, X86Reg::RBP);
+                            enc->pop_reg(X86Reg::RBP);
+                        }
+                        enc->ret();
+                        break;
+                    }
+                    default: break;
+                }
+            }
+        }
+
+        if (!enc->resolve_labels()) {
+            delete enc;
+            delete text_buf;
+            delete elf;
+            return false;
+        }
+
+        uint64_t func_size = enc->code_size();
+        text_buf->write(enc->code_bytes(), func_size);
+
+        elf->add_symbol(fn->name ? fn->name : "anon_func", STB_GLOBAL, STT_FUNC, 1, func_offset, func_size);
+        delete enc;
+    }
+
+    bool success = elf->write_elf_object(out_filename, text_buf->data(), text_buf->size());
+    delete text_buf;
+    delete elf;
+    return success;
 }
 
 } // namespace backend

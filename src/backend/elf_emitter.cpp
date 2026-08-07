@@ -158,7 +158,7 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     ehdr.e_ident[7] = 0; // ELFOSABI_SYSV
 
     ehdr.e_type = ET_REL;
-    ehdr.e_machine = EM_X86_64;
+    ehdr.e_machine = machine_arch_;
     ehdr.e_version = EV_CURRENT;
     ehdr.e_entry = 0;
     ehdr.e_phoff = 0;

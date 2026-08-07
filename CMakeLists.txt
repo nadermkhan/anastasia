@@ -25,6 +25,8 @@ set(SOURCES
     src/backend/ana_regalloc.cpp
     src/backend/elf_emitter.cpp
     src/backend/inline_cache.cpp
+    src/backend/x86_64_backend.cpp
+    src/backend/aarch64_backend.cpp
     src/backend/ana_lowerer.cpp
     tests/test_suite.cpp
     examples/example_runner.cpp

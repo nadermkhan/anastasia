@@ -123,8 +123,10 @@ public:
     void add_relocation(uint64_t offset, uint32_t symbol_idx, uint32_t type, int64_t addend);
 
     bool write_elf_object(const char* output_filename, const uint8_t* text_bytes, size_t text_size);
+    void set_machine_arch(uint16_t arch) { machine_arch_ = arch; }
 
 private:
+    uint16_t machine_arch_{62}; // EM_X86_64 by default
     SimpleByteBuffer* text_section_;
     SimpleByteBuffer* strtab_section_;
     SimpleByteBuffer* shstrtab_section_;

@@ -7,6 +7,7 @@
 #include "../src/backend/vmem_provider.h"
 #include "../src/backend/ana_lowerer.h"
 #include "../src/backend/inline_cache.h"
+#include "../src/backend/aarch64_backend.h"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -595,6 +596,93 @@ static bool test_aot_elf_compilation() {
     return true;
 }
 
+static bool test_aarch64_instruction_encoding() {
+    print_msg("[Test 15/15] AArch64 Backend & Fixed 32-bit Machine Code Emitter... ");
+
+    backend::AArch64Encoder enc;
+    enc.push_fp_lr();                                         // 0xA9BF7BFD
+    enc.mov_fp_sp();                                          // 0x910007FD
+    enc.add_reg_reg(backend::Arm64Reg::X0, backend::Arm64Reg::X0, backend::Arm64Reg::X1); // 0x8B010000
+    enc.sub_reg_reg(backend::Arm64Reg::X2, backend::Arm64Reg::X3, backend::Arm64Reg::X4); // 0xCB040062
+    enc.mul_reg_reg(backend::Arm64Reg::X5, backend::Arm64Reg::X6, backend::Arm64Reg::X7); // 0x9B077CC5
+    enc.pop_fp_lr();                                          // 0xA8C17BFD
+    enc.ret();                                                // 0xD65F03C0
+
+    if (enc.insn_count() != 7) {
+        print_msg("FAILED (Instruction Count ");
+        print_int(enc.insn_count());
+        print_msg(")\n");
+        return false;
+    }
+
+    const uint32_t* insns = reinterpret_cast<const uint32_t*>(enc.code_bytes());
+    if (insns[0] != 0xA9BF7BFDUL) { print_msg("FAILED (push_fp_lr encoding)\n"); return false; }
+    if (insns[1] != 0x910007FDUL) { print_msg("FAILED (mov_fp_sp encoding)\n"); return false; }
+    if (insns[2] != 0x8B010000UL) { print_msg("FAILED (add_reg_reg encoding)\n"); return false; }
+    if (insns[3] != 0xCB040062UL) { print_msg("FAILED (sub_reg_reg encoding)\n"); return false; }
+    if (insns[4] != 0x9B077CC5UL) { print_msg("FAILED (mul_reg_reg encoding)\n"); return false; }
+    if (insns[5] != 0xA8C17BFDUL) { print_msg("FAILED (pop_fp_lr encoding)\n"); return false; }
+    if (insns[6] != 0xD65F03C0UL) { print_msg("FAILED (ret encoding)\n"); return false; }
+
+    // Test AArch64 ELF object emission
+    const char* smali_code =
+        ".fn test_arm64_add(p0: i64, p1: i64) -> i64\n"
+        ".registers 2 local\n"
+        "add-int/64 v0, p0, p1\n"
+        "return-val v0\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(smali_code, arena);
+    frontend::Program* prog = parser.parse_program();
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (AST Parser)\n");
+        return false;
+    }
+
+    backend::AArch64TargetBackend aarch64_backend;
+    const char* arm64_obj_path = "test_arm64_demo.o";
+    bool success = aarch64_backend.compile_to_elf(prog, arm64_obj_path);
+    if (!success) {
+        print_msg("FAILED (AArch64 ELF Generation)\n");
+        return false;
+    }
+
+    // Read generated test_arm64_demo.o header bytes to verify ELF64 EM_AARCH64 (183)
+    uint8_t* header = static_cast<uint8_t*>(malloc(64));
+    sys::freestanding_memset(header, 0, 64);
+
+    int fd = sys::raw_open(arm64_obj_path, 0 /* O_RDONLY */, 0);
+    if (fd < 0) {
+        print_msg("FAILED (Open ARM64 Object)\n");
+        free(header);
+        return false;
+    }
+
+    int64_t read_bytes = sys::raw_read(fd, header, 64);
+    sys::raw_close(fd);
+
+    if (read_bytes < 64) {
+        print_msg("FAILED (ARM64 Header Size)\n");
+        free(header);
+        return false;
+    }
+
+    uint16_t e_type = *reinterpret_cast<uint16_t*>(&header[16]);
+    uint16_t e_machine = *reinterpret_cast<uint16_t*>(&header[18]);
+    if (e_type != 1 || e_machine != 183) { // 183 = EM_AARCH64
+        print_msg("FAILED (Invalid ET_REL or EM_AARCH64 e_machine=");
+        print_int(e_machine);
+        print_msg(")\n");
+        free(header);
+        return false;
+    }
+
+    free(header);
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -615,10 +703,11 @@ bool run_all_tests() {
     ok &= test_object_instantiation_and_heap();
     ok &= test_atomic_wx_patching_and_clflush();
     ok &= test_aot_elf_compilation();
+    ok &= test_aarch64_instruction_encoding();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 14 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 15 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

@@ -10,6 +10,7 @@
 #include "../src/backend/aarch64_backend.h"
 #include "../src/backend/gdb_jit.h"
 #include "../src/backend/dwarf_emitter.h"
+#include "../src/optimizer/ana_ssa.h"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -833,6 +834,86 @@ static bool test_gdb_jit_registration_and_dwarf() {
     return true;
 }
 
+static int g_thread_shared_counter = 0;
+static int g_thread_futex_val = 0;
+
+static int thread_entry_fn(void* arg) {
+    int val = static_cast<int>(reinterpret_cast<uintptr_t>(arg));
+    g_thread_shared_counter = val;
+    g_thread_futex_val = 1;
+    sys::raw_futex(&g_thread_futex_val, ANA_FUTEX_WAKE_PRIVATE, 1);
+    return 0;
+}
+
+static bool test_bare_metal_threading_futex_and_ssa_opt() {
+    print_msg("[Test 18/18] Bare-Metal Threading (raw_clone), Futex & SSA-IR... ");
+
+    // Test 1: Freestanding Kernel Thread Creation via raw_clone & Futex Sync
+    size_t stack_size = 65536;
+    void* child_stack = sys::raw_mmap(nullptr, stack_size, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+    if (!child_stack || child_stack == (void*)-1) {
+        print_msg("FAILED (Child Stack Allocation)\n");
+        return false;
+    }
+
+    uint8_t* stack_top = static_cast<uint8_t*>(child_stack) + stack_size;
+    int flags = ANA_CLONE_VM | ANA_CLONE_FS | ANA_CLONE_FILES | 17 /* SIGCHLD */;
+
+    g_thread_shared_counter = 0;
+    g_thread_futex_val = 0;
+
+    int tid = sys::raw_clone(thread_entry_fn, stack_top, flags, reinterpret_cast<void*>(777));
+    if (tid < 0) {
+        print_msg("FAILED (raw_clone Syscall ");
+        print_int(tid);
+        print_msg(")\n");
+        sys::raw_munmap(child_stack, stack_size);
+        return false;
+    }
+
+    // Wait for child thread completion via futex if not yet set
+    while (g_thread_futex_val == 0) {
+        sys::raw_futex(&g_thread_futex_val, ANA_FUTEX_WAIT_PRIVATE, 0);
+    }
+
+    if (g_thread_shared_counter != 777) {
+        print_msg("FAILED (Thread Synchronization Counter ");
+        print_int(g_thread_shared_counter);
+        print_msg(")\n");
+        sys::raw_munmap(child_stack, stack_size);
+        return false;
+    }
+
+    sys::raw_munmap(child_stack, stack_size);
+
+    // Test 2: SSA-IR Optimization Pass (mem2reg, LICM, GVN)
+    const char* ssa_smali_code =
+        ".fn test_ssa_fn(p0: i64) -> i64\n"
+        "    .registers 2 local\n"
+        "    move v0, v0\n"
+        "    add-int/64 v1, 100, 200\n"
+        "    return-val v1\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(ssa_smali_code, arena);
+    frontend::Program* prog = parser.parse_program();
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (SSA AST Parse)\n");
+        return false;
+    }
+
+    optimizer::AnaSSAIR ssa;
+    bool opt_res = ssa.optimize_program(prog);
+    if (!opt_res || ssa.hoisted_invariants() == 0) {
+        print_msg("FAILED (SSA Optimization Invariant Hoisting)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -856,10 +937,11 @@ bool run_all_tests() {
     ok &= test_aarch64_instruction_encoding();
     ok &= test_simd_vector_and_float_isa();
     ok &= test_gdb_jit_registration_and_dwarf();
+    ok &= test_bare_metal_threading_futex_and_ssa_opt();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 17 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 18 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

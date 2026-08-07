@@ -12,6 +12,19 @@
 #define ANA_MAP_PRIVATE   0x02
 #define ANA_MAP_ANONYMOUS 0x20
 
+#define ANA_CLONE_VM       0x00000100
+#define ANA_CLONE_FS       0x00000200
+#define ANA_CLONE_FILES    0x00000400
+#define ANA_CLONE_SIGHAND  0x00000800
+#define ANA_CLONE_THREAD   0x00001000
+#define ANA_CLONE_SETTLS   0x00080000
+
+#define ANA_FUTEX_WAIT         0
+#define ANA_FUTEX_WAKE         1
+#define ANA_FUTEX_PRIVATE_FLAG 128
+#define ANA_FUTEX_WAIT_PRIVATE (ANA_FUTEX_WAIT | ANA_FUTEX_PRIVATE_FLAG)
+#define ANA_FUTEX_WAKE_PRIVATE (ANA_FUTEX_WAKE | ANA_FUTEX_PRIVATE_FLAG)
+
 namespace ana {
 namespace sys {
 
@@ -23,6 +36,8 @@ int64_t raw_write(int fd, const void* buf, size_t count);
 int64_t raw_read(int fd, void* buf, size_t count);
 int   raw_open(const char* pathname, int flags, int mode);
 int   raw_close(int fd);
+int   raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg);
+int   raw_futex(int* uaddr, int futex_op, int val, const void* timeout = nullptr);
 void  raw_exit(int code) __attribute__((noreturn));
 void  clear_icache(void* addr, size_t size);
 

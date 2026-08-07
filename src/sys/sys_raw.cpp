@@ -138,12 +138,70 @@ int raw_close(int fd) {
     __asm__ __volatile__(
         "syscall"
         : "=a"(ret)
-        : "a"(3), "D"(fd)
+        : "a"(3), "D"(static_cast<int64_t>(fd))
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
 #else
     (void)fd;
+    return -1;
+#endif
+}
+
+int raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg) {
+#if defined(__linux__) && defined(__x86_64__)
+    if (!fn || !child_stack) return -1;
+
+    uint64_t* stack = reinterpret_cast<uint64_t*>(reinterpret_cast<uintptr_t>(child_stack) & ~15UL);
+    *(--stack) = reinterpret_cast<uint64_t>(arg);
+    *(--stack) = reinterpret_cast<uint64_t>(fn);
+
+    register int64_t rax_reg __asm__("rax") = 56;
+    register int64_t rdi_reg __asm__("rdi") = flags;
+    register void*   rsi_reg __asm__("rsi") = stack;
+    register int64_t rdx_reg __asm__("rdx") = 0;
+    register int64_t r10_reg __asm__("r10") = 0;
+    register int64_t r8_reg  __asm__("r8")  = 0;
+
+    __asm__ __volatile__(
+        "syscall\n\t"
+        "testq %%rax, %%rax\n\t"
+        "jnz 1f\n\t"
+        "popq %%r8\n\t"
+        "popq %%rdi\n\t"
+        "callq *%%r8\n\t"
+        "movq %%rax, %%rdi\n\t"
+        "movq $60, %%rax\n\t"
+        "syscall\n\t"
+        "1:\n\t"
+        : "+r"(rax_reg), "+r"(rdi_reg), "+r"(rsi_reg), "+r"(rdx_reg), "+r"(r10_reg), "+r"(r8_reg)
+        :
+        : "rcx", "r11", "memory"
+    );
+    return static_cast<int>(rax_reg);
+#else
+    (void)fn; (void)child_stack; (void)flags; (void)arg;
+    return -1;
+#endif
+}
+
+int raw_futex(int* uaddr, int futex_op, int val, const void* timeout) {
+#if defined(__linux__) && defined(__x86_64__)
+    int64_t ret;
+    int64_t op64 = static_cast<int64_t>(futex_op);
+    int64_t val64 = static_cast<int64_t>(val);
+    const void* tout = timeout;
+
+    __asm__ __volatile__(
+        "movq %5, %%r10\n\t"
+        "syscall"
+        : "=a"(ret)
+        : "a"(202), "D"(uaddr), "S"(op64), "d"(val64), "r"(tout)
+        : "r10", "rcx", "r11", "memory"
+    );
+    return static_cast<int>(ret);
+#else
+    (void)uaddr; (void)futex_op; (void)val; (void)timeout;
     return -1;
 #endif
 }

@@ -30,6 +30,7 @@ set(SOURCES
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
     src/backend/ana_lowerer.cpp
+    src/optimizer/ana_ssa.cpp
     tests/test_suite.cpp
     examples/example_runner.cpp
     src/main.cpp

@@ -21,6 +21,7 @@ set(SOURCES
     src/sys/object_heap.cpp
     src/sys/tlab_provider.cpp
     src/sys/gc_collector.cpp
+    src/sys/io_ring.cpp
     src/frontend/ana_lexer.cpp
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp
@@ -31,10 +32,13 @@ set(SOURCES
     src/backend/inline_cache.cpp
     src/backend/pic_dispatcher.cpp
     src/backend/exception_unwinder.cpp
+    src/backend/osr_engine.cpp
+    src/backend/host_interop.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
+    src/optimizer/pgo_profiler.cpp
     tests/test_suite.cpp
     examples/example_runner.cpp
     src/main.cpp
@@ -50,6 +54,7 @@ set(BENCH_SOURCES
     src/sys/object_heap.cpp
     src/sys/tlab_provider.cpp
     src/sys/gc_collector.cpp
+    src/sys/io_ring.cpp
     src/frontend/ana_lexer.cpp
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp
@@ -60,10 +65,13 @@ set(BENCH_SOURCES
     src/backend/inline_cache.cpp
     src/backend/pic_dispatcher.cpp
     src/backend/exception_unwinder.cpp
+    src/backend/osr_engine.cpp
+    src/backend/host_interop.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
+    src/optimizer/pgo_profiler.cpp
     benchmark/bench_suite.cpp
     benchmark/bench_main.cpp
 )

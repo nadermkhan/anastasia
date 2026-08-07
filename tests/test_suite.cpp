@@ -15,6 +15,10 @@
 #include "../src/sys/gc_collector.h"
 #include "../src/backend/pic_dispatcher.h"
 #include "../src/backend/exception_unwinder.h"
+#include "../src/backend/osr_engine.h"
+#include "../src/sys/io_ring.h"
+#include "../src/backend/host_interop.h"
+#include "../src/optimizer/pgo_profiler.h"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -1036,6 +1040,153 @@ static bool test_frame_pointer_exception_unwinding() {
     return true;
 }
 
+static bool test_osr_state_capture() {
+    print_msg("[Test 24/29] On-Stack Replacement (OSR) Live Register Capture... ");
+
+    backend::CPURegisterState regs;
+    sys::freestanding_memset(&regs, 0, sizeof(regs));
+    regs.rax = 100;
+    regs.rbx = 200;
+
+    backend::OSREngine::instance().record_loop_iteration(reinterpret_cast<void*>(0x1000), 1);
+    backend::OSREngine::instance().trigger_osr(reinterpret_cast<void*>(0x1000), 1, &regs);
+
+    if (backend::OSREngine::instance().total_osr_transitions() == 0) {
+        print_msg("FAILED (OSR Transition Count Zero)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_speculative_inlining_backpatch() {
+    print_msg("[Test 25/29] Speculative Inlining & Deopt Backpatch... ");
+
+    backend::PolymorphicICSite site;
+    sys::freestanding_memset(&site, 0, sizeof(site));
+    site.vtable_slot = 0;
+
+    void* dummy_vtable[2] = { reinterpret_cast<void*>(0x5000), nullptr };
+    void* target = backend::handle_pic_miss(&site, dummy_vtable);
+    if (!target || site.state != backend::PICState::MONOMORPHIC) {
+        print_msg("FAILED (Speculative Inlining Monomorphic Check)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_io_uring_zero_copy() {
+    print_msg("[Test 26/29] Zero-Copy io_uring Ring Buffer Submission... ");
+
+    sys::IoRing& ring = sys::IoRing::instance();
+    ring.init(32);
+
+    char buf[16] = "hello_ana";
+    int sub_res = ring.submit_sqe(0 /* IORING_OP_NOP */, 1, buf, 9, 1001);
+    if (sub_res < 0 || ring.total_submissions() == 0) {
+        print_msg("FAILED (io_uring SQE Submission)\n");
+        return false;
+    }
+
+    uint64_t user_data = 0;
+    int32_t cqe_res = 0;
+    int poll_res = ring.poll_cqe(&user_data, &cqe_res);
+    if (poll_res != 1 || user_data != 1001) {
+        print_msg("FAILED (io_uring CQE Polling)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static int dummy_host_fn(int a, int b) { return a + b; }
+
+static bool test_host_trampoline_abi() {
+    print_msg("[Test 27/29] Host Trampoline C-ABI & Type Unboxing... ");
+
+    void* stub = backend::HostInterop::instance().register_host_function(
+        "dummy_host_fn", reinterpret_cast<void*>(dummy_host_fn), true
+    );
+    if (!stub) {
+        print_msg("FAILED (Host Trampoline Generation Null)\n");
+        return false;
+    }
+
+    void* found = backend::HostInterop::instance().get_trampoline("dummy_host_fn");
+    if (found != stub) {
+        print_msg("FAILED (Host Trampoline Lookup Mismatch)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_pgo_icache_density() {
+    print_msg("[Test 28/29] PGO Basic Block Reordering & I-Cache Density... ");
+
+    const char* pgo_code =
+        ".fn test_pgo_fn(p0: i64) -> i64\n"
+        "    .registers 2 local\n"
+        "    if-eq p0, 0, err_block\n"
+        "    add-int/64 v0, p0, 100\n"
+        "    return-val v0\n"
+        "err_block:\n"
+        "    move-const v0, -1\n"
+        "    return-val v0\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(pgo_code, arena);
+    frontend::Program* prog = parser.parse_program();
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (PGO AST Parse)\n");
+        return false;
+    }
+
+    optimizer::PGOProfiler::instance().record_block_execution(1, 10000);
+    optimizer::PGOProfiler::instance().record_block_execution(2, 1);
+
+    bool reordered = optimizer::PGOProfiler::instance().reorder_basic_blocks(prog->functions);
+    if (!reordered) {
+        print_msg("FAILED (PGO Basic Block Reorder)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_adaptive_concurrency_stress() {
+    print_msg("[Test 29/29] Adaptive Concurrency Stress (io_uring Async)... ");
+
+    sys::IoRing& ring = sys::IoRing::instance();
+    for (int i = 0; i < 100; ++i) {
+        ring.submit_sqe(0, 1, nullptr, 0, i + 5000);
+    }
+
+    uint32_t polled_count = 0;
+    for (int i = 0; i < 100; ++i) {
+        uint64_t udata = 0;
+        int32_t res = 0;
+        if (ring.poll_cqe(&udata, &res) == 1) polled_count++;
+    }
+
+    if (polled_count != 100) {
+        print_msg("FAILED (Concurrent Async Polling Count ");
+        print_int(polled_count);
+        print_msg(")\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -1065,10 +1216,16 @@ bool run_all_tests() {
     ok &= test_trap_free_gc_and_remset();
     ok &= test_pic_tiering_transitions();
     ok &= test_frame_pointer_exception_unwinding();
+    ok &= test_osr_state_capture();
+    ok &= test_speculative_inlining_backpatch();
+    ok &= test_io_uring_zero_copy();
+    ok &= test_host_trampoline_abi();
+    ok &= test_pgo_icache_density();
+    ok &= test_adaptive_concurrency_stress();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 23 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 29 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

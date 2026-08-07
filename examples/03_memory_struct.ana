@@ -1,0 +1,6 @@
+.fn memory_demo(p0: ptr, p1: i64) -> i64
+    .registers 1 local
+    store-mem [p0 + 8], p1
+    load-mem v0, [p0 + 8]
+    return-val v0
+.end_fn

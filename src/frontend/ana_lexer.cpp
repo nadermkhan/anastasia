@@ -1,0 +1,233 @@
+#include "ana_lexer.h"
+
+namespace ana {
+namespace frontend {
+
+Lexer::Lexer(const char* source) : source_(source), cursor_(0), line_(1) {}
+
+char Lexer::peek() const {
+    return source_[cursor_];
+}
+
+char Lexer::advance() {
+    char c = source_[cursor_];
+    if (c != '\0') {
+        cursor_++;
+        if (c == '\n') line_++;
+    }
+    return c;
+}
+
+void Lexer::skip_whitespace_and_comments() {
+    while (true) {
+        char c = peek();
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            advance();
+        } else if (c == '#') {
+            while (peek() != '\n' && peek() != '\0') {
+                advance();
+            }
+        } else {
+            break;
+        }
+    }
+}
+
+Token Lexer::next_token() {
+    skip_whitespace_and_comments();
+
+    Token tok;
+    tok.line = line_;
+    tok.view.str = &source_[cursor_];
+    tok.view.length = 0;
+    tok.opcode = Opcode::ADD_I32;
+    tok.data_type = DataType::VOID;
+    tok.int_val = 0;
+
+    char c = peek();
+    if (c == '\0') {
+        tok.type = TokenType::TOKEN_EOF;
+        return tok;
+    }
+
+    if (c == '[') { advance(); tok.type = TokenType::TOKEN_LBRACKET; tok.view.length = 1; return tok; }
+    if (c == ']') { advance(); tok.type = TokenType::TOKEN_RBRACKET; tok.view.length = 1; return tok; }
+    if (c == '(') { advance(); tok.type = TokenType::TOKEN_LPAREN; tok.view.length = 1; return tok; }
+    if (c == ')') { advance(); tok.type = TokenType::TOKEN_RPAREN; tok.view.length = 1; return tok; }
+    if (c == ':') { advance(); tok.type = TokenType::TOKEN_COLON; tok.view.length = 1; return tok; }
+    if (c == ',') { advance(); tok.type = TokenType::TOKEN_COMMA; tok.view.length = 1; return tok; }
+    if (c == '+') { advance(); tok.type = TokenType::TOKEN_PLUS; tok.view.length = 1; return tok; }
+
+    if (c == '-') {
+        advance();
+        if (peek() == '>') {
+            advance();
+            tok.type = TokenType::TOKEN_ARROW;
+            tok.view.length = 2;
+            return tok;
+        }
+        if (peek() >= '0' && peek() <= '9') {
+            // Negative integer
+            int64_t val = 0;
+            while (peek() >= '0' && peek() <= '9') {
+                val = val * 10 + (advance() - '0');
+            }
+            tok.type = TokenType::TOKEN_INT_LITERAL;
+            tok.int_val = -val;
+            tok.view.length = &source_[cursor_] - tok.view.str;
+            return tok;
+        }
+        tok.type = TokenType::TOKEN_MINUS;
+        tok.view.length = 1;
+        return tok;
+    }
+
+    if (c >= '0' && c <= '9') {
+        int64_t val = 0;
+        while (peek() >= '0' && peek() <= '9') {
+            val = val * 10 + (advance() - '0');
+        }
+        tok.type = TokenType::TOKEN_INT_LITERAL;
+        tok.int_val = val;
+        tok.view.length = &source_[cursor_] - tok.view.str;
+        return tok;
+    }
+
+    // Directives starting with '.'
+    if (c == '.') {
+        advance();
+        size_t start = cursor_;
+        while ((peek() >= 'a' && peek() <= 'z') || (peek() >= 'A' && peek() <= 'Z') || peek() == '_' || peek() == '-') {
+            advance();
+        }
+        StringView sub_view = { &source_[start], cursor_ - start };
+        uint64_t hash = fnv1a_hash(sub_view.str, sub_view.length);
+        tok.view.str = &source_[start - 1];
+        tok.view.length = cursor_ - (start - 1);
+
+        switch (hash) {
+            case fnv1a_hash("fn", 2):           tok.type = TokenType::TOKEN_FN; return tok;
+            case fnv1a_hash("end_fn", 6):       tok.type = TokenType::TOKEN_END_FN; return tok;
+            case fnv1a_hash("class", 5):        tok.type = TokenType::TOKEN_CLASS; return tok;
+            case fnv1a_hash("end_class", 9):    tok.type = TokenType::TOKEN_END_CLASS; return tok;
+            case fnv1a_hash("field", 5):        tok.type = TokenType::TOKEN_FIELD; return tok;
+            case fnv1a_hash("registers", 9):    tok.type = TokenType::TOKEN_REGISTERS; return tok;
+            case fnv1a_hash("import-sys", 11):  tok.type = TokenType::TOKEN_IMPORT_SYS; return tok;
+            default: break;
+        }
+        tok.type = TokenType::TOKEN_IDENTIFIER;
+        return tok;
+    }
+
+    // Identifiers, registers (v0..vN, p0..pN), opcodes, and labels
+    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
+        size_t start = cursor_;
+        while ((peek() >= 'a' && peek() <= 'z') || (peek() >= 'A' && peek() <= 'Z') ||
+               (peek() >= '0' && peek() <= '9') || peek() == '_' || peek() == '-' || peek() == '.' || peek() == '/') {
+            advance();
+        }
+        tok.view.str = &source_[start];
+        tok.view.length = cursor_ - start;
+
+        if (peek() == ':') {
+            advance(); // consume ':'
+            tok.type = TokenType::TOKEN_LABEL;
+            return tok;
+        }
+
+        // Register check: p[0-9]+ or v[0-9]+
+        if ((tok.view.str[0] == 'p' || tok.view.str[0] == 'v') && tok.view.length > 1) {
+            bool is_reg = true;
+            uint32_t idx = 0;
+            for (size_t i = 1; i < tok.view.length; ++i) {
+                if (tok.view.str[i] >= '0' && tok.view.str[i] <= '9') {
+                    idx = idx * 10 + (tok.view.str[i] - '0');
+                } else {
+                    is_reg = false;
+                    break;
+                }
+            }
+            if (is_reg) {
+                tok.type = TokenType::TOKEN_REGISTER;
+                tok.reg.type = (tok.view.str[0] == 'p') ? RegisterType::PARAM : RegisterType::LOCAL;
+                tok.reg.index = idx;
+                return tok;
+            }
+        }
+
+        uint64_t hash = fnv1a_hash(tok.view.str, tok.view.length);
+
+        // Native Types & Hints
+        switch (hash) {
+            case fnv1a_hash("i32", 3):      tok.type = TokenType::TOKEN_TYPE; tok.data_type = DataType::I32; return tok;
+            case fnv1a_hash("i64", 3):      tok.type = TokenType::TOKEN_TYPE; tok.data_type = DataType::I64; return tok;
+            case fnv1a_hash("ptr", 3):      tok.type = TokenType::TOKEN_TYPE; tok.data_type = DataType::PTR; return tok;
+            case fnv1a_hash("f32", 3):      tok.type = TokenType::TOKEN_TYPE; tok.data_type = DataType::F32; return tok;
+            case fnv1a_hash("void", 4):     tok.type = TokenType::TOKEN_TYPE; tok.data_type = DataType::VOID; return tok;
+            case fnv1a_hash("likely", 6):   tok.type = TokenType::TOKEN_LIKELY; return tok;
+            case fnv1a_hash("unlikely", 8): tok.type = TokenType::TOKEN_UNLIKELY; return tok;
+            default: break;
+        }
+
+        // Extended Smali Opcodes
+        switch (hash) {
+            case fnv1a_hash("add-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_I32; return tok;
+            case fnv1a_hash("sub-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_I32; return tok;
+            case fnv1a_hash("mul-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MUL_I32; return tok;
+            case fnv1a_hash("div-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::DIV_I32; return tok;
+            case fnv1a_hash("add-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_I64; return tok;
+            case fnv1a_hash("sub-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_I64; return tok;
+            case fnv1a_hash("and-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::AND_I32; return tok;
+            case fnv1a_hash("and-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::AND_I64; return tok;
+            case fnv1a_hash("or-int/32", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::OR_I32; return tok;
+            case fnv1a_hash("or-int/64", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::OR_I64; return tok;
+            case fnv1a_hash("xor-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::XOR_I32; return tok;
+            case fnv1a_hash("xor-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::XOR_I64; return tok;
+            case fnv1a_hash("shl-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SHL_I32; return tok;
+            case fnv1a_hash("shl-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SHL_I64; return tok;
+            case fnv1a_hash("shr-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SHR_I32; return tok;
+            case fnv1a_hash("shr-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SHR_I64; return tok;
+            case fnv1a_hash("ushr-int/32", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::USHR_I32; return tok;
+            case fnv1a_hash("ushr-int/64", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::USHR_I64; return tok;
+            case fnv1a_hash("bts-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::BTS_I64; return tok;
+            case fnv1a_hash("btr-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::BTR_I64; return tok;
+            case fnv1a_hash("popcount-int/64", 15): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::POPCOUNT_I64; return tok;
+            case fnv1a_hash("lzcnt-int/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LZCNT_I64; return tok;
+            case fnv1a_hash("move", 4):           tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MOVE; return tok;
+            case fnv1a_hash("move-const", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MOVE_CONST; return tok;
+            case fnv1a_hash("sys-call", 8):       tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SYS_CALL; return tok;
+            case fnv1a_hash("load-mem", 8):       tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_MEM; return tok;
+            case fnv1a_hash("store-mem", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::STORE_MEM; return tok;
+            case fnv1a_hash("bind-vtable", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::BIND_VTABLE; return tok;
+            case fnv1a_hash("call-virt", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CALL_VIRT; return tok;
+            case fnv1a_hash("call-virt-fast", 14):tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CALL_VIRT_FAST; return tok;
+            case fnv1a_hash("return-void", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::RETURN_VOID; return tok;
+            case fnv1a_hash("return-val", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::RETURN_VAL; return tok;
+            case fnv1a_hash("goto", 4):           tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::GOTO; return tok;
+            case fnv1a_hash("if-eq", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_EQ; return tok;
+            case fnv1a_hash("if-ne", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_NE; return tok;
+            case fnv1a_hash("if-lt", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_LT; return tok;
+            case fnv1a_hash("if-ge", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_GE; return tok;
+            case fnv1a_hash("if-z", 4):           tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_Z; return tok;
+            case fnv1a_hash("if-nz", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_NZ; return tok;
+            case fnv1a_hash("atomic-cas/64", 13):tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ATOMIC_CAS_I64; return tok;
+            case fnv1a_hash("atomic-xchg/64", 14):tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ATOMIC_XCHG_I64; return tok;
+            case fnv1a_hash("atomic-add/64", 13): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ATOMIC_ADD_I64; return tok;
+            case fnv1a_hash("atomic-and/64", 13): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ATOMIC_AND_I64; return tok;
+            case fnv1a_hash("atomic-or/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ATOMIC_OR_I64; return tok;
+            case fnv1a_hash("fence", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::FENCE; return tok;
+            case fnv1a_hash("new-instance", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::NEW_INSTANCE; return tok;
+            default: break;
+        }
+
+        tok.type = TokenType::TOKEN_IDENTIFIER;
+        return tok;
+    }
+
+    advance();
+    tok.type = TokenType::TOKEN_EOF;
+    return tok;
+}
+
+} // namespace frontend
+} // namespace ana

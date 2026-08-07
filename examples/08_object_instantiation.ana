@@ -1,0 +1,12 @@
+.class Widget
+.end_class
+
+.fn main(p0: i64) -> i64
+.registers 2 local
+new-instance v0, Widget
+move-const v1, 777
+store-mem [v0 + 16], v1
+load-mem v1, [v0 + 16]
+add-int/64 v0, v1, p0
+return-val v0
+.end_fn

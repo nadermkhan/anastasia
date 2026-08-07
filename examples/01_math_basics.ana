@@ -1,0 +1,6 @@
+.fn math_demo(p0: i64, p1: i64) -> i64
+    .registers 2 local
+    add-int/64 v0, p0, p1
+    sub-int/64 v1, v0, 500
+    return-val v1
+.end_fn

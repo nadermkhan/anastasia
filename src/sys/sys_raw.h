@@ -1,0 +1,87 @@
+#ifndef ANA_SYS_RAW_H
+#define ANA_SYS_RAW_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#define ANA_PROT_NONE  0x0
+#define ANA_PROT_READ  0x1
+#define ANA_PROT_WRITE 0x2
+#define ANA_PROT_EXEC  0x4
+
+#define ANA_MAP_PRIVATE   0x02
+#define ANA_MAP_ANONYMOUS 0x20
+
+namespace ana {
+namespace sys {
+
+// Raw syscall wrappers (Linux) / PEB-based Win32 APIs (Windows)
+void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t offset);
+int   raw_mprotect(void* addr, size_t length, int prot);
+int   raw_munmap(void* addr, size_t length);
+int64_t raw_write(int fd, const void* buf, size_t count);
+void  raw_exit(int code) __attribute__((noreturn));
+void  clear_icache(void* addr, size_t size);
+
+// Freestanding memory routines
+void* freestanding_memcpy(void* dest, const void* src, size_t n);
+void* freestanding_memset(void* s, int c, size_t n);
+void* freestanding_memmove(void* dest, const void* src, size_t n);
+int   freestanding_memcmp(const void* s1, const void* s2, size_t n);
+size_t freestanding_strlen(const char* s);
+
+} // namespace sys
+} // namespace ana
+
+#include <pthread.h>
+#include <stdarg.h>
+#include <sys/types.h>
+#include <sys/utsname.h>
+#include <stdio.h>
+
+// Global symbol overrides for compiler implicit calls and AsmJit OS utilities
+extern "C" {
+    void* memcpy(void* dest, const void* src, size_t n);
+    void* memset(void* s, int c, size_t n);
+    void* memmove(void* dest, const void* src, size_t n);
+    int   memcmp(const void* s1, const void* s2, size_t n);
+    size_t strlen(const char* s);
+    void* malloc(size_t size);
+    void* realloc(void* ptr, size_t size);
+    void  free(void* ptr);
+    int   getpagesize(void);
+    long  sysconf(int name);
+    void  abort(void);
+    char* getenv(const char* name);
+    int   open(const char* pathname, int flags, ...);
+    int   open64(const char* pathname, int flags, ...);
+    int   close(int fd);
+    int   ftruncate(int fd, off_t length);
+    int   ftruncate64(int fd, off64_t length);
+    int64_t read(int fd, void* buf, size_t count);
+    int64_t write(int fd, const void* buf, size_t count);
+    int64_t sys_raw_write(int fd, const void* buf, size_t count);
+    void* mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t offset);
+    int   mprotect(void* addr, size_t length, int prot);
+    int   munmap(void* addr, size_t length);
+    int   pthread_mutex_init(pthread_mutex_t* mutex, const pthread_mutexattr_t* attr);
+    int   pthread_mutex_destroy(pthread_mutex_t* mutex);
+    int   pthread_mutex_lock(pthread_mutex_t* mutex);
+    int   pthread_mutex_unlock(pthread_mutex_t* mutex);
+    int   pthread_once(pthread_once_t* once_control, void (*init_routine)(void));
+    int   pthread_key_create(pthread_key_t* key, void (*destructor)(void*));
+    int   pthread_key_delete(pthread_key_t key);
+    void* pthread_getspecific(pthread_key_t key);
+    int   pthread_setspecific(pthread_key_t key, const void* value);
+    long  syscall(long number, ...);
+    int   shm_open(const char* name, int oflag, mode_t mode);
+    int   shm_unlink(const char* name);
+    int   fputs(const char* s, FILE* stream);
+    int   snprintf(char* str, size_t size, const char* format, ...);
+    int   vsnprintf(char* str, size_t size, const char* format, va_list ap);
+    int   uname(struct utsname* buf);
+    long  strtol(const char* nptr, char** endptr, int base);
+    long  __isoc23_strtol(const char* nptr, char** endptr, int base);
+}
+
+#endif // ANA_SYS_RAW_H

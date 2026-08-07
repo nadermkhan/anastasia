@@ -1,0 +1,7 @@
+.fn folding_demo(p0: i64) -> i64
+    .registers 2 local
+    add-int/64 v0, 100, 200
+    add-int/64 v1, p0, v0
+    return-val v1
+    add-int/64 v0, v0, 999
+.end_fn

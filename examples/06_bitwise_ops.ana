@@ -1,0 +1,6 @@
+.fn bitwise_demo(p0: i64, p1: i64) -> i64
+.registers 2 local
+and-int/64 v0, p0, 255
+shl-int/64 v1, v0, p1
+return-val v1
+.end_fn

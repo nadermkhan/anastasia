@@ -1,0 +1,7 @@
+.fn atomic_demo(p0: ptr, p1: i64) -> i64
+.registers 1 local
+atomic-add/64 [p0 + 0], p1
+fence
+load-mem v0, [p0 + 0]
+return-val v0
+.end_fn

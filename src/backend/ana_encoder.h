@@ -1,0 +1,148 @@
+#ifndef ANA_ENCODER_H
+#define ANA_ENCODER_H
+
+#include "../sys/sys_raw.h"
+
+namespace ana {
+namespace backend {
+
+enum class X86Reg : uint8_t {
+    RAX = 0,
+    RCX = 1,
+    RDX = 2,
+    RBX = 3,
+    RSP = 4,
+    RBP = 5,
+    RSI = 6,
+    RDI = 7,
+    R8  = 8,
+    R9  = 9,
+    R10 = 10,
+    R11 = 11,
+    R12 = 12,
+    R13 = 13,
+    R14 = 14,
+    R15 = 15,
+    NONE = 0xFF
+};
+
+struct EncoderLabel {
+    uint32_t id;
+    int32_t offset;
+    bool bound;
+};
+
+struct LabelReloc {
+    uint32_t label_id;
+    size_t patch_offset;
+    bool is_jcc_rel32;
+};
+
+class AnaEncoder {
+public:
+    AnaEncoder();
+    ~AnaEncoder();
+
+    void reset();
+
+    // Label management
+    uint32_t new_label();
+    void bind_label(uint32_t label_id);
+
+    // Raw byte emission
+    void emit8(uint8_t byte);
+    void emit32(uint32_t dword);
+    void emit64(uint64_t qword);
+    void emit_bytes(const uint8_t* data, size_t len);
+
+    // REX prefix helper
+    void emit_rex(bool w, uint8_t reg_idx, uint8_t index_idx, uint8_t base_idx);
+    void emit_modrm(uint8_t mod, uint8_t reg, uint8_t rm);
+
+    // Core Instruction Encoding
+    void mov_reg_reg(X86Reg dst, X86Reg src);
+    void mov_reg_imm64(X86Reg dst, uint64_t imm);
+    void mov_reg_imm32(X86Reg dst, int32_t imm);
+    void mov_reg_mem(X86Reg dst, X86Reg base, int32_t disp);
+    void mov_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+
+    void add_reg_reg(X86Reg dst, X86Reg src);
+    void add_reg_imm32(X86Reg dst, int32_t imm);
+    void add_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+    void sub_reg_reg(X86Reg dst, X86Reg src);
+    void sub_reg_imm32(X86Reg dst, int32_t imm);
+    void imul_reg_reg(X86Reg dst, X86Reg src);
+    void imul_reg_imm32(X86Reg dst, X86Reg src, int32_t imm);
+
+    void and_reg_reg(X86Reg dst, X86Reg src);
+    void and_reg_imm32(X86Reg dst, int32_t imm);
+    void or_reg_reg(X86Reg dst, X86Reg src);
+    void or_reg_imm32(X86Reg dst, int32_t imm);
+    void xor_reg_reg(X86Reg dst, X86Reg src);
+    void xor_reg_imm32(X86Reg dst, int32_t imm);
+
+    void shl_reg_cl(X86Reg dst);
+    void shl_reg_imm8(X86Reg dst, uint8_t imm);
+    void sar_reg_cl(X86Reg dst);
+    void sar_reg_imm8(X86Reg dst, uint8_t imm);
+    void shr_reg_cl(X86Reg dst);
+    void shr_reg_imm8(X86Reg dst, uint8_t imm);
+
+    void bts_reg_reg(X86Reg dst, X86Reg src);
+    void bts_reg_imm8(X86Reg dst, uint8_t imm);
+    void btr_reg_reg(X86Reg dst, X86Reg src);
+    void btr_reg_imm8(X86Reg dst, uint8_t imm);
+
+    void popcnt_reg_reg(X86Reg dst, X86Reg src);
+    void lzcnt_reg_reg(X86Reg dst, X86Reg src);
+
+    void cmp_reg_reg(X86Reg src1, X86Reg src2);
+    void cmp_reg_imm32(X86Reg src1, int32_t imm);
+    void test_reg_reg(X86Reg src1, X86Reg src2);
+
+    // Control Flow
+    void jmp_label(uint32_t label_id);
+    void je_label(uint32_t label_id);
+    void jne_label(uint32_t label_id);
+    void jl_label(uint32_t label_id);
+    void jge_label(uint32_t label_id);
+    void jz_label(uint32_t label_id);
+    void jnz_label(uint32_t label_id);
+
+    void call_reg(X86Reg target);
+    void push_reg(X86Reg reg);
+    void pop_reg(X86Reg reg);
+    void ret();
+
+    // Atomics & Memory Barriers
+    void lock_cmpxchg_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+    void xchg_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+    void lock_add_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+    void lock_and_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+    void lock_or_mem_reg(X86Reg base, int32_t disp, X86Reg src);
+    void mfence();
+    void clflush(X86Reg base, int32_t disp);
+
+    // Final resolution
+    bool resolve_labels();
+    const uint8_t* code_bytes() const { return buffer_; }
+    size_t code_size() const { return cursor_; }
+
+private:
+    void ensure_capacity(size_t additional);
+
+    uint8_t* buffer_;
+    size_t capacity_;
+    size_t cursor_;
+
+    EncoderLabel labels_[64];
+    uint32_t label_count_;
+
+    LabelReloc relocs_[128];
+    uint32_t reloc_count_;
+};
+
+} // namespace backend
+} // namespace ana
+
+#endif // ANA_ENCODER_H

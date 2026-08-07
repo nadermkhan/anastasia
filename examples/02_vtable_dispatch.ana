@@ -1,0 +1,5 @@
+.fn vtable_demo(p0: ptr) -> i64
+    .registers 1 local
+    call-virt-fast p0, 0 -> v0
+    return-val v0
+.end_fn

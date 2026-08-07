@@ -1,0 +1,12 @@
+.fn loop_demo(p0: i64) -> i64
+.registers 2 local
+move-const v0, 0
+move-const v1, 0
+loop_start:
+if-ge v1, p0, .loop_end
+add-int/64 v0, v0, v1
+add-int/64 v1, v1, 1
+goto .loop_start
+loop_end:
+return-val v0
+.end_fn

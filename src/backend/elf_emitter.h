@@ -120,9 +120,12 @@ public:
     ~ElfEmitter();
 
     uint32_t add_symbol(const char* name, uint8_t binding, uint8_t type, uint16_t section_idx, uint64_t value, uint64_t size);
+    uint32_t add_symbol(const char* name, uint64_t value, uint64_t size, bool is_global = true);
+    void append_text(const void* bytes, size_t size);
     void add_relocation(uint64_t offset, uint32_t symbol_idx, uint32_t type, int64_t addend);
 
     bool write_elf_object(const char* output_filename, const uint8_t* text_bytes, size_t text_size);
+    uint8_t* finalize(size_t* out_size);
     void set_machine_arch(uint16_t arch) { machine_arch_ = arch; }
 
 private:

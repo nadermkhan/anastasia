@@ -24,6 +24,8 @@ set(SOURCES
     src/backend/ana_encoder.cpp
     src/backend/ana_regalloc.cpp
     src/backend/elf_emitter.cpp
+    src/backend/gdb_jit.cpp
+    src/backend/dwarf_emitter.cpp
     src/backend/inline_cache.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp

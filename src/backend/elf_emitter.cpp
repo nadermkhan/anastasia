@@ -269,5 +269,83 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     return true;
 }
 
+uint32_t ElfEmitter::add_symbol(const char* name, uint64_t value, uint64_t size, bool is_global) {
+    uint8_t binding = is_global ? STB_GLOBAL : STB_LOCAL;
+    return add_symbol(name, binding, STT_FUNC, 1, value, size);
+}
+
+void ElfEmitter::append_text(const void* bytes, size_t size) {
+    if (text_section_ && bytes && size > 0) {
+        text_section_->write(bytes, size);
+    }
+}
+
+uint8_t* ElfEmitter::finalize(size_t* out_size) {
+    if (!text_section_ || !shstrtab_section_ || !strtab_section_ || !symtab_section_) return nullptr;
+
+    uint32_t name_null = 0;
+    uint32_t name_text = shstrtab_section_->write_string(".text");
+    uint32_t name_shstrtab = shstrtab_section_->write_string(".shstrtab");
+    uint32_t name_strtab = shstrtab_section_->write_string(".strtab");
+    uint32_t name_symtab = shstrtab_section_->write_string(".symtab");
+
+    uint16_t num_sections = 5;
+    size_t header_size = sizeof(Elf64Ehdr);
+    size_t text_offset = header_size;
+    size_t shstrtab_offset = text_offset + text_section_->size();
+    size_t strtab_offset = shstrtab_offset + shstrtab_section_->size();
+    size_t symtab_offset = strtab_offset + strtab_section_->size();
+    size_t shoff = (symtab_offset + symtab_section_->size() + 7) & ~7UL;
+
+    size_t total_elf_size = shoff + sizeof(Elf64Shdr) * num_sections;
+    uint8_t* buffer = static_cast<uint8_t*>(malloc(total_elf_size));
+    if (!buffer) return nullptr;
+    sys::freestanding_memset(buffer, 0, total_elf_size);
+
+    alignas(16) Elf64Ehdr ehdr;
+    sys::freestanding_memset(&ehdr, 0, sizeof(ehdr));
+    ehdr.e_ident[0] = 0x7f; ehdr.e_ident[1] = 'E'; ehdr.e_ident[2] = 'L'; ehdr.e_ident[3] = 'F';
+    ehdr.e_ident[4] = 2; ehdr.e_ident[5] = 1; ehdr.e_ident[6] = 1; ehdr.e_ident[7] = 0;
+    ehdr.e_type = ET_REL;
+    ehdr.e_machine = machine_arch_;
+    ehdr.e_version = EV_CURRENT;
+    ehdr.e_shoff = shoff;
+    ehdr.e_ehsize = sizeof(Elf64Ehdr);
+    ehdr.e_shentsize = sizeof(Elf64Shdr);
+    ehdr.e_shnum = num_sections;
+    ehdr.e_shstrndx = 2;
+
+    sys::freestanding_memcpy(buffer, &ehdr, sizeof(ehdr));
+    size_t cur = sizeof(ehdr);
+
+    if (text_section_->size() > 0) {
+        sys::freestanding_memcpy(buffer + cur, text_section_->data(), text_section_->size());
+        cur += text_section_->size();
+    }
+    if (shstrtab_section_->size() > 0) {
+        sys::freestanding_memcpy(buffer + cur, shstrtab_section_->data(), shstrtab_section_->size());
+        cur += shstrtab_section_->size();
+    }
+    if (strtab_section_->size() > 0) {
+        sys::freestanding_memcpy(buffer + cur, strtab_section_->data(), strtab_section_->size());
+        cur += strtab_section_->size();
+    }
+    if (symtab_section_->size() > 0) {
+        sys::freestanding_memcpy(buffer + cur, symtab_section_->data(), symtab_section_->size());
+        cur += symtab_section_->size();
+    }
+
+    Elf64Shdr* shdrs = reinterpret_cast<Elf64Shdr*>(buffer + shoff);
+    shdrs[0].sh_name = name_null; shdrs[0].sh_type = SHT_NULL;
+    shdrs[1].sh_name = name_text; shdrs[1].sh_type = SHT_PROGBITS; shdrs[1].sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+    shdrs[1].sh_offset = text_offset; shdrs[1].sh_size = text_section_->size(); shdrs[1].sh_addralign = 16;
+    shdrs[2].sh_name = name_shstrtab; shdrs[2].sh_type = SHT_STRTAB; shdrs[2].sh_offset = shstrtab_offset; shdrs[2].sh_size = shstrtab_section_->size(); shdrs[2].sh_addralign = 1;
+    shdrs[3].sh_name = name_strtab; shdrs[3].sh_type = SHT_STRTAB; shdrs[3].sh_offset = strtab_offset; shdrs[3].sh_size = strtab_section_->size(); shdrs[3].sh_addralign = 1;
+    shdrs[4].sh_name = name_symtab; shdrs[4].sh_type = SHT_SYMTAB; shdrs[4].sh_offset = symtab_offset; shdrs[4].sh_size = symtab_section_->size(); shdrs[4].sh_link = 3; shdrs[4].sh_info = 1; shdrs[4].sh_addralign = 8; shdrs[4].sh_entsize = sizeof(Elf64Sym);
+
+    if (out_size) *out_size = total_elf_size;
+    return buffer;
+}
+
 } // namespace backend
 } // namespace ana

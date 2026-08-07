@@ -8,6 +8,8 @@
 #include "../src/backend/ana_lowerer.h"
 #include "../src/backend/inline_cache.h"
 #include "../src/backend/aarch64_backend.h"
+#include "../src/backend/gdb_jit.h"
+#include "../src/backend/dwarf_emitter.h"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -755,6 +757,82 @@ static bool test_simd_vector_and_float_isa() {
     return true;
 }
 
+static bool test_gdb_jit_registration_and_dwarf() {
+    print_msg("[Test 17/17] GDB JIT Registration & DWARF Line Info... ");
+
+    // Test 1: JIT Symbol Registration
+    uint8_t dummy_code[16] = { 0x90, 0xC3 }; // nop; ret
+    backend::jit_code_entry* entry = backend::register_jit_code(dummy_code, 2, "test_jit_fn");
+    if (!entry) {
+        print_msg("FAILED (JIT Registration Entry Null)\n");
+        return false;
+    }
+
+    if (backend::__jit_debug_descriptor.first_entry != entry) {
+        print_msg("FAILED (JIT Descriptor Link Chain)\n");
+        backend::unregister_jit_code(entry);
+        return false;
+    }
+
+    if (!entry->symfile_addr || entry->symfile_size == 0) {
+        print_msg("FAILED (JIT ELF Symfile Size Zero)\n");
+        backend::unregister_jit_code(entry);
+        return false;
+    }
+
+    // Verify ELF Magic Bytes 0x7F 'E' 'L' 'F' inside registered JIT memory image
+    const uint8_t* magic = reinterpret_cast<const uint8_t*>(entry->symfile_addr);
+    if (magic[0] != 0x7F || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F') {
+        print_msg("FAILED (JIT In-Memory ELF Magic)\n");
+        backend::unregister_jit_code(entry);
+        return false;
+    }
+
+    backend::unregister_jit_code(entry);
+    if (backend::__jit_debug_descriptor.first_entry != nullptr) {
+        print_msg("FAILED (JIT Unregistration Unlink)\n");
+        return false;
+    }
+
+    // Test 2: Freestanding DWARF 4 Line Info Generation
+    backend::DwarfEmitter dwarf;
+    dwarf.add_line_entry(10, 0);
+    dwarf.add_line_entry(15, 8);
+    dwarf.add_line_entry(20, 16);
+
+    size_t line_sz = 0;
+    uint8_t* line_sec = dwarf.build_debug_line_section("test_module.ana", &line_sz);
+    if (!line_sec || line_sz < 30) {
+        print_msg("FAILED (DWARF .debug_line Generation)\n");
+        if (line_sec) free(line_sec);
+        return false;
+    }
+
+    // Verify DWARF version 4 (offset 4, uint16_t)
+    uint16_t version = *reinterpret_cast<uint16_t*>(&line_sec[4]);
+    if (version != 4) {
+        print_msg("FAILED (DWARF Version ");
+        print_int(version);
+        print_msg(")\n");
+        free(line_sec);
+        return false;
+    }
+
+    free(line_sec);
+
+    size_t info_sz = 0;
+    uint8_t* info_sec = dwarf.build_debug_info_section("test_cu", &info_sz);
+    if (!info_sec || info_sz == 0) {
+        print_msg("FAILED (DWARF .debug_info Generation)\n");
+        if (info_sec) free(info_sec);
+        return false;
+    }
+    free(info_sec);
+
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -777,10 +855,11 @@ bool run_all_tests() {
     ok &= test_aot_elf_compilation();
     ok &= test_aarch64_instruction_encoding();
     ok &= test_simd_vector_and_float_isa();
+    ok &= test_gdb_jit_registration_and_dwarf();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 16 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 17 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

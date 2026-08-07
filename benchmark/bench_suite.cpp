@@ -1,0 +1,276 @@
+#include "bench_suite.h"
+
+#if defined(__linux__) && defined(__x86_64__)
+struct timespec_raw {
+    int64_t tv_sec;
+    int64_t tv_nsec;
+};
+
+static uint64_t get_time_ns() {
+    timespec_raw ts;
+    int64_t ret;
+    __asm__ __volatile__(
+        "syscall"
+        : "=a"(ret)
+        : "a"(228), "D"(1 /* CLOCK_MONOTONIC */), "S"(&ts)
+        : "rcx", "r11", "memory"
+    );
+    if (ret == 0) {
+        return static_cast<uint64_t>(ts.tv_sec) * 1000000000ULL + static_cast<uint64_t>(ts.tv_nsec);
+    }
+    return 0;
+}
+#else
+static uint64_t get_time_ns() { return 0; }
+#endif
+
+static inline uint64_t get_cycles() {
+#if defined(__x86_64__)
+    uint32_t lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return (static_cast<uint64_t>(hi) << 32) | lo;
+#else
+    return 0;
+#endif
+}
+
+namespace ana {
+namespace benchmark {
+
+using namespace backend;
+using namespace sys;
+
+static void print_str(const char* str) {
+    if (str) sys::raw_write(1, str, sys::freestanding_strlen(str));
+}
+
+static void print_uint(uint64_t n) {
+    char buf[32];
+    int pos = 30;
+    buf[31] = '\0';
+    if (n == 0) {
+        buf[pos--] = '0';
+    } else {
+        while (n > 0) {
+            buf[pos--] = '0' + (n % 10);
+            n /= 10;
+        }
+    }
+    print_str(&buf[pos + 1]);
+}
+
+static void print_double_2dec(double val) {
+    uint64_t int_part = static_cast<uint64_t>(val);
+    uint64_t frac_part = static_cast<uint64_t>((val - static_cast<double>(int_part)) * 100.0);
+    print_uint(int_part);
+    print_str(".");
+    if (frac_part < 10) print_str("0");
+    print_uint(frac_part);
+}
+
+static void print_benchmark_header(const char* title) {
+    print_str("\n-------------------------------------------------------\n");
+    print_str(" [BENCHMARK] ");
+    print_str(title);
+    print_str("\n-------------------------------------------------------\n");
+}
+
+static void print_benchmark_result(const BenchResult& res) {
+    print_str("  Total Iterations : "); print_uint(res.iterations); print_str("\n");
+    print_str("  Total Elapsed Time: "); print_uint(res.total_ns / 1000000ULL); print_str(" ms ("); print_uint(res.total_ns); print_str(" ns)\n");
+    print_str("  Throughput       : "); print_double_2dec(res.ops_per_sec); print_str(" Ops/sec\n");
+    print_str("  Latency          : "); print_double_2dec(res.ns_per_op); print_str(" ns/op\n");
+    if (res.total_cycles > 0) {
+        double cycles_per_op = static_cast<double>(res.total_cycles) / static_cast<double>(res.iterations);
+        print_str("  Cycles per Op    : "); print_double_2dec(cycles_per_op); print_str(" cycles/op\n");
+    }
+}
+
+// 1. JIT Compilation Speed Benchmark
+static void bench_jit_compilation_speed() {
+    print_benchmark_header("JIT Compilation Throughput (Parse + RegAlloc + Machine Code Emission)");
+
+    const char* sample_program =
+        ".fn bench_fn(p0: i64, p1: i64) -> i64\n"
+        "    .registers 4 local\n"
+        "    add-int/64 v0, p0, p1\n"
+        "    sub-int/64 v1, v0, 500\n"
+        "    mul-int/32 v2, v1, 2\n"
+        "    return-val v2\n"
+        ".end_fn\n";
+
+    constexpr uint64_t iterations = 50000;
+    AnastasiaJitRuntime runtime;
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    for (uint64_t i = 0; i < iterations; ++i) {
+        frontend::ArenaAllocator arena;
+        frontend::Parser parser(sample_program, arena);
+        frontend::Program* prog = parser.parse_program();
+        AnaLowerer lowerer(runtime);
+        void* code = lowerer.compile_function(prog->functions, prog);
+        (void)code;
+    }
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "JIT Compilation Speed";
+    res.iterations = iterations;
+    res.total_ns = t_end - t_start;
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(iterations) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(iterations);
+
+    print_benchmark_result(res);
+}
+
+// 2. High-Iteration Execution Loop Benchmark (100,000,000 iterations)
+static void bench_execution_loop() {
+    print_benchmark_header("JIT Machine Code Loop Execution Speed (100M Iterations)");
+
+    const char* loop_program =
+        ".fn loop_fn(p0: i64) -> i64\n"
+        "    .registers 2 local\n"
+        "    move-const v0, 0\n"
+        "    move-const v1, 0\n"
+        "loop_start:\n"
+        "    if-ge likely v1, p0, loop_end\n"
+        "    add-int/64 v0, v0, v1\n"
+        "    add-int/64 v1, v1, 1\n"
+        "    goto loop_start\n"
+        "loop_end:\n"
+        "    return-val v0\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(loop_program, arena);
+    frontend::Program* prog = parser.parse_program();
+    AnastasiaJitRuntime runtime;
+    AnaLowerer lowerer(runtime);
+
+    typedef int64_t (*LoopFn)(int64_t);
+    LoopFn compiled_loop = reinterpret_cast<LoopFn>(lowerer.compile_function(prog->functions, prog));
+    if (!compiled_loop) return;
+
+    constexpr uint64_t loop_iters = 100000000ULL;
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    int64_t result = compiled_loop(static_cast<int64_t>(loop_iters));
+    (void)result;
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "100M Iteration Loop";
+    res.iterations = loop_iters;
+    res.total_ns = t_end - t_start;
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(loop_iters) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(loop_iters);
+
+    print_benchmark_result(res);
+}
+
+// 3. 128-bit SIMD Vector Throughput Benchmark
+static void bench_simd_vector_throughput() {
+    print_benchmark_header("128-bit SIMD Vector Execution Speed (10M Iterations)");
+
+    const char* vec_program =
+        ".fn vec_bench_fn(p0: ptr, p1: ptr, p2: i64) -> void\n"
+        "    .registers 2 local\n"
+        "    move-const v0, 0\n"
+        "vec_loop:\n"
+        "    if-ge likely v0, p2, vec_end\n"
+        "    add-vector/i32x4 p0, p0, p1\n"
+        "    add-int/64 v0, v0, 1\n"
+        "    goto vec_loop\n"
+        "vec_end:\n"
+        "    return-void\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(vec_program, arena);
+    frontend::Program* prog = parser.parse_program();
+    AnastasiaJitRuntime runtime;
+    AnaLowerer lowerer(runtime);
+
+    typedef void (*VecFn)(void*, void*, int64_t);
+    VecFn compiled_vec = reinterpret_cast<VecFn>(lowerer.compile_function(prog->functions, prog));
+    if (!compiled_vec) return;
+
+    constexpr uint64_t vec_iters = 10000000ULL;
+    alignas(16) int32_t a[4] = {10, 20, 30, 40};
+    alignas(16) int32_t b[4] = {1, 2, 3, 4};
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    compiled_vec(a, b, static_cast<int64_t>(vec_iters));
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "128-bit SIMD Vector Throughput";
+    res.iterations = vec_iters * 4; // 4 int32 ops per vector
+    res.total_ns = t_end - t_start;
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(res.iterations) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(res.iterations);
+
+    print_benchmark_result(res);
+}
+
+// 4. ObjectHeap Bump Allocation Speed Benchmark
+static void bench_object_heap_bump_alloc() {
+    print_benchmark_header("ObjectHeap Bump Allocation Speed (1,000,000 Allocations)");
+
+    constexpr uint64_t iterations = 1000000ULL;
+    ObjectHeap& heap = ObjectHeap::instance();
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    for (uint64_t i = 0; i < iterations; ++i) {
+        void* ptr = heap.allocate_object(64, nullptr, 1);
+        (void)ptr;
+    }
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "ObjectHeap Bump Allocation";
+    res.iterations = iterations;
+    res.total_ns = t_end - t_start;
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(iterations) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(iterations);
+
+    print_benchmark_result(res);
+}
+
+void run_all_benchmarks() {
+    print_str("\n=======================================================\n");
+    print_str("  Anastasia v3.0 Bare-Metal Engine Benchmark Suite\n");
+    print_str("=======================================================\n");
+
+    bench_jit_compilation_speed();
+    bench_execution_loop();
+    bench_simd_vector_throughput();
+    bench_object_heap_bump_alloc();
+
+    print_str("\n=======================================================\n");
+    print_str("  BENCHMARK SUITE COMPLETED SUCCESSFULLY!\n");
+    print_str("=======================================================\n\n");
+}
+
+} // namespace benchmark
+} // namespace ana

@@ -1,38 +1,45 @@
-# Anastasia Engine v2.0: Technical Specification & Language Reference
+# Anastasia Engine v3.0: Technical Specification & Ecosystem Reference
 
 ## 1. Overview & Philosophy
 
-**Anastasia v2.0** is a master-level, bare-metal, zero-CRT JIT compiler and execution engine for **Extended Smali** (`.ana`). Designed for maximum execution throughput and zero runtime overhead, Anastasia compiles high-level Extended Smali bytecode directly to native x86_64 machine code at runtime without linking against standard C runtimes (`libc`, `libstdc++`), C++ standard libraries, or third-party dependencies.
+**Anastasia v3.0** is a master-level, bare-metal, zero-CRT compiler ecosystem and execution engine for **Extended Smali** (`.ana`). Designed for maximum execution throughput, zero runtime overhead, and multi-architecture portability, Anastasia compiles high-level Extended Smali programs directly to native x86_64 and AArch64 (ARM64) machine code at runtime (JIT) or emits relocatable ELF object files (`.o`) for static linking (AOT) without linking against standard C runtimes (`libc`, `libstdc++`), C++ standard libraries, or third-party dependencies.
 
 ### Core Architectural Principles
-* **Freestanding Bare-Metal Execution**: Operates exclusively under GCC/Clang freestanding flags (`-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti`) with direct assembly syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_munmap`, `raw_write`, `raw_exit`).
-* **100% Native Freestanding x86_64 Instruction Encoder (`AnaEncoder`)**: Completely eliminates third-party dependencies (AsmJit) by using a native freestanding machine code emitter emitting direct bytes into executable memory.
+* **Freestanding Bare-Metal Execution**: Operates exclusively under GCC/Clang freestanding flags (`-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti`) with direct assembly syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_munmap`, `raw_write`, `raw_read`, `raw_open`, `raw_close`, `raw_clone`, `raw_futex`, `raw_exit`).
+* **JIT / AOT Duality Engine**: Dual emission targets via `AnaTargetBackend`: `MemoryTarget` (JIT executable memory) and `ElfEmitter` (relocatable 64-bit ELF object files with symbol tables and relocations).
+* **Multi-Architecture Target Portability**: Pluggable backend architecture supporting **x86_64** (`X86_64TargetBackend` / `AnaEncoder`) and **AArch64 / ARM64** (`AArch64TargetBackend` / `AArch64Encoder`).
+* **128-bit SIMD Vector & Floating-Point ISA Extensions**: Native SSE2 instruction encodings for single/double precision floats (`f32`/`f64`) and 128-bit SIMD packed integer vector operations (`i32x4`) using `XMM0`–`XMM15` vector registers.
 * **Unbounded Virtual Registers & Stack Spilling (`AnaRegAlloc`)**: Implements dynamic instruction liveness analysis and linear scan register allocation for arbitrary virtual registers (`v0..vN`), automatically spilling excess registers to 16-byte aligned stack slots (`[rbp - 8*N]`).
-* **Object Heap Lifecycle & Instantiation (`ObjectHeap` & `new-instance`)**: Provides `.new-instance dest, ClassName` bytecode and a thread-local bump object heap (`ObjectHeap`) with standardized object headers (`vtable_ptr` + `class_id` + `size`).
-* **Atomic Multi-Threaded W^X Code Patching & `clflush` Invalidation**: Emits atomic 64-bit store operations during Inline Cache backpatching combined with `clflush` / `mfence` and instruction cache invalidation boundaries.
+* **GDB JIT Registration & DWARF 4 Line Info**: Standard GDB/LLDB in-memory JIT descriptor interface (`__jit_debug_descriptor`, `__jit_debug_register_code()`) and freestanding DWARF 4 `.debug_line`, `.debug_info`, and `.debug_abbrev` section generator for source-level debugging.
+* **Bare-Metal Multithreading & SSA-IR Optimization**: Freestanding kernel thread creation via `raw_clone` (sys_clone, syscall 56), lock-free synchronization via `raw_futex` (sys_futex, syscall 202), and Dominator-Tree SSA IR optimizations (`mem2reg`, LICM, GVN).
 
 ---
 
 ## 2. System Architecture
 
 ```
- ┌─────────────────────────────────────────────────────────────┐
- │                    Anastasia Frontend                       │
- │  Smali Lexer ──> SMALI Parser ──> AST ──> Liveness Analysis │
- │  Arena-Based AST Memory (Zero-CRT, Lock-Free Thread-Local)  │
- └────────────────────────────┬────────────────────────────────┘
-                              │
- ┌────────────────────────────▼────────────────────────────────┐
- │              Anastasia Bare-Metal JIT Emitter               │
- │  Native x86_64 Encoder (AnaEncoder) (Zero-AsmJit / Zero-CRT) │
- │  RegAlloc Stack Frame Generator & Unbounded Virtual Regs    │
- └────────────────────────────┬────────────────────────────────┘
-                              │
- ┌────────────────────────────▼────────────────────────────────┐
- │              Anastasia Runtime & Memory System              │
- │  Raw mmap/mprotect W^X Memory Allocator & Atomic Patching   │
- │  Object Heap Allocator (.new-instance & Monomorphic IC)     │
- └─────────────────────────────────────────────────────────────┘
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │                        Anastasia Frontend Core                          │
+ │   Smali Lexer ──> SMALI Parser ──> AST ──> Liveness & SSA Optimizer    │
+ │   Arena-Based AST Memory (Zero-CRT, Lock-Free Thread-Local Arena)       │
+ └────────────────────────────────────┬────────────────────────────────────┘
+                                      │
+ ┌────────────────────────────────────▼────────────────────────────────────┐
+ │                  Anastasia Target Backend Router                        │
+ │           AnaTargetBackend Interface (JIT / AOT Duality Engine)        │
+ └───────────────────┬─────────────────────────────────┬───────────────────┘
+                     │                                 │
+ ┌───────────────────▼──────────────┐  ┌───────────────▼───────────────────┐
+ │      x86_64 Target Backend       │  │     AArch64 (ARM64) Target      │
+ │  Native SSE2 & General Encoder   │  │ Fixed 32-bit Machine Code Emitter │
+ │  System V AMD64 ABI Stack Frame  │  │  AAPCS64 Frame & Register File    │
+ └───────────────────┬──────────────┘  └───────────────┬───────────────────┘
+                     │                                 │
+ ┌───────────────────▼─────────────────────────────────▼───────────────────┐
+ │                     Anastasia Output Emission Sinks                     │
+ │  MemoryTarget (W^X JIT Memory Pages) │ ElfEmitter (Relocatable ELF .o)  │
+ │  GDB JIT Symbol Descriptor Chain     │ DWARF 4 Line Info (.debug_line)  │
+ └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -43,24 +50,24 @@
 An Extended Smali file (`.ana`) contains class definitions (with optional virtual method tables) followed by top-level or method function declarations. Basic blocks are delineated by label declarations (`label_name:`).
 
 ### 3.2 Type System
-Anastasia supports 5 fundamental primitive and reference types:
+Anastasia supports primitive, vector, and reference types:
 * `i32`: 32-bit signed integer.
 * `i64`: 64-bit signed integer.
 * `f32`: 32-bit single-precision floating point.
+* `f64`: 64-bit double-precision floating point.
+* `i32x4`: 128-bit vector packed integer (4 x 32-bit integers).
 * `ptr`: 64-bit memory address pointer (used for object references, structures, and arrays).
 * `void`: Empty return type.
 
 ### 3.3 Register Model & Stack Spilling
-Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers are mapped dynamically to SystemV AMD64 physical registers or stack spill slots:
+Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers are mapped dynamically to System V AMD64 / AAPCS64 physical registers or stack spill slots:
 
-| Virtual Register Range | Storage Kind | Location | Description |
-| :--- | :--- | :--- | :--- |
-| `p0`..`p5` | Parameter | `%rdi`, `%rsi`, `%rdx`, `%r8`, `%r9`, `%r10` | Function parameter registers |
-| `v0`..`v4` | Physical Register | `%rax`, `%rdx`, `%r8`, `%r9`, `%r10` | High-speed physical scratch registers |
-| `v5`..`vN` | Stack Spill Slot | `[rbp - 8*N]` | Automatically allocated stack frame memory |
-
-> [!NOTE]
-> `%rcx` and `%r11` are reserved exclusively by the JIT backend for shift count pinning (`%cl`) and lowerer temporary scratch, preventing allocation collisions.
+| Virtual Register Range | Storage Kind | x86_64 Location | AArch64 Location | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `p0`..`p5` | Parameter | `%rdi`, `%rsi`, `%rdx`, `%r8`, `%r9`, `%r10` | `x0`..`x7` | Function parameter registers |
+| `v0`..`v4` | Physical Register | `%rax`, `%rdx`, `%r8`, `%r9`, `%r10` | `x0`..`x15` | High-speed physical scratch registers |
+| `v5`..`vN` | Stack Spill Slot | `[rbp - 8*N]` | `[x29, #-8*N]` | Automatically allocated stack frame memory |
+| `xmm0`..`xmm15` | SIMD / Vector | `XMM0`..`XMM15` | `v0`..`v15` | Floating-point and 128-bit vector registers |
 
 ---
 
@@ -70,10 +77,18 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 | :--- | :--- | :--- |
 | **Object Instantiation** | | |
 | `new-instance` | `dest, ClassName` | Allocate heap object memory and bind `vtable_ptr` |
-| **Arithmetic** | | |
+| **Integer Arithmetic** | | |
 | `add-int/32`, `add-int/64` | `dest, src1, src2` | Integer addition (`dest = src1 + src2`) |
 | `sub-int/32`, `sub-int/64` | `dest, src1, src2` | Integer subtraction (`dest = src1 - src2`) |
 | `mul-int/32` | `dest, src1, src2` | Signed integer multiplication |
+| **Floating-Point & SIMD Vector** | | |
+| `add-float/32` | `dest, src1, src2` | Single-precision scalar float addition (`addss`) |
+| `add-float/64` | `dest, src1, src2` | Double-precision scalar float addition (`addsd`) |
+| `sub-float/64` | `dest, src1, src2` | Double-precision scalar float subtraction (`subsd`) |
+| `mul-float/64` | `dest, src1, src2` | Double-precision scalar float multiplication (`mulsd`) |
+| `div-float/64` | `dest, src1, src2` | Double-precision scalar float division (`divsd`) |
+| `add-vector/i32x4` | `dest, src1, src2` | 128-bit packed 32-bit integer SIMD addition (`paddd`) |
+| `sub-vector/i32x4` | `dest, src1, src2` | 128-bit packed 32-bit integer SIMD subtraction (`psubd`) |
 | **Data Movement & Memory** | | |
 | `move-const` | `dest, const_val` | Load 64-bit immediate integer into register |
 | `move` | `dest, src` | Copy contents of source register to destination |
@@ -91,7 +106,7 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 | `if-ge` | `[hint] src1, src2, target` | Jump to `target` if `src1 >= src2` |
 | `if-z` | `[hint] src1, target` | Zero-check branch (`test src1, src1`; jump if zero) |
 | `if-nz` | `[hint] src1, target` | Non-zero check branch (`test src1, src1`; jump if not zero) |
-| `return-val` | `src` | Return integer/pointer value in `%rax` and execute `ret` |
+| `return-val` | `src` | Return integer/pointer value in `%rax` / `x0` and execute `ret` |
 | `return-void` | *(none)* | Return void and execute `ret` |
 | **Bitwise & Shifts** | | |
 | `and-int/32`, `and-int/64` | `dest, src1, src2` | Bitwise AND (`dest = src1 & src2`) |
@@ -110,20 +125,21 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 
 ---
 
-## 5. Building, Testing, and Verification Matrix
+## 5. CLI Usage & Verification Matrix
 
+### 5.1 Command Line Interface
 ```bash
-# 1. Configure freestanding build environment
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+# 1. Execute Extended Smali program in JIT Mode
+./build/anastasia_engine program.ana
 
-# 2. Build Anastasia Engine executable binary
-cmake --build build
+# 2. Compile Extended Smali program to Relocatable ELF Object File (AOT Mode)
+./build/anastasia_engine --aot input.ana output.o
 
-# 3. Execute 13-part QA test matrix and 8-part example execution suite
+# 3. Run full QA matrix test suite and example execution suite
 ./build/anastasia_engine
 ```
 
-### Expected QA Output Verification
+### 5.2 QA Matrix Test Execution Output
 ```
 =======================================================
     Anastasia Bare-Metal Engine QA Test Suite
@@ -133,7 +149,7 @@ cmake --build build
 [Test 3/6] AsmJit JIT Lowering & Bare-Metal Execution... PASSED
 [Test 4/6] OOP Layout, VTable Dispatch & Monomorphic Inline Cache... PASSED
 [Test 5/6] Strict W^X Protection & Instruction Cache Flush... PASSED
-[Test 6/9] Dynamic CPU SIMD Routing... PASSED
+[Test 6/9] Dynamic CPU SIMD Routing... PASSED (Scalar fallback active)
 [Test 7/9] Control Flow, Fused Branches & Fallthrough Optimization... PASSED
 [Test 8/9] Bitwise ISA, %cl Shift Pinning & Popcount... PASSED
 [Test 9/9] Hardware Lock-Free Atomics & Memory Ordering... PASSED
@@ -141,6 +157,16 @@ cmake --build build
 [Test 11/13] Unbounded Virtual Registers & Stack Spilling (v0..v15)... PASSED
 [Test 12/13] Object Instantiation (new-instance) & Heap Allocation... PASSED
 [Test 13/13] Atomic W^X Code Patching & clflush Invalidation... PASSED
+[Test 14/14] AOT Relocatable ELF Object File Emitter (ElfEmitter)... PASSED
+[Test 15/15] AArch64 Backend & Fixed 32-bit Machine Code Emitter... PASSED
+[Test 16/16] Floating-Point & 128-bit SIMD Vector ISA (SSE2)... PASSED
+[Test 17/17] GDB JIT Registration & DWARF Line Info... PASSED
+[Test 18/18] Bare-Metal Threading (raw_clone), Futex & SSA-IR... PASSED
+=======================================================
+    ALL 18 QA MATRIX TESTS SUCCEEDED PERFECTLY!
+=======================================================
+```
+
 ---
 
 ## 6. Architectural Edge Cases & System V Invariants
@@ -148,7 +174,7 @@ cmake --build build
 ### 6.1 System V AMD64 16-Byte Stack Alignment Discipline
 The System V AMD64 ABI requires the stack pointer `%rsp` to be aligned to a 16-byte boundary prior to executing any `call` instruction. `AnaRegAlloc` guarantees this invariant by rounding all stack frame allocations up to the nearest 16-byte multiple:
 $$\text{stack\_frame\_size} = (\text{spill\_count} \times 8 + 15) \land \sim 15\text{UL}$$
-This ensures that helper function invocations (such as `ana_alloc_object`) and virtual method dispatches never crash due to misaligned SIMD vector store operations (`movaps`, `vmovaps`).
+Furthermore, the bare-metal entry point `_start` aligns `%rsp` to 16 bytes (`and $-16, %rsp`) before delegating control to `_start_c`, preventing alignment faults on vector operations (`movaps`, `movdqa`).
 
 ### 6.2 Native Instruction Encoder & SIB Byte Resolution (`AnaEncoder`)
 x86_64 ModR/M addressing contains an instruction encoding ambiguity when using `%rsp` (register index 4) or `%r12` (extended register index 12 where $12 \bmod 8 = 4$) as a memory base register. To prevent silent encoding corruption:
@@ -158,53 +184,3 @@ x86_64 ModR/M addressing contains an instruction encoding ambiguity when using `
 
 ### 6.3 Heap Memory Recycling & Scope Boundaries (`ObjectHeap`)
 `ObjectHeap` provides ultra-fast $O(1)$ bump allocation for live object instances. For batch processing or long-running execution workloads, Anastasia provides region arena reset semantics via `ObjectHeap::instance().reset()`, reclaiming executable heap memory without runtime GC pause overhead.
-
----
-
-## 7. Anastasia v3.0 Strategic Engineering Roadmap
-
-```
- ┌──────────────────────────────────────────────────────────────────┐
- │               Anastasia v3.0 Unified Core Engine                 │
- │     Smali Parser ──> AST ──> Dual Pipeline Target Router         │
- └─────────────────┬──────────────────────────────┬─────────────────┘
-                   │                              │
- ┌─────────────────▼──────────────┐  ┌────────────▼─────────────────┐
- │   Fast JIT Single-Pass Stream  │  │  AOT SSA-IR Optimization Pipeline │
- │  MemoryTarget (W^X mmap Pages) │  │  ObjectFileTarget (ELF / PE .o) │
- └─────────────────┬──────────────┘  └────────────┬─────────────────┘
-                   │                              │
- ┌─────────────────▼──────────────────────────────▼─────────────────┐
- │               Multi-Architecture Target Backends                 │
- │     x86_64Backend (AnaEncoder)    │    aarch64Backend (ARM64)      │
- └──────────────────────────────────────────────────────────────────┘
-```
-
-### 7.1 AOT Compilation: The JIT/AOT Duality Engine
-Refactor `AnaEncoder` and `AnaRegAlloc` to target dual output sinks:
-* **MemoryTarget (JIT)**: Direct byte emission to executable `mmap` pages for zero-latency runtime code generation.
-* **ObjectFileTarget (AOT)**: `ElfEmitter` (ELF `.o` for Linux/Bare-Metal) and `PeEmitter` (COFF/PE `.obj` for Windows), emitting relocatable `.text` sections with standard relocation symbols (`R_X86_64_PC32`, `R_X86_64_64`). Solves strict W^X kernel lockdown policies for OS kernel and bootloader development.
-
-### 7.2 AArch64 (ARM64) Target Backend Expansion
-Abstract backend architecture into an `AnaTargetBackend` interface:
-* **`x86_64Backend`**: Current native `AnaEncoder` (ModR/M, REX, SIB byte emission).
-* **`aarch64Backend`**: Native ARM64 emitter producing fixed 32-bit instructions, mapping `v0..vN` to ARM64 registers `x0..x30` and NEON vector registers.
-
-### 7.3 Float & SIMD Vector ISA Extension
-* **Floating Point Opcodes**: `add-f32/64`, `sub-f32/64`, `mul-f32/64`, `div-f32/64`, `sqrt-f32/64`.
-* **Vector Opcodes**: `add-i32x4` (4x32-bit SIMD integer addition), `add-f32x4` (4x32-bit packed float addition).
-* **Dual Register File Allocation**: Extend `AnaRegAlloc` to manage separate Integer (`RAX`–`R15`) and Vector (`XMM0`–`XMM15`) register files.
-
-### 7.4 GDB JIT Registration & DWARF Debug Information
-* **GDB JIT Registration Interface**: Implement `jit_descriptor_t` and `jit_code_entry_t` protocol to register JIT executable memory addresses with GDB/LLDB debuggers.
-* **DWARF Generation (AOT)**: Emit `.debug_info` and `.debug_line` ELF sections to enable source-level debugging in standard toolchains.
-
-### 7.5 OS-Level Freestanding Threading & Synchronization
-* **Raw Syscall Threading**: Expose `sys_clone` (syscall 56) and `sys_futex` (syscall 202) for freestanding multi-threaded execution without `libc` or `pthread`.
-* **Thread Opcodes**: `.thread-spawn`, `.futex-wait`, `.futex-wake`.
-
-### 7.6 AOT Static Single Assignment Intermediate Representation (SSA-IR)
-* **Dual-Pipeline Architecture**: Keep single-pass JIT lowering for high compilation speed, while introducing `AnaSSAIR` for AOT mode.
-* **AOT Optimizations**: Loop Invariant Code Motion (LICM), Dead Store Elimination (DSE), and Graph-Coloring Register Allocation.
-
-

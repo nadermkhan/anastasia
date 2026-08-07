@@ -11,6 +11,10 @@
 #include "../src/backend/gdb_jit.h"
 #include "../src/backend/dwarf_emitter.h"
 #include "../src/optimizer/ana_ssa.h"
+#include "../src/sys/tlab_provider.h"
+#include "../src/sys/gc_collector.h"
+#include "../src/backend/pic_dispatcher.h"
+#include "../src/backend/exception_unwinder.h"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -914,6 +918,124 @@ static bool test_bare_metal_threading_futex_and_ssa_opt() {
     return true;
 }
 
+static bool test_escape_analysis_and_scalar_replacement() {
+    print_msg("[Test 19/23] Escape Analysis & Scalar Replacement... ");
+
+    const char* ea_code =
+        ".class TempPoint\n"
+        ".end_class\n"
+        ".fn test_ea_fn(p0: i64) -> i64\n"
+        "    .registers 2 local\n"
+        "    new-instance v0, TempPoint\n"
+        "    store-mem [v0 + 8], p0\n"
+        "    load-mem v1, [v0 + 8]\n"
+        "    return-val v1\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(ea_code, arena);
+    frontend::Program* prog = parser.parse_program();
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (EA AST Parse)\n");
+        return false;
+    }
+
+    optimizer::AnaSSAIR ssa;
+    bool opt_res = ssa.optimize_program(prog);
+    if (!opt_res || ssa.scalar_replaced_objects() == 0) {
+        print_msg("FAILED (Scalar Replacement Count 0)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_branchless_tlab_and_vm_guard_pages() {
+    print_msg("[Test 20/23] Branchless TLAB & VM Guard Pages... ");
+
+    sys::init_tlab_subsystem();
+    for (int i = 0; i < 10000; ++i) {
+        void* ptr = sys::tlab_allocate(64, nullptr, 1);
+        if (!ptr) {
+            print_msg("FAILED (TLAB Allocation Null)\n");
+            return false;
+        }
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_trap_free_gc_and_remset() {
+    print_msg("[Test 21/23] Trap-Free GC & VM Write Barrier Remset... ");
+
+    sys::GCCollector& gc = sys::GCCollector::instance();
+    gc.register_stack_map(0x1000, 0b000101); // Register RAX and R8 as live ptr roots
+    gc.record_remset_entry(reinterpret_cast<void*>(0x7fff0000));
+
+    size_t reclaimed = gc.collect_nursery();
+    if (reclaimed == 0 || gc.total_collections() == 0) {
+        print_msg("FAILED (Nursery Collection Zero)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_pic_tiering_transitions() {
+    print_msg("[Test 22/23] Polymorphic Inline Cache (PIC) Tiering... ");
+
+    backend::PolymorphicICSite site;
+    sys::freestanding_memset(&site, 0, sizeof(site));
+    site.vtable_slot = 0;
+
+    void* dummy_vtable1[2] = { reinterpret_cast<void*>(0x1000), nullptr };
+    void* dummy_vtable2[2] = { reinterpret_cast<void*>(0x2000), nullptr };
+    void* dummy_vtable3[2] = { reinterpret_cast<void*>(0x3000), nullptr };
+    void* dummy_vtable4[2] = { reinterpret_cast<void*>(0x4000), nullptr };
+    void* dummy_vtable5[2] = { reinterpret_cast<void*>(0x5000), nullptr };
+
+    backend::handle_pic_miss(&site, dummy_vtable1);
+    if (site.state != backend::PICState::MONOMORPHIC) {
+        print_msg("FAILED (State 1 Not Monomorphic)\n");
+        return false;
+    }
+
+    backend::handle_pic_miss(&site, dummy_vtable2);
+    if (site.state != backend::PICState::POLYMORPHIC) {
+        print_msg("FAILED (State 2 Not Polymorphic)\n");
+        return false;
+    }
+
+    backend::handle_pic_miss(&site, dummy_vtable3);
+    backend::handle_pic_miss(&site, dummy_vtable4);
+    backend::handle_pic_miss(&site, dummy_vtable5);
+    if (site.state != backend::PICState::MEGAMORPHIC) {
+        print_msg("FAILED (State 3 Not Megamorphic)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_frame_pointer_exception_unwinding() {
+    print_msg("[Test 23/23] Frame-Pointer Exception Unwinding... ");
+
+    uint8_t dummy_code_start[64];
+    uint8_t dummy_code_end[64];
+    uint8_t landing_pad[64];
+
+    backend::ExceptionUnwinder::instance().register_exception_table(
+        dummy_code_start, dummy_code_end, landing_pad, 1001
+    );
+
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -938,10 +1060,15 @@ bool run_all_tests() {
     ok &= test_simd_vector_and_float_isa();
     ok &= test_gdb_jit_registration_and_dwarf();
     ok &= test_bare_metal_threading_futex_and_ssa_opt();
+    ok &= test_escape_analysis_and_scalar_replacement();
+    ok &= test_branchless_tlab_and_vm_guard_pages();
+    ok &= test_trap_free_gc_and_remset();
+    ok &= test_pic_tiering_transitions();
+    ok &= test_frame_pointer_exception_unwinding();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 18 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 23 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

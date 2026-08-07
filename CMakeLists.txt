@@ -19,6 +19,8 @@ set(SOURCES
     src/sys/sys_entry.cpp
     src/sys/cpu_features.cpp
     src/sys/object_heap.cpp
+    src/sys/tlab_provider.cpp
+    src/sys/gc_collector.cpp
     src/frontend/ana_lexer.cpp
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp
@@ -27,6 +29,8 @@ set(SOURCES
     src/backend/gdb_jit.cpp
     src/backend/dwarf_emitter.cpp
     src/backend/inline_cache.cpp
+    src/backend/pic_dispatcher.cpp
+    src/backend/exception_unwinder.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
     src/backend/ana_lowerer.cpp
@@ -44,6 +48,8 @@ set(BENCH_SOURCES
     src/sys/sys_entry.cpp
     src/sys/cpu_features.cpp
     src/sys/object_heap.cpp
+    src/sys/tlab_provider.cpp
+    src/sys/gc_collector.cpp
     src/frontend/ana_lexer.cpp
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp
@@ -52,6 +58,8 @@ set(BENCH_SOURCES
     src/backend/gdb_jit.cpp
     src/backend/dwarf_emitter.cpp
     src/backend/inline_cache.cpp
+    src/backend/pic_dispatcher.cpp
+    src/backend/exception_unwinder.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
     src/backend/ana_lowerer.cpp

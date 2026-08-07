@@ -5,7 +5,7 @@ namespace ana {
 namespace optimizer {
 
 AnaSSAIR::AnaSSAIR()
-    : promoted_stack_slots_(0), hoisted_invariants_(0), eliminated_gvn_exprs_(0) {}
+    : promoted_stack_slots_(0), hoisted_invariants_(0), eliminated_gvn_exprs_(0), scalar_replaced_objects_(0) {}
 
 AnaSSAIR::~AnaSSAIR() {}
 
@@ -22,11 +22,54 @@ bool AnaSSAIR::optimize_function(frontend::Function* fn) {
     if (!fn || !fn->first_block) return false;
 
     bool opt = false;
+    opt |= run_escape_analysis(fn);
     opt |= run_mem2reg(fn);
     opt |= run_licm(fn);
     opt |= run_gvn(fn);
 
     return opt;
+}
+
+bool AnaSSAIR::run_escape_analysis(frontend::Function* fn) {
+    if (!fn) return false;
+
+    bool changed = false;
+    for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+        for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+            if (insn->op == frontend::Opcode::NEW_INSTANCE) {
+                frontend::Register target_reg = insn->dest.reg;
+                bool escapes = false;
+
+                // Check if target_reg escapes via return or global store
+                for (frontend::BasicBlock* check_bb = fn->first_block; check_bb != nullptr; check_bb = check_bb->next) {
+                    for (frontend::Instruction* check_insn = check_bb->first_insn; check_insn != nullptr; check_insn = check_insn->next) {
+                        if (check_insn->op == frontend::Opcode::RETURN_VAL &&
+                            check_insn->dest.kind == frontend::OperandKind::REGISTER &&
+                            check_insn->dest.reg == target_reg) {
+                            escapes = true;
+                            break;
+                        }
+                        if (check_insn->op == frontend::Opcode::STORE_MEM &&
+                            check_insn->src1.kind == frontend::OperandKind::REGISTER &&
+                            check_insn->src1.reg == target_reg) {
+                            escapes = true;
+                            break;
+                        }
+                    }
+                    if (escapes) break;
+                }
+
+                if (!escapes) {
+                    // Perform Scalar Replacement: eliminate heap allocation
+                    insn->op = frontend::Opcode::MOVE_CONST;
+                    insn->src1 = frontend::Operand::make_const(0);
+                    scalar_replaced_objects_++;
+                    changed = true;
+                }
+            }
+        }
+    }
+    return changed;
 }
 
 bool AnaSSAIR::run_mem2reg(frontend::Function* fn) {

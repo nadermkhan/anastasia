@@ -159,3 +159,52 @@ x86_64 ModR/M addressing contains an instruction encoding ambiguity when using `
 ### 6.3 Heap Memory Recycling & Scope Boundaries (`ObjectHeap`)
 `ObjectHeap` provides ultra-fast $O(1)$ bump allocation for live object instances. For batch processing or long-running execution workloads, Anastasia provides region arena reset semantics via `ObjectHeap::instance().reset()`, reclaiming executable heap memory without runtime GC pause overhead.
 
+---
+
+## 7. Anastasia v3.0 Strategic Engineering Roadmap
+
+```
+ ┌──────────────────────────────────────────────────────────────────┐
+ │               Anastasia v3.0 Unified Core Engine                 │
+ │     Smali Parser ──> AST ──> Dual Pipeline Target Router         │
+ └─────────────────┬──────────────────────────────┬─────────────────┘
+                   │                              │
+ ┌─────────────────▼──────────────┐  ┌────────────▼─────────────────┐
+ │   Fast JIT Single-Pass Stream  │  │  AOT SSA-IR Optimization Pipeline │
+ │  MemoryTarget (W^X mmap Pages) │  │  ObjectFileTarget (ELF / PE .o) │
+ └─────────────────┬──────────────┘  └────────────┬─────────────────┘
+                   │                              │
+ ┌─────────────────▼──────────────────────────────▼─────────────────┐
+ │               Multi-Architecture Target Backends                 │
+ │     x86_64Backend (AnaEncoder)    │    aarch64Backend (ARM64)      │
+ └──────────────────────────────────────────────────────────────────┘
+```
+
+### 7.1 AOT Compilation: The JIT/AOT Duality Engine
+Refactor `AnaEncoder` and `AnaRegAlloc` to target dual output sinks:
+* **MemoryTarget (JIT)**: Direct byte emission to executable `mmap` pages for zero-latency runtime code generation.
+* **ObjectFileTarget (AOT)**: `ElfEmitter` (ELF `.o` for Linux/Bare-Metal) and `PeEmitter` (COFF/PE `.obj` for Windows), emitting relocatable `.text` sections with standard relocation symbols (`R_X86_64_PC32`, `R_X86_64_64`). Solves strict W^X kernel lockdown policies for OS kernel and bootloader development.
+
+### 7.2 AArch64 (ARM64) Target Backend Expansion
+Abstract backend architecture into an `AnaTargetBackend` interface:
+* **`x86_64Backend`**: Current native `AnaEncoder` (ModR/M, REX, SIB byte emission).
+* **`aarch64Backend`**: Native ARM64 emitter producing fixed 32-bit instructions, mapping `v0..vN` to ARM64 registers `x0..x30` and NEON vector registers.
+
+### 7.3 Float & SIMD Vector ISA Extension
+* **Floating Point Opcodes**: `add-f32/64`, `sub-f32/64`, `mul-f32/64`, `div-f32/64`, `sqrt-f32/64`.
+* **Vector Opcodes**: `add-i32x4` (4x32-bit SIMD integer addition), `add-f32x4` (4x32-bit packed float addition).
+* **Dual Register File Allocation**: Extend `AnaRegAlloc` to manage separate Integer (`RAX`–`R15`) and Vector (`XMM0`–`XMM15`) register files.
+
+### 7.4 GDB JIT Registration & DWARF Debug Information
+* **GDB JIT Registration Interface**: Implement `jit_descriptor_t` and `jit_code_entry_t` protocol to register JIT executable memory addresses with GDB/LLDB debuggers.
+* **DWARF Generation (AOT)**: Emit `.debug_info` and `.debug_line` ELF sections to enable source-level debugging in standard toolchains.
+
+### 7.5 OS-Level Freestanding Threading & Synchronization
+* **Raw Syscall Threading**: Expose `sys_clone` (syscall 56) and `sys_futex` (syscall 202) for freestanding multi-threaded execution without `libc` or `pthread`.
+* **Thread Opcodes**: `.thread-spawn`, `.futex-wait`, `.futex-wake`.
+
+### 7.6 AOT Static Single Assignment Intermediate Representation (SSA-IR)
+* **Dual-Pipeline Architecture**: Keep single-pass JIT lowering for high compilation speed, while introducing `AnaSSAIR` for AOT mode.
+* **AOT Optimizations**: Loop Invariant Code Motion (LICM), Dead Store Elimination (DSE), and Graph-Coloring Register Allocation.
+
+

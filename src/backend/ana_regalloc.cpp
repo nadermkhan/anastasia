@@ -85,13 +85,14 @@ RegLocation AnaRegAlloc::get_param_loc(uint32_t param_idx) const {
 }
 
 RegLocation AnaRegAlloc::get_local_loc(uint32_t local_idx) const {
-    if (local_idx < local_count_) {
+    if (local_idx < local_count_ && local_idx < 64) {
         return local_locs_[local_idx];
     }
     RegLocation loc;
     loc.kind = RegLocKind::STACK_SPILL;
     loc.phys_reg = X86Reg::NONE;
-    loc.stack_disp = static_cast<int32_t>(8 * (local_idx - kNumAllocatableRegs + 1));
+    size_t idx = (local_idx >= kNumAllocatableRegs) ? (local_idx - kNumAllocatableRegs + 1) : 1;
+    loc.stack_disp = static_cast<int32_t>(8 * idx);
     return loc;
 }
 

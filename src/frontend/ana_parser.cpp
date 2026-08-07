@@ -254,7 +254,14 @@ Instruction* Parser::parse_instruction() {
         case Opcode::USHR_I32:
         case Opcode::USHR_I64:
         case Opcode::BTS_I64:
-        case Opcode::BTR_I64: {
+        case Opcode::BTR_I64:
+        case Opcode::ADD_FLOAT_32:
+        case Opcode::ADD_FLOAT_64:
+        case Opcode::SUB_FLOAT_64:
+        case Opcode::MUL_FLOAT_64:
+        case Opcode::DIV_FLOAT_64:
+        case Opcode::ADD_VECTOR_I32X4:
+        case Opcode::SUB_VECTOR_I32X4: {
             if (current_tok_.type == TokenType::TOKEN_REGISTER) {
                 insn->dest = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
                 advance();

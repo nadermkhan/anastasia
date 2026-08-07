@@ -217,6 +217,13 @@ Token Lexer::next_token() {
             case fnv1a_hash("atomic-or/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ATOMIC_OR_I64; return tok;
             case fnv1a_hash("fence", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::FENCE; return tok;
             case fnv1a_hash("new-instance", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::NEW_INSTANCE; return tok;
+            case fnv1a_hash("add-float/32", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_FLOAT_32; return tok;
+            case fnv1a_hash("add-float/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_FLOAT_64; return tok;
+            case fnv1a_hash("sub-float/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_FLOAT_64; return tok;
+            case fnv1a_hash("mul-float/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MUL_FLOAT_64; return tok;
+            case fnv1a_hash("div-float/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::DIV_FLOAT_64; return tok;
+            case fnv1a_hash("add-vector/i32x4", 16): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_VECTOR_I32X4; return tok;
+            case fnv1a_hash("sub-vector/i32x4", 16): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_VECTOR_I32X4; return tok;
             default: break;
         }
 

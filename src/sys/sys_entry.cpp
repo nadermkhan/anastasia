@@ -96,7 +96,8 @@ __asm__(
     "_start:\n"
     "    mov (%rsp), %rdi\n"
     "    lea 8(%rsp), %rsi\n"
-    "    jmp _start_c\n"
+    "    and $-16, %rsp\n"
+    "    call _start_c\n"
 );
 #elif defined(_WIN32)
 int mainCRTStartup() {

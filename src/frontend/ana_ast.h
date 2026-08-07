@@ -61,10 +61,18 @@ enum class Opcode {
     ATOMIC_AND_I64,
     ATOMIC_OR_I64,
     FENCE,
-    NEW_INSTANCE
+    NEW_INSTANCE,
+    ADD_FLOAT_32,
+    ADD_FLOAT_64,
+    SUB_FLOAT_64,
+    MUL_FLOAT_64,
+    DIV_FLOAT_64,
+    ADD_VECTOR_I32X4,
+    SUB_VECTOR_I32X4
 };
 
 enum class RegisterType {
+    NONE,
     PARAM, // p0..pN
     LOCAL  // v0..vN
 };
@@ -79,6 +87,7 @@ struct Register {
 };
 
 enum class OperandKind {
+    NONE,
     REGISTER,
     CONST_INT,
     MEM_OFFSET

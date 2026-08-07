@@ -123,6 +123,19 @@ public:
     void mfence();
     void clflush(X86Reg base, int32_t disp);
 
+    // Floating-Point & SSE2 Vector Instructions (XMM0..XMM15)
+    void addss_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void addsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void subsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void mulsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void divsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void paddd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void psubd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void movsd_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp);
+    void movsd_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
+    void movdqu_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp);
+    void movdqu_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
+
     // Final resolution
     bool resolve_labels();
     const uint8_t* code_bytes() const { return buffer_; }

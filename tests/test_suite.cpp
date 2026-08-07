@@ -136,6 +136,10 @@ static bool test_asmjit_lowering_and_execution() {
     ana::frontend::ArenaAllocator arena;
     ana::frontend::Parser parser(sample_code, arena);
     ana::frontend::Program* prog = parser.parse_program();
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (AST generation)\n");
+        return false;
+    }
 
     ana::backend::AnastasiaJitRuntime runtime;
     ana::backend::AnaLowerer lowerer(runtime);
@@ -683,6 +687,74 @@ static bool test_aarch64_instruction_encoding() {
     return true;
 }
 
+static bool test_simd_vector_and_float_isa() {
+    print_msg("[Test 16/16] Floating-Point & 128-bit SIMD Vector ISA (SSE2)... ");
+
+    // Test SSE2 Vector Encodings
+    backend::AnaEncoder enc;
+    enc.addss_xmm_xmm(0, 1); // F3 0F 58 C1
+    enc.addsd_xmm_xmm(0, 1); // F2 0F 58 C1
+    enc.subsd_xmm_xmm(2, 3); // F2 0F 5C D3
+    enc.mulsd_xmm_xmm(4, 5); // F2 0F 5E E5
+    enc.divsd_xmm_xmm(6, 7); // F2 0F 5F F7
+    enc.paddd_xmm_xmm(0, 1); // 66 0F FE C1
+    enc.psubd_xmm_xmm(2, 3); // 66 0F FA D3
+    enc.ret();
+
+    if (enc.code_size() == 0) {
+        print_msg("FAILED (Encoder Output Empty)\n");
+        return false;
+    }
+
+    // JIT Compile Extended Smali SIMD Vector addition program
+    const char* smali_vector_code =
+        ".fn test_vector_add(p0: ptr, p1: ptr, p2: ptr) -> void\n"
+        ".registers 3 local\n"
+        "add-vector/i32x4 p2, p0, p1\n"
+        "return-void\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(smali_vector_code, arena);
+    frontend::Program* prog = parser.parse_program();
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (Vector AST Parse)\n");
+        return false;
+    }
+
+    backend::AnastasiaJitRuntime runtime;
+    backend::AnaLowerer lowerer(runtime);
+
+    typedef void (*VectorAddFn)(const int32_t*, const int32_t*, int32_t*);
+    VectorAddFn vec_fn = reinterpret_cast<VectorAddFn>(lowerer.compile_function(prog->functions, prog));
+    if (!vec_fn) {
+        print_msg("FAILED (Vector JIT Compilation)\n");
+        return false;
+    }
+
+    alignas(16) int32_t vec_a[4] = { 10, 20, 30, 40 };
+    alignas(16) int32_t vec_b[4] = { 1, 2, 3, 4 };
+    alignas(16) int32_t vec_c[4] = { 0, 0, 0, 0 };
+
+    vec_fn(vec_a, vec_b, vec_c);
+
+    if (vec_c[0] != 11 || vec_c[1] != 22 || vec_c[2] != 33 || vec_c[3] != 44) {
+        print_msg("FAILED (Vector SIMD Result ");
+        print_int(vec_c[0]);
+        print_msg(",");
+        print_int(vec_c[1]);
+        print_msg(",");
+        print_int(vec_c[2]);
+        print_msg(",");
+        print_int(vec_c[3]);
+        print_msg(")\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -704,10 +776,11 @@ bool run_all_tests() {
     ok &= test_atomic_wx_patching_and_clflush();
     ok &= test_aot_elf_compilation();
     ok &= test_aarch64_instruction_encoding();
+    ok &= test_simd_vector_and_float_isa();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 15 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 16 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

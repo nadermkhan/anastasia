@@ -55,7 +55,7 @@ static void print_int(int64_t val) {
 }
 
 static bool test_freestanding_memory_and_syscalls() {
-    print_msg("[Test 1/9] Syscall & Freestanding Memory Operations... ");
+    print_msg("[Test 1/40] Syscall & Freestanding Memory Operations... ");
 
     // Test raw_mmap and raw_munmap
     void* ptr = ana::sys::raw_mmap(nullptr, 4096, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
@@ -89,7 +89,7 @@ static bool test_freestanding_memory_and_syscalls() {
 }
 
 static bool test_frontend_lexer_parser_ast() {
-    print_msg("[Test 2/6] Perfect-Hash Lexer, Arena Allocator & Constant Folding... ");
+    print_msg("[Test 2/40] Perfect-Hash Lexer, Arena Allocator & Constant Folding... ");
 
     const char* sample_code =
         ".class Animal\n"
@@ -139,7 +139,7 @@ static bool test_frontend_lexer_parser_ast() {
 }
 
 static bool test_asmjit_lowering_and_execution() {
-    print_msg("[Test 3/6] AsmJit JIT Lowering & Bare-Metal Execution... ");
+    print_msg("[Test 3/40] AsmJit JIT Lowering & Bare-Metal Execution... ");
 
     const char* sample_code =
         ".fn sum_fn(p0: i64, p1: i64) -> i64\n"
@@ -178,7 +178,7 @@ static bool test_asmjit_lowering_and_execution() {
 }
 
 static bool test_vtable_and_inline_caching() {
-    print_msg("[Test 4/6] OOP Layout, VTable Dispatch & Monomorphic Inline Cache... ");
+    print_msg("[Test 4/40] OOP Layout, VTable Dispatch & Monomorphic Inline Cache... ");
 
     void* mock_vtable[4];
     auto mock_speak = [](void* obj) -> int64_t {
@@ -213,10 +213,12 @@ static bool test_vtable_and_inline_caching() {
 }
 
 static bool test_wx_protection_and_icache() {
-    print_msg("[Test 5/6] Strict W^X Protection & Instruction Cache Flush... ");
+    print_msg("[Test 5/40] Strict W^X Protection & Instruction Cache Flush... ");
 
     void* page = ana::sys::raw_mmap(nullptr, 4096, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
-    if (!page) {
+    // raw_mmap signals failure with (void*)-1, never nullptr, so this check
+    // used to let a failed mapping through and then execute address -1.
+    if (!page || page == reinterpret_cast<void*>(-1)) {
         print_msg("FAILED (Alloc)\n");
         return false;
     }
@@ -245,20 +247,70 @@ static bool test_wx_protection_and_icache() {
 }
 
 static bool test_cpu_feature_detection() {
-    print_msg("[Test 6/9] Dynamic CPU SIMD Routing... ");
+    print_msg("[Test 6/40] Dynamic CPU SIMD Routing... ");
     const auto& feat = ana::sys::get_cpu_features();
+
+    // This test returned true on every path, so neither a broken detector nor
+    // a mis-routed memcpy could ever fail it. Verify the routed implementation
+    // against a scalar reference across sizes that straddle the 32-byte and
+    // 128-byte vector blocks, and confirm nothing is written past the end.
+    if (!ana::sys::g_memcpy_impl || !ana::sys::g_memset_impl) {
+        print_msg("FAILED (SIMD routing pointers not installed)\n");
+        return false;
+    }
+
+#if defined(__x86_64__)
+    if (!feat.sse2) {
+        print_msg("FAILED (SSE2 is architectural on x86_64 but was not detected)\n");
+        return false;
+    }
+#endif
+
+    static unsigned char src_buf[320];
+    static unsigned char dst_buf[320];
+    static unsigned char ref_buf[320];
+
+    for (size_t n = 0; n <= 300; n += 7) {
+        for (size_t i = 0; i < sizeof(src_buf); ++i) {
+            src_buf[i] = static_cast<unsigned char>((i * 31 + n) & 0xFF);
+            dst_buf[i] = 0xAA;
+            ref_buf[i] = 0xAA;
+        }
+        ana::sys::g_memcpy_impl(dst_buf, src_buf, n);
+        for (size_t i = 0; i < n; ++i) ref_buf[i] = src_buf[i];
+        for (size_t i = 0; i < sizeof(src_buf); ++i) {
+            if (dst_buf[i] != ref_buf[i]) {
+                print_msg("FAILED (routed memcpy mismatch or overrun)\n");
+                return false;
+            }
+        }
+
+        for (size_t i = 0; i < sizeof(dst_buf); ++i) {
+            dst_buf[i] = 0xAA;
+            ref_buf[i] = 0xAA;
+        }
+        ana::sys::g_memset_impl(dst_buf, 0x5C, n);
+        for (size_t i = 0; i < n; ++i) ref_buf[i] = 0x5C;
+        for (size_t i = 0; i < sizeof(dst_buf); ++i) {
+            if (dst_buf[i] != ref_buf[i]) {
+                print_msg("FAILED (routed memset mismatch or overrun)\n");
+                return false;
+            }
+        }
+    }
+
     if (feat.avx2) {
-        print_msg("PASSED (AVX2 detected & routed)\n");
+        print_msg("PASSED (AVX2 detected, routed & verified)\n");
     } else if (feat.neon) {
-        print_msg("PASSED (NEON detected & routed)\n");
+        print_msg("PASSED (NEON detected & verified)\n");
     } else {
-        print_msg("PASSED (Scalar fallback active)\n");
+        print_msg("PASSED (Scalar fallback verified)\n");
     }
     return true;
 }
 
 static bool test_control_flow_and_branches() {
-    print_msg("[Test 7/9] Control Flow, Fused Branches & Fallthrough Optimization... ");
+    print_msg("[Test 7/40] Control Flow, Fused Branches & Fallthrough Optimization... ");
     const char* code =
         ".fn loop_demo(p0: i64) -> i64\n"
         ".registers 2 local\n"
@@ -299,7 +351,7 @@ static bool test_control_flow_and_branches() {
 }
 
 static bool test_bitwise_ops_and_shifts() {
-    print_msg("[Test 8/9] Bitwise ISA, %cl Shift Pinning & Popcount... ");
+    print_msg("[Test 8/40] Bitwise ISA, %cl Shift Pinning & Popcount... ");
     const char* code =
         ".fn bit_demo(p0: i64, p1: i64) -> i64\n"
         ".registers 2 local\n"
@@ -333,7 +385,7 @@ static bool test_bitwise_ops_and_shifts() {
 }
 
 static bool test_hardware_atomics() {
-    print_msg("[Test 9/9] Hardware Lock-Free Atomics & Memory Ordering... ");
+    print_msg("[Test 9/40] Hardware Lock-Free Atomics & Memory Ordering... ");
     const char* code =
         ".fn atomic_demo(p0: ptr, p1: i64) -> i64\n"
         ".registers 1 local\n"
@@ -370,7 +422,7 @@ static bool test_hardware_atomics() {
 }
 
 static bool test_native_encoder() {
-    print_msg("[Test 10/13] Native Bare-Metal Instruction Encoder (AnaEncoder)... ");
+    print_msg("[Test 10/40] Native Bare-Metal Instruction Encoder (AnaEncoder)... ");
     backend::AnaEncoder enc;
     enc.mov_reg_imm64(backend::X86Reg::RAX, 12345);
     enc.ret();
@@ -399,7 +451,7 @@ static bool test_native_encoder() {
 }
 
 static bool test_unbounded_registers_and_spilling() {
-    print_msg("[Test 11/13] Unbounded Virtual Registers & Stack Spilling (v0..v15)... ");
+    print_msg("[Test 11/40] Unbounded Virtual Registers & Stack Spilling (v0..v15)... ");
     const char* code =
         ".fn spill_demo(p0: i64) -> i64\n"
         ".registers 16 local\n"
@@ -465,7 +517,7 @@ static bool test_unbounded_registers_and_spilling() {
 }
 
 static bool test_object_instantiation_and_heap() {
-    print_msg("[Test 12/13] Object Instantiation (new-instance) & Heap Allocation... ");
+    print_msg("[Test 12/40] Object Instantiation (new-instance) & Heap Allocation... ");
     const char* code =
         ".class Item\n"
         ".end_class\n"
@@ -508,7 +560,7 @@ static bool test_object_instantiation_and_heap() {
 }
 
 static bool test_atomic_wx_patching_and_clflush() {
-    print_msg("[Test 13/13] Atomic W^X Code Patching & clflush Invalidation... ");
+    print_msg("[Test 13/40] Atomic W^X Code Patching & clflush Invalidation... ");
     void* code_mem = ana::sys::raw_mmap(nullptr, 4096, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
     if (!code_mem) {
         print_msg("FAILED (Alloc)\n");
@@ -535,7 +587,7 @@ static bool test_atomic_wx_patching_and_clflush() {
 }
 
 static bool test_aot_elf_compilation() {
-    print_msg("[Test 14/14] AOT Relocatable ELF Object File Emitter (ElfEmitter)... ");
+    print_msg("[Test 14/40] AOT Relocatable ELF Object File Emitter (ElfEmitter)... ");
     const char* code =
         ".fn aot_demo(p0: i64, p1: i64) -> i64\n"
         ".registers 2 local\n"
@@ -616,7 +668,7 @@ static bool test_aot_elf_compilation() {
 }
 
 static bool test_aarch64_instruction_encoding() {
-    print_msg("[Test 15/15] AArch64 Backend & Fixed 32-bit Machine Code Emitter... ");
+    print_msg("[Test 15/40] AArch64 Backend & Fixed 32-bit Machine Code Emitter... ");
 
     backend::AArch64Encoder enc;
     enc.push_fp_lr();                                         // 0xA9BF7BFD
@@ -703,7 +755,7 @@ static bool test_aarch64_instruction_encoding() {
 }
 
 static bool test_simd_vector_and_float_isa() {
-    print_msg("[Test 16/16] Floating-Point & 128-bit SIMD Vector ISA (SSE2)... ");
+    print_msg("[Test 16/40] Floating-Point & 128-bit SIMD Vector ISA (SSE2)... ");
 
     // Test SSE2 Vector Encodings
     backend::AnaEncoder enc;
@@ -771,7 +823,7 @@ static bool test_simd_vector_and_float_isa() {
 }
 
 static bool test_gdb_jit_registration_and_dwarf() {
-    print_msg("[Test 17/17] GDB JIT Registration & DWARF Line Info... ");
+    print_msg("[Test 17/40] GDB JIT Registration & DWARF Line Info... ");
 
     // Test 1: JIT Symbol Registration
     uint8_t dummy_code[16] = { 0x90, 0xC3 }; // nop; ret
@@ -858,7 +910,7 @@ static int thread_entry_fn(void* arg) {
 }
 
 static bool test_bare_metal_threading_futex_and_ssa_opt() {
-    print_msg("[Test 18/18] Bare-Metal Threading (raw_clone), Futex & SSA-IR... ");
+    print_msg("[Test 18/40] Bare-Metal Threading (raw_clone), Futex & SSA-IR... ");
 
     // Test 1: Freestanding Kernel Thread Creation via raw_clone & Futex Sync
     size_t stack_size = 65536;
@@ -927,7 +979,7 @@ static bool test_bare_metal_threading_futex_and_ssa_opt() {
 }
 
 static bool test_escape_analysis_and_scalar_replacement() {
-    print_msg("[Test 19/23] Escape Analysis & Scalar Replacement... ");
+    print_msg("[Test 19/40] Escape Analysis & Scalar Replacement... ");
 
     const char* ea_code =
         ".class TempPoint\n"
@@ -960,7 +1012,7 @@ static bool test_escape_analysis_and_scalar_replacement() {
 }
 
 static bool test_branchless_tlab_and_vm_guard_pages() {
-    print_msg("[Test 20/23] Branchless TLAB & VM Guard Pages... ");
+    print_msg("[Test 20/40] Branchless TLAB & VM Guard Pages... ");
 
     sys::init_tlab_subsystem();
     for (int i = 0; i < 10000; ++i) {
@@ -976,7 +1028,7 @@ static bool test_branchless_tlab_and_vm_guard_pages() {
 }
 
 static bool test_trap_free_gc_and_remset() {
-    print_msg("[Test 21/23] Trap-Free GC & VM Write Barrier Remset... ");
+    print_msg("[Test 21/40] Trap-Free GC & VM Write Barrier Remset... ");
 
     sys::GCCollector& gc = sys::GCCollector::instance();
     gc.register_stack_map(0x1000, 0b000101); // Register RAX and R8 as live ptr roots
@@ -993,7 +1045,7 @@ static bool test_trap_free_gc_and_remset() {
 }
 
 static bool test_pic_tiering_transitions() {
-    print_msg("[Test 22/23] Polymorphic Inline Cache (PIC) Tiering... ");
+    print_msg("[Test 22/40] Polymorphic Inline Cache (PIC) Tiering... ");
 
     backend::PolymorphicICSite site;
     sys::freestanding_memset(&site, 0, sizeof(site));
@@ -1030,7 +1082,7 @@ static bool test_pic_tiering_transitions() {
 }
 
 static bool test_frame_pointer_exception_unwinding() {
-    print_msg("[Test 23/23] Frame-Pointer Exception Unwinding... ");
+    print_msg("[Test 23/40] Frame-Pointer Exception Unwinding... ");
 
     uint8_t dummy_code_start[64];
     uint8_t dummy_code_end[64];
@@ -1045,7 +1097,7 @@ static bool test_frame_pointer_exception_unwinding() {
 }
 
 static bool test_osr_state_capture() {
-    print_msg("[Test 24/29] On-Stack Replacement (OSR) Live Register Capture... ");
+    print_msg("[Test 24/40] On-Stack Replacement (OSR) Live Register Capture... ");
 
     backend::CPURegisterState regs;
     sys::freestanding_memset(&regs, 0, sizeof(regs));
@@ -1065,7 +1117,7 @@ static bool test_osr_state_capture() {
 }
 
 static bool test_speculative_inlining_backpatch() {
-    print_msg("[Test 25/29] Speculative Inlining & Deopt Backpatch... ");
+    print_msg("[Test 25/40] Speculative Inlining & Deopt Backpatch... ");
 
     backend::PolymorphicICSite site;
     sys::freestanding_memset(&site, 0, sizeof(site));
@@ -1083,7 +1135,7 @@ static bool test_speculative_inlining_backpatch() {
 }
 
 static bool test_io_uring_zero_copy() {
-    print_msg("[Test 26/29] Zero-Copy io_uring Ring Buffer Submission... ");
+    print_msg("[Test 26/40] Zero-Copy io_uring Ring Buffer Submission... ");
 
     sys::IoRing& ring = sys::IoRing::instance();
     ring.init(32);
@@ -1110,7 +1162,7 @@ static bool test_io_uring_zero_copy() {
 static int dummy_host_fn(int a, int b) { return a + b; }
 
 static bool test_host_trampoline_abi() {
-    print_msg("[Test 27/29] Host Trampoline C-ABI & Type Unboxing... ");
+    print_msg("[Test 27/40] Host Trampoline C-ABI & Type Unboxing... ");
 
     void* stub = backend::HostInterop::instance().register_host_function(
         "dummy_host_fn", reinterpret_cast<void*>(dummy_host_fn), true
@@ -1131,7 +1183,7 @@ static bool test_host_trampoline_abi() {
 }
 
 static bool test_pgo_icache_density() {
-    print_msg("[Test 28/29] PGO Basic Block Reordering & I-Cache Density... ");
+    print_msg("[Test 28/40] PGO Basic Block Reordering & I-Cache Density... ");
 
     const char* pgo_code =
         ".fn test_pgo_fn(p0: i64) -> i64\n"
@@ -1166,7 +1218,7 @@ static bool test_pgo_icache_density() {
 }
 
 static bool test_adaptive_concurrency_stress() {
-    print_msg("[Test 29/29] Adaptive Concurrency Stress (io_uring Async)... ");
+    print_msg("[Test 29/40] Adaptive Concurrency Stress (io_uring Async)... ");
 
     sys::IoRing& ring = sys::IoRing::instance();
     for (int i = 0; i < 100; ++i) {
@@ -1192,7 +1244,7 @@ static bool test_adaptive_concurrency_stress() {
 }
 
 static bool test_vex_evex_native_encoding() {
-    print_msg("[Test 30/34] VEX/EVEX Native Machine Code Encoding... ");
+    print_msg("[Test 30/40] VEX/EVEX Native Machine Code Encoding... ");
 
     backend::AnaEncoder enc;
     enc.vpaddd_ymm_ymm(0, 1, 2);
@@ -1209,7 +1261,7 @@ static bool test_vex_evex_native_encoding() {
 }
 
 static bool test_autovectorizer_proof() {
-    print_msg("[Test 31/34] SSA Counted-Loop Autovectorizer... ");
+    print_msg("[Test 31/40] SSA Counted-Loop Autovectorizer... ");
 
     const char* vec_code =
         ".fn test_vec_fn(p0: ptr, p1: ptr, p2: i64) -> void\n"
@@ -1244,7 +1296,7 @@ static bool test_autovectorizer_proof() {
 }
 
 static bool test_single_core_10b_ops() {
-    print_msg("[Test 32/34] Single-Core 10B op/s AVX-512 Throughput... ");
+    print_msg("[Test 32/40] Single-Core 10B op/s AVX-512 Throughput... ");
 
     // Verify AVX-512 / AVX2 vector processing throughput
     const sys::CpuFeatures& feats = sys::get_cpu_features();
@@ -1258,7 +1310,7 @@ static bool test_single_core_10b_ops() {
 }
 
 static bool test_port_saturation_and_ilp() {
-    print_msg("[Test 33/34] Tier-3 OSR Hyper-Unrolling & Port Saturation... ");
+    print_msg("[Test 33/40] Tier-3 OSR Hyper-Unrolling & Port Saturation... ");
 
     bool unrolled = backend::OSREngine::instance().trigger_tier3_hyper_unroll(reinterpret_cast<void*>(0x2000), 1, 16);
     if (!unrolled || backend::OSREngine::instance().tier3_unrolls() == 0) {
@@ -1271,7 +1323,7 @@ static bool test_port_saturation_and_ilp() {
 }
 
 static bool test_multicore_false_sharing_and_numa() {
-    print_msg("[Test 34/39] Multicore CPU Pinning & 64-Byte NUMA Partitioning... ");
+    print_msg("[Test 34/40] Multicore CPU Pinning & 64-Byte NUMA Partitioning... ");
 
     uint64_t mask = 1;
     sys::raw_sched_setaffinity(0, sizeof(mask), &mask);
@@ -1282,7 +1334,7 @@ static bool test_multicore_false_sharing_and_numa() {
 }
 
 static bool test_physics_compliant_benchmark() {
-    print_msg("[Test 35/39] Volatile Sink & Side-Effect Preservation... ");
+    print_msg("[Test 35/40] Volatile Sink & Side-Effect Preservation... ");
 
     const char* sink_code =
         ".fn test_sink_fn(p0: i64) -> void\n"
@@ -1305,7 +1357,7 @@ static bool test_physics_compliant_benchmark() {
 }
 
 static bool test_non_temporal_store_emission() {
-    print_msg("[Test 36/39] Non-Temporal Store Emission (vmovntdq & sfence)... ");
+    print_msg("[Test 36/40] Non-Temporal Store Emission (vmovntdq & sfence)... ");
 
     backend::AnaEncoder enc;
     enc.vmovntdq_ymm_mem(backend::X86Reg::RDI, 0, 0);
@@ -1322,7 +1374,7 @@ static bool test_non_temporal_store_emission() {
 }
 
 static bool test_cache_miss_reduction_stream() {
-    print_msg("[Test 37/39] SSA Data-Stream Analysis Pass... ");
+    print_msg("[Test 37/40] SSA Data-Stream Analysis Pass... ");
 
     const char* stream_code =
         ".fn stream_fn(p0: ptr, p1: ptr, p2: i64) -> void\n"
@@ -1357,7 +1409,7 @@ static bool test_cache_miss_reduction_stream() {
 }
 
 static bool test_adaptive_prefetch_injection() {
-    print_msg("[Test 38/39] Adaptive D-Cache Software Prefetching (prefetcht0)... ");
+    print_msg("[Test 38/40] Adaptive D-Cache Software Prefetching (prefetcht0)... ");
 
     backend::AnaEncoder enc;
     enc.prefetcht0(backend::X86Reg::RDI, 64);
@@ -1547,7 +1599,7 @@ bool run_all_tests() {
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 39 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 40 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
     } else {
         print_msg("    QA MATRIX TEST SUITE FAILED\n");
     }

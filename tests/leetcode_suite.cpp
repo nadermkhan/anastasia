@@ -1351,7 +1351,9 @@ bool run_leetcode_tests() {
 
     // LC27
     all_ok &= run_single_lc_test("LC 27: First Unique Character in String", code_lc27_first_uniq_char, []() -> bool {
-        char freqbuf[256];
+        // 256 eight-byte counters (the program indexes with shl-int/64 by 3),
+        // not 256 bytes. This overflowed its frame by 1792 bytes.
+        int64_t freqbuf[256];
         backend::AnastasiaJitRuntime runtime;
         backend::AnaLowerer lowerer(runtime);
         frontend::ArenaAllocator arena;
@@ -1386,7 +1388,9 @@ bool run_leetcode_tests() {
 
     // LC30
     all_ok &= run_single_lc_test("LC 30: Valid Anagram", code_lc30_valid_anagram, []() -> bool {
-        char freqbuf[256];
+        // 256 eight-byte counters (the program indexes with shl-int/64 by 3),
+        // not 256 bytes. This overflowed its frame by 1792 bytes.
+        int64_t freqbuf[256];
         backend::AnastasiaJitRuntime runtime;
         backend::AnaLowerer lowerer(runtime);
         frontend::ArenaAllocator arena;

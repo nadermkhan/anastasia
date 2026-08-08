@@ -4,13 +4,20 @@ namespace ana {
 namespace frontend {
 
 Parser::Parser(const char* source, ArenaAllocator& arena)
-    : lexer_(source), arena_(arena) {
+    : lexer_(source), current_tok_(), arena_(arena),
+      had_error_(false), error_msg_(nullptr), error_line_(0) {
+    // current_tok_ was previously left uninitialised and read by advance().
     advance();
 }
 
 Token Parser::advance() {
     Token prev = current_tok_;
     current_tok_ = lexer_.next_token();
+    if (current_tok_.type == TokenType::TOKEN_ERROR && !had_error_) {
+        had_error_ = true;
+        error_msg_ = "Invalid character in source";
+        error_line_ = current_tok_.line;
+    }
     return prev;
 }
 
@@ -23,10 +30,16 @@ bool Parser::match(TokenType type) {
 }
 
 bool Parser::expect(TokenType type, const char* errmsg) {
-    (void)errmsg;
     if (current_tok_.type == type) {
         advance();
         return true;
+    }
+    // The message used to be discarded and every caller ignored the return
+    // value, so malformed input silently produced a garbage AST.
+    if (!had_error_) {
+        had_error_ = true;
+        error_msg_ = errmsg;
+        error_line_ = current_tok_.line;
     }
     return false;
 }
@@ -68,12 +81,19 @@ Program* Parser::parse_program() {
     }
 
     resolve_class_layouts(prog);
+    // Never hand back a partially-parsed program as if it were valid.
+    if (had_error_) return nullptr;
     return prog;
 }
 
 ClassDecl* Parser::parse_class() {
     expect(TokenType::TOKEN_CLASS, "Expected .class");
-    if (current_tok_.type != TokenType::TOKEN_IDENTIFIER) return nullptr;
+    if (current_tok_.type != TokenType::TOKEN_IDENTIFIER) {
+        // Latch the failure: silently returning nullptr let a malformed
+        // '.class' with no name parse as a valid empty program.
+        if (!had_error_) { had_error_ = true; error_msg_ = "Expected class name after .class"; }
+        return nullptr;
+    }
 
     ClassDecl* cls = arena_.create<ClassDecl>();
     cls->name = allocate_string(current_tok_.view);
@@ -89,11 +109,24 @@ ClassDecl* Parser::parse_class() {
     while (current_tok_.type != TokenType::TOKEN_END_CLASS && current_tok_.type != TokenType::TOKEN_EOF) {
         if (current_tok_.type == TokenType::TOKEN_FIELD) {
             advance();
-            if (current_tok_.type == TokenType::TOKEN_IDENTIFIER) {
+            // The lexer folds "name:" into a single TOKEN_LABEL and consumes the
+            // colon, so a field declaration arrives as LABEL TYPE -- not as
+            // IDENTIFIER COLON TYPE. Matching only the latter meant every
+            // .field was silently dropped: classes ended up with no fields and
+            // a bare 8-byte size, so instances were under-allocated and any
+            // field access aliased the vtable pointer at offset 0.
+            if (current_tok_.type == TokenType::TOKEN_LABEL ||
+                current_tok_.type == TokenType::TOKEN_IDENTIFIER) {
+                const bool colon_consumed = (current_tok_.type == TokenType::TOKEN_LABEL);
                 ClassField* field = arena_.create<ClassField>();
                 field->name = allocate_string(current_tok_.view);
+                field->next = nullptr; // never leave the list unterminated
                 advance();
-                expect(TokenType::TOKEN_COLON, "Expected :");
+                if (!colon_consumed) expect(TokenType::TOKEN_COLON, "Expected : after field name");
+                if (current_tok_.type != TokenType::TOKEN_TYPE) {
+                    if (!had_error_) { had_error_ = true; error_msg_ = "Expected field type"; }
+                    return nullptr;
+                }
                 field->type = current_tok_.data_type;
                 advance();
 
@@ -105,6 +138,9 @@ ClassDecl* Parser::parse_class() {
 
                 *last_field = field;
                 last_field = &field->next;
+            } else {
+                if (!had_error_) { had_error_ = true; error_msg_ = "Expected field name after .field"; }
+                return nullptr;
             }
         } else {
             advance();
@@ -264,17 +300,28 @@ Instruction* Parser::parse_instruction() {
         case Opcode::DIV_FLOAT_64:
         case Opcode::ADD_VECTOR_I32X4:
         case Opcode::SUB_VECTOR_I32X4: {
+            bool have_dest = false;
+            bool have_src1 = false;
             if (current_tok_.type == TokenType::TOKEN_REGISTER) {
                 insn->dest = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                have_dest = true;
                 advance();
                 expect(TokenType::TOKEN_COMMA, "Expected ,");
             }
             if (current_tok_.type == TokenType::TOKEN_REGISTER) {
                 insn->src1 = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                have_src1 = true;
                 advance();
             } else if (current_tok_.type == TokenType::TOKEN_INT_LITERAL) {
                 insn->src1 = Operand::make_const(current_tok_.int_val);
+                have_src1 = true;
                 advance();
+            }
+            // A zero-initialised Operand is indistinguishable from register 0,
+            // so a truncated operand list used to be accepted and silently
+            // compiled as if it referenced v0. Reject it instead.
+            if (!have_dest || !have_src1) {
+                if (!had_error_) { had_error_ = true; error_msg_ = "Missing operand in arithmetic instruction"; }
             }
             if (match(TokenType::TOKEN_COMMA)) {
                 if (current_tok_.type == TokenType::TOKEN_REGISTER) {
@@ -596,17 +643,51 @@ void Parser::optimize_instruction(Instruction* insn) {
         int64_t res = 0;
         bool folded = false;
 
+        // Every fold used 64-bit signed arithmetic, which disagreed with what
+        // the /32 opcodes compute at runtime, invoked signed-overflow UB on
+        // +, - and *, and invoked shift UB for counts >= 64. Folding now
+        // mirrors the backend exactly: unsigned wrapping math, explicit 32-bit
+        // narrowing for the /32 family, and hardware-masked shift counts.
+        const uint64_t u1 = static_cast<uint64_t>(v1);
+        const uint64_t u2 = static_cast<uint64_t>(v2);
+        const int32_t w1 = static_cast<int32_t>(v1);
+        const int32_t w2 = static_cast<int32_t>(v2);
+        const uint32_t x1 = static_cast<uint32_t>(w1);
+        const uint32_t x2 = static_cast<uint32_t>(w2);
+        const uint32_t sh32 = static_cast<uint32_t>(u2) & 31u;
+        const uint32_t sh64 = static_cast<uint32_t>(u2) & 63u;
+
         switch (insn->op) {
-            case Opcode::ADD_I32: case Opcode::ADD_I64: res = v1 + v2; folded = true; break;
-            case Opcode::SUB_I32: case Opcode::SUB_I64: res = v1 - v2; folded = true; break;
-            case Opcode::MUL_I32: res = v1 * v2; folded = true; break;
-            case Opcode::DIV_I32: if (v2 != 0) { res = v1 / v2; folded = true; } break;
-            case Opcode::AND_I32: case Opcode::AND_I64: res = v1 & v2; folded = true; break;
-            case Opcode::OR_I32:  case Opcode::OR_I64:  res = v1 | v2; folded = true; break;
-            case Opcode::XOR_I32: case Opcode::XOR_I64: res = v1 ^ v2; folded = true; break;
-            case Opcode::SHL_I32: case Opcode::SHL_I64: res = v1 << v2; folded = true; break;
-            case Opcode::SHR_I32: case Opcode::SHR_I64: res = v1 >> v2; folded = true; break;
-            case Opcode::USHR_I32: case Opcode::USHR_I64: res = static_cast<uint64_t>(v1) >> v2; folded = true; break;
+            // ---- 32-bit: wrap at 32 bits, then sign-extend (matches the JIT)
+            case Opcode::ADD_I32: res = static_cast<int32_t>(x1 + x2); folded = true; break;
+            case Opcode::SUB_I32: res = static_cast<int32_t>(x1 - x2); folded = true; break;
+            case Opcode::MUL_I32: res = static_cast<int32_t>(x1 * x2); folded = true; break;
+            case Opcode::DIV_I32:
+                if (w2 == 0) break;                       // left for the runtime guard
+                res = (w2 == -1) ? static_cast<int32_t>(0u - x1)
+                                 : static_cast<int32_t>(w1 / w2);
+                folded = true; break;
+            case Opcode::AND_I32: res = static_cast<int32_t>(x1 & x2); folded = true; break;
+            case Opcode::OR_I32:  res = static_cast<int32_t>(x1 | x2); folded = true; break;
+            case Opcode::XOR_I32: res = static_cast<int32_t>(x1 ^ x2); folded = true; break;
+            case Opcode::SHL_I32: res = static_cast<int32_t>(x1 << sh32); folded = true; break;
+            case Opcode::SHR_I32: res = static_cast<int32_t>(w1 >> sh32); folded = true; break;
+            case Opcode::USHR_I32: res = static_cast<int32_t>(x1 >> sh32); folded = true; break;
+
+            // ---- 64-bit
+            case Opcode::ADD_I64: res = static_cast<int64_t>(u1 + u2); folded = true; break;
+            case Opcode::SUB_I64: res = static_cast<int64_t>(u1 - u2); folded = true; break;
+            case Opcode::MUL_I64: res = static_cast<int64_t>(u1 * u2); folded = true; break;
+            case Opcode::DIV_I64:
+                if (v2 == 0) break;
+                res = (v2 == -1) ? static_cast<int64_t>(0ULL - u1) : (v1 / v2);
+                folded = true; break;
+            case Opcode::AND_I64: res = v1 & v2; folded = true; break;
+            case Opcode::OR_I64:  res = v1 | v2; folded = true; break;
+            case Opcode::XOR_I64: res = v1 ^ v2; folded = true; break;
+            case Opcode::SHL_I64: res = static_cast<int64_t>(u1 << sh64); folded = true; break;
+            case Opcode::SHR_I64: res = v1 >> sh64; folded = true; break;
+            case Opcode::USHR_I64: res = static_cast<int64_t>(u1 >> sh64); folded = true; break;
             default: break;
         }
 
@@ -635,7 +716,26 @@ void Parser::apply_dce(BasicBlock* block) {
 }
 
 void Parser::resolve_class_layouts(Program* prog) {
-    (void)prog;
+    // This was a no-op, so ClassDecl::size stayed 0, every field offset stayed
+    // 0 (all fields aliased each other) and `new-instance` always fell back to
+    // a hard-coded 16-byte allocation.
+    if (!prog) return;
+
+    for (ClassDecl* cls = prog->classes; cls != nullptr; cls = cls->next) {
+        // Offset 0 holds the vtable pointer, so instance fields start at 8.
+        // (Recomputing from 0 here would overlay the first field on the vtable
+        // pointer -- exactly the kind of silent corruption this pass exists to
+        // prevent.) This mirrors the layout parse_class() assigns inline.
+        uint32_t offset = 8;
+        for (ClassField* f = cls->fields; f != nullptr; f = f->next) {
+            uint32_t sz = (f->type == DataType::I64 || f->type == DataType::PTR) ? 8u : 4u;
+            offset = (offset + (sz - 1)) & ~(sz - 1);
+            f->offset = offset;
+            offset += sz;
+        }
+        cls->size = (offset + 7) & ~7u;
+        if (cls->size < 8) cls->size = 8;
+    }
 }
 
 } // namespace frontend

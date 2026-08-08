@@ -5,59 +5,118 @@ namespace sys {
 
 static ObjectHeap g_heap;
 
+// Padded to 64 bytes so the first object in every chunk starts on a cache
+// line, matching the 64-byte object alignment used below.
+static const size_t kChunkHeaderBytes = 64;
+static const size_t kDefaultChunkBytes = 65536;
+static const size_t kPageBytes = 4096;
+static const uint64_t kMaxSingleObject = 0x40000000ULL; // 1 GiB
+
 ObjectHeap& ObjectHeap::instance() {
     return g_heap;
 }
 
-ObjectHeap::ObjectHeap() : buffer_(nullptr), capacity_(0), offset_(0) {
-    ensure_capacity(65536);
-}
+// Note: this build has no .init_array walker, so global constructors never
+// run. Everything here is therefore lazy and safe against a zeroed BSS state.
+ObjectHeap::ObjectHeap() : head_(nullptr), current_(nullptr) {}
 
 ObjectHeap::~ObjectHeap() {
-    if (buffer_) {
-        raw_munmap(buffer_, capacity_);
-        buffer_ = nullptr;
+    HeapChunk* c = head_;
+    while (c) {
+        HeapChunk* next = c->next;
+        size_t bytes = c->mapping_size;
+        raw_munmap(reinterpret_cast<void*>(c), bytes);
+        c = next;
     }
+    head_ = nullptr;
+    current_ = nullptr;
 }
 
-void ObjectHeap::ensure_capacity(size_t size) {
-    if (offset_ + size > capacity_) {
-        size_t new_cap = (capacity_ == 0) ? 65536 : capacity_ * 2 + size;
-        new_cap = (new_cap + 4095) & ~4095UL;
-        void* ptr = raw_mmap(nullptr, new_cap, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
-        if (ptr && ptr != reinterpret_cast<void*>(-1)) {
-            if (buffer_ && offset_ > 0) {
-                freestanding_memcpy(ptr, buffer_, offset_);
-                raw_munmap(buffer_, capacity_);
-            }
-            buffer_ = static_cast<uint8_t*>(ptr);
-            capacity_ = new_cap;
-        }
+HeapChunk* ObjectHeap::new_chunk(size_t min_usable) {
+    size_t needed = min_usable + kChunkHeaderBytes;
+    if (needed < min_usable) return nullptr; // overflow
+
+    size_t mapping = (needed > kDefaultChunkBytes) ? needed : kDefaultChunkBytes;
+    size_t rounded = (mapping + (kPageBytes - 1)) & ~(kPageBytes - 1);
+    if (rounded < mapping) return nullptr; // overflow on rounding
+
+    void* ptr = raw_mmap(nullptr, rounded, ANA_PROT_READ | ANA_PROT_WRITE,
+                         ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+    if (!ptr || ptr == reinterpret_cast<void*>(-1)) return nullptr;
+
+    HeapChunk* c = static_cast<HeapChunk*>(ptr);
+    c->next = nullptr;
+    c->mapping_size = rounded;
+    c->capacity = rounded - kChunkHeaderBytes;
+    c->offset = 0;
+
+    if (current_) {
+        current_->next = c;
+    } else {
+        head_ = c;
     }
+    current_ = c;
+    return c;
 }
 
 void* ObjectHeap::allocate_object(uint32_t instance_size, void* vtable_ptr, uint32_t class_id) {
-    uint32_t total_size = sizeof(ObjectHeader) + instance_size;
-    total_size = (total_size + 63) & ~63U; // Align to 64-byte cache line boundary
+    // This total was computed in uint32_t, so an instance_size near UINT32_MAX
+    // wrapped and produced a tiny allocation for a huge object, which the
+    // memset below then happily overran.
+    uint64_t total = static_cast<uint64_t>(sizeof(ObjectHeader)) +
+                     static_cast<uint64_t>(instance_size);
+    total = (total + 63ULL) & ~63ULL; // align to a 64-byte cache line
+    if (total > kMaxSingleObject) return nullptr;
 
-    ensure_capacity(total_size);
-    if (!buffer_) return nullptr;
+    size_t need = static_cast<size_t>(total);
 
-    ObjectHeader* obj = reinterpret_cast<ObjectHeader*>(buffer_ + offset_);
-    offset_ += total_size;
+    HeapChunk* c = current_;
+    if (!c || need > (c->capacity - c->offset)) {
+        c = new_chunk(need);
+        if (!c) return nullptr;
+    }
+
+    uint8_t* base = reinterpret_cast<uint8_t*>(c) + kChunkHeaderBytes;
+    ObjectHeader* obj = reinterpret_cast<ObjectHeader*>(base + c->offset);
+    c->offset += need;
 
     obj->vtable_ptr = vtable_ptr;
     obj->class_id = class_id;
     obj->instance_size = instance_size;
 
-    // Zero out fields area
+    // Zero the field area only; the header above is fully initialised.
     freestanding_memset(reinterpret_cast<uint8_t*>(obj) + sizeof(ObjectHeader), 0, instance_size);
 
     return reinterpret_cast<void*>(obj);
 }
 
 void ObjectHeap::reset() {
-    offset_ = 0;
+    if (!head_) return;
+
+    // reset() already invalidates every object, so releasing the overflow
+    // chunks here is safe and keeps steady-state memory bounded.
+    HeapChunk* c = head_->next;
+    while (c) {
+        HeapChunk* next = c->next;
+        raw_munmap(reinterpret_cast<void*>(c), c->mapping_size);
+        c = next;
+    }
+
+    head_->next = nullptr;
+    head_->offset = 0;
+    current_ = head_;
+}
+
+size_t ObjectHeap::chunk_count() const {
+    size_t n = 0;
+    for (const HeapChunk* c = head_; c; c = c->next) ++n;
+    return n;
+}
+
+size_t ObjectHeap::bytes_allocated() const {
+    size_t n = 0;
+    for (const HeapChunk* c = head_; c; c = c->next) n += c->offset;
+    return n;
 }
 
 extern "C" void* ana_alloc_object(uint32_t instance_size, void* vtable_ptr, uint32_t class_id) {

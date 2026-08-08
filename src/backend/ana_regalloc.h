@@ -33,12 +33,23 @@ public:
     size_t stack_frame_size() const { return stack_frame_size_; }
     bool requires_frame() const { return requires_frame_; }
     uint32_t param_count() const { return param_count_; }
+    uint32_t local_count() const { return local_count_; }
+
+    // Locals are held in callee-saved registers, so the prologue must preserve
+    // them and the epilogue must restore them.
+    uint32_t saved_reg_count() const { return saved_reg_count_; }
+    static X86Reg saved_reg(uint32_t i);
+    static int32_t saved_reg_disp(uint32_t i) { return static_cast<int32_t>(8 * (i + 1)); }
+
+    // Documented register file is v0..v999.
+    static const uint32_t kMaxLocals = 1024;
 
 private:
-    RegLocation local_locs_[64];
+    RegLocation local_locs_[kMaxLocals];
     RegLocation param_locs_[8];
     uint32_t local_count_;
     uint32_t param_count_;
+    uint32_t saved_reg_count_;
 
     size_t stack_frame_size_;
     bool requires_frame_;

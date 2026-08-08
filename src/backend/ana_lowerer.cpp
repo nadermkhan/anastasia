@@ -25,6 +25,25 @@ static bool streq_impl(const char* s1, const char* s2) {
     return c1 == c2;
 }
 
+// The /32 opcode family must wrap at 32 bits. Every one of these was lowered
+// with a full 64-bit instruction, so `add-int/32 2e9, 2e9` produced
+// 4000000000 instead of -294967296. Results are re-normalised by
+// sign-extending the low 32 bits back into the 64-bit register.
+static bool is_i32_op(frontend::Opcode op) {
+    switch (op) {
+        case frontend::Opcode::ADD_I32:
+        case frontend::Opcode::SUB_I32:
+        case frontend::Opcode::MUL_I32:
+        case frontend::Opcode::DIV_I32:
+        case frontend::Opcode::SHL_I32:
+        case frontend::Opcode::SHR_I32:
+        case frontend::Opcode::USHR_I32:
+            return true;
+        default:
+            return false;
+    }
+}
+
 void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* prog) {
     if (!fn) return nullptr;
 
@@ -39,7 +58,8 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
     } block_labels[512];
     uint32_t block_count = 0;
 
-    for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr && block_count < 512; bb = bb->next) {
+    for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+        if (block_count >= 512) { delete regalloc; delete enc; return nullptr; }
         block_labels[block_count].block = bb;
         block_labels[block_count].label_id = enc->new_label();
         block_count++;
@@ -62,11 +82,16 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
         return enc->new_label();
     };
 
-    // Emit Stack Frame Prologue if required
+    // Emit Stack Frame Prologue if required.
+    // Callee-saved registers are preserved with MOV into reserved frame slots
+    // rather than PUSH, so RSP stays 16-byte aligned at every call site.
     if (regalloc->requires_frame()) {
         enc->push_reg(X86Reg::RBP);
         enc->mov_reg_reg(X86Reg::RBP, X86Reg::RSP);
         enc->sub_reg_imm32(X86Reg::RSP, static_cast<int32_t>(regalloc->stack_frame_size()));
+        for (uint32_t i = 0; i < regalloc->saved_reg_count(); ++i) {
+            enc->mov_mem_reg(X86Reg::RBP, -AnaRegAlloc::saved_reg_disp(i), AnaRegAlloc::saved_reg(i));
+        }
     }
 
     // Save incoming parameter registers (RDI, RSI, RDX...) into stack frame slots
@@ -131,6 +156,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     } else {
                         enc->add_reg_reg(dst_reg, s2);
                     }
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
@@ -150,6 +176,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     } else {
                         enc->sub_reg_reg(dst_reg, s2);
                     }
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
@@ -177,6 +204,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
                     enc->mov_reg_reg(dst_reg, s1);
                     enc->imul_reg_reg(dst_reg, X86Reg::R11);
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
@@ -191,8 +219,40 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     if (s2 != X86Reg::R11) enc->mov_reg_reg(X86Reg::R11, s2);
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
                     if (s1 != X86Reg::RAX) enc->mov_reg_reg(X86Reg::RAX, s1);
-                    enc->cqo();
-                    enc->idiv_reg(X86Reg::R11);
+                    // IDIV raises #DE (SIGFPE, process death) for a zero
+                    // divisor and for INT_MIN / -1. Neither was guarded.
+                    // Divide by zero yields 0; INT_MIN / -1 yields INT_MIN.
+                    uint32_t lbl_zero = enc->new_label();
+                    uint32_t lbl_neg1 = enc->new_label();
+                    uint32_t lbl_done = enc->new_label();
+
+                    enc->test_reg_reg(X86Reg::R11, X86Reg::R11);
+                    enc->jz_label(lbl_zero);
+                    enc->cmp_reg_imm32(X86Reg::R11, -1);
+                    enc->je_label(lbl_neg1);
+
+                    if (insn->op == frontend::Opcode::DIV_I32) {
+                        enc->cdq();
+                        enc->idiv_reg32(X86Reg::R11);
+                        enc->movsxd_reg_reg(X86Reg::RAX, X86Reg::RAX);
+                    } else {
+                        enc->cqo();
+                        enc->idiv_reg(X86Reg::R11);
+                    }
+                    enc->jmp_label(lbl_done);
+
+                    enc->bind_label(lbl_zero);
+                    enc->mov_reg_imm32(X86Reg::RAX, 0);
+                    enc->jmp_label(lbl_done);
+
+                    // x / -1 == -x, computed without IDIV so INT_MIN is safe.
+                    enc->bind_label(lbl_neg1);
+                    enc->imul_reg_imm32(X86Reg::RAX, X86Reg::RAX, -1);
+                    if (insn->op == frontend::Opcode::DIV_I32) {
+                        enc->movsxd_reg_reg(X86Reg::RAX, X86Reg::RAX);
+                    }
+
+                    enc->bind_label(lbl_done);
 
                     if (dst_phys != X86Reg::RAX) enc->mov_reg_reg(dst_phys, X86Reg::RAX);
                     store_operand(insn->dest.reg, dst_phys);
@@ -272,6 +332,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     } else {
                         enc->shl_reg_cl(dst_reg);
                     }
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
@@ -290,6 +351,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     } else {
                         enc->sar_reg_cl(dst_reg);
                     }
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
@@ -303,11 +365,16 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
                     enc->mov_reg_reg(dst_reg, s1);
+                    // Logical shift of a sign-extended value produced
+                    // 0x7FFFFFFFFFFFFFFF for `ushr-int/32 -1, 1`; zero-extend
+                    // to 32 bits first so the shift sees the real i32 value.
+                    if (insn->op == frontend::Opcode::USHR_I32) enc->movzxd_reg_reg(dst_reg, dst_reg);
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->shr_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
                     } else {
                         enc->shr_reg_cl(dst_reg);
                     }
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
@@ -356,13 +423,15 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     break;
                 }
                 case frontend::Opcode::ADD_FLOAT_32: {
+                    // f32 must use 32-bit MOVSS loads/stores; MOVSD read and
+                    // wrote 8 bytes around a 4-byte ADDSS.
                     X86Reg base1 = load_operand(insn->src1, X86Reg::RDI);
                     X86Reg base2 = load_operand(insn->src2, X86Reg::RSI);
-                    enc->movsd_xmm_mem(0, base1, 0);
-                    enc->movsd_xmm_mem(1, base2, 0);
+                    enc->movss_xmm_mem(0, base1, 0);
+                    enc->movss_xmm_mem(1, base2, 0);
                     enc->addss_xmm_xmm(0, 1);
                     X86Reg dst_base = load_operand(frontend::Operand::make_reg(insn->dest.reg.type, insn->dest.reg.index), X86Reg::RAX);
-                    enc->movsd_mem_xmm(dst_base, 0, 0);
+                    enc->movss_mem_xmm(dst_base, 0, 0);
                     break;
                 }
                 case frontend::Opcode::ADD_FLOAT_64: {
@@ -505,12 +574,16 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     enc->mov_reg_mem(X86Reg::R11, X86Reg::R11, insn->vtable_slot * 8);
                     enc->call_reg(X86Reg::R11);
 
-                    store_operand(insn->dest.reg, X86Reg::RAX);
+                    // Only write back when the instruction actually named a
+                    // destination; otherwise this clobbered v0.
+                    if (insn->dest.kind == frontend::OperandKind::REGISTER) {
+                        store_operand(insn->dest.reg, X86Reg::RAX);
+                    }
                     break;
                 }
                 case frontend::Opcode::NEW_INSTANCE: {
-                    enc->push_reg(X86Reg::RDI);
-
+                    // No push/pop around the call: locals now live in
+                    // callee-saved registers and RSP must stay 16-byte aligned.
                     uint32_t inst_size = 16;
                     void* vtable_ptr = nullptr;
                     uint32_t class_id = 1;
@@ -530,8 +603,6 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     enc->mov_reg_imm32(X86Reg::RDX, static_cast<int32_t>(class_id));
                     enc->mov_reg_imm64(X86Reg::RAX, reinterpret_cast<uint64_t>(&ana::sys::ana_alloc_object));
                     enc->call_reg(X86Reg::RAX);
-
-                    enc->pop_reg(X86Reg::RDI);
 
                     store_operand(insn->dest.reg, X86Reg::RAX);
                     break;
@@ -575,9 +646,25 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     break;
                 }
                 case frontend::Opcode::ATOMIC_CAS_I64: {
+                    // LOCK CMPXCHG compares against RAX and returns the previous
+                    // value in RAX. The comparand was never loaded, so the
+                    // exchange compared against whatever RAX happened to hold.
+                    // Semantics: dest supplies the expected value and receives
+                    // the value that was in memory.
                     X86Reg base = load_operand(frontend::Operand::make_reg(insn->src1.mem.base.type, insn->src1.mem.base.index), X86Reg::RDI);
-                    X86Reg desired = load_operand(insn->src2, X86Reg::RBX);
+                    X86Reg desired = load_operand(insn->src2, X86Reg::RSI);
+                    if (desired != X86Reg::RSI) {
+                        enc->mov_reg_reg(X86Reg::RSI, desired);
+                        desired = X86Reg::RSI;
+                    }
+                    if (insn->dest.kind == frontend::OperandKind::REGISTER) {
+                        X86Reg expected = load_operand(insn->dest, X86Reg::RAX);
+                        if (expected != X86Reg::RAX) enc->mov_reg_reg(X86Reg::RAX, expected);
+                    }
                     enc->lock_cmpxchg_mem_reg(base, insn->src1.mem.offset, desired);
+                    if (insn->dest.kind == frontend::OperandKind::REGISTER) {
+                        store_operand(insn->dest.reg, X86Reg::RAX);
+                    }
                     break;
                 }
                 case frontend::Opcode::ATOMIC_XCHG_I64: {
@@ -614,6 +701,10 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                         enc->mov_reg_reg(X86Reg::RAX, ret_reg);
                     }
                     if (regalloc->requires_frame()) {
+                        for (uint32_t si = 0; si < regalloc->saved_reg_count(); ++si) {
+                            enc->mov_reg_mem(AnaRegAlloc::saved_reg(si), X86Reg::RBP,
+                                             -AnaRegAlloc::saved_reg_disp(si));
+                        }
                         enc->mov_reg_reg(X86Reg::RSP, X86Reg::RBP);
                         enc->pop_reg(X86Reg::RBP);
                     }
@@ -622,6 +713,10 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::RETURN_VOID: {
                     if (regalloc->requires_frame()) {
+                        for (uint32_t si = 0; si < regalloc->saved_reg_count(); ++si) {
+                            enc->mov_reg_mem(AnaRegAlloc::saved_reg(si), X86Reg::RBP,
+                                             -AnaRegAlloc::saved_reg_disp(si));
+                        }
                         enc->mov_reg_reg(X86Reg::RSP, X86Reg::RBP);
                         enc->pop_reg(X86Reg::RBP);
                     }
@@ -639,8 +734,18 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
         return nullptr;
     }
 
-    size_t code_sz = enc->code_size() > 0 ? enc->code_size() : 64;
-    void* fn_ptr = ana::sys::raw_mmap(nullptr, 4096, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+    // The executable page must be sized to the code that was actually
+    // generated. Hard-coding 4096 here overflowed the mapping (and crashed)
+    // for any function whose body exceeded one page.
+    size_t code_sz = enc->code_size();
+    if (code_sz == 0 || enc->failed()) {
+        delete regalloc;
+        delete enc;
+        return nullptr;
+    }
+    size_t map_sz = (code_sz + 4095) & ~static_cast<size_t>(4095);
+
+    void* fn_ptr = ana::sys::raw_mmap(nullptr, map_sz, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
     if (!fn_ptr || fn_ptr == reinterpret_cast<void*>(-1)) {
         delete regalloc;
         delete enc;
@@ -650,13 +755,19 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
     ana::sys::freestanding_memcpy(fn_ptr, enc->code_bytes(), code_sz);
     delete enc;
 
-    int mprot_res = ana::sys::raw_mprotect(fn_ptr, 4096, ANA_PROT_READ | ANA_PROT_EXEC);
-    ana::sys::clear_icache(fn_ptr, 4096);
+    int mprot_res = ana::sys::raw_mprotect(fn_ptr, map_sz, ANA_PROT_READ | ANA_PROT_EXEC);
+    ana::sys::clear_icache(fn_ptr, map_sz);
     delete regalloc;
 
     if (mprot_res != 0) {
+        ana::sys::raw_munmap(fn_ptr, map_sz);
         return nullptr;
     }
+
+    // Record the range as JIT-owned so the inline-cache backpatcher is allowed
+    // to flip its page protections. Sites outside any registered range are
+    // patched without touching protections.
+    register_jit_code_region(fn_ptr, map_sz);
 
     return fn_ptr;
 }
@@ -700,7 +811,9 @@ bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filenam
                     }
                 }
             }
-            return 0;
+            // Returning 0 here aliased label 0 and produced a branch to the
+            // wrong block. Hand back an unbound label so resolve_labels fails.
+            return enc->new_label();
         };
 
         if (regalloc.requires_frame()) {
@@ -806,6 +919,10 @@ bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filenam
                             enc->mov_reg_reg(X86Reg::RAX, ret_reg);
                         }
                         if (regalloc.requires_frame()) {
+                            for (uint32_t si = 0; si < regalloc.saved_reg_count(); ++si) {
+                                enc->mov_reg_mem(AnaRegAlloc::saved_reg(si), X86Reg::RBP,
+                                                     -AnaRegAlloc::saved_reg_disp(si));
+                            }
                             enc->mov_reg_reg(X86Reg::RSP, X86Reg::RBP);
                             enc->pop_reg(X86Reg::RBP);
                         }
@@ -814,6 +931,10 @@ bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filenam
                     }
                     case frontend::Opcode::RETURN_VOID: {
                         if (regalloc.requires_frame()) {
+                            for (uint32_t si = 0; si < regalloc.saved_reg_count(); ++si) {
+                                enc->mov_reg_mem(AnaRegAlloc::saved_reg(si), X86Reg::RBP,
+                                                     -AnaRegAlloc::saved_reg_disp(si));
+                            }
                             enc->mov_reg_reg(X86Reg::RSP, X86Reg::RBP);
                             enc->pop_reg(X86Reg::RBP);
                         }

@@ -4,7 +4,8 @@ namespace ana {
 namespace backend {
 
 AnaEncoder::AnaEncoder()
-    : buffer_(nullptr), capacity_(0), cursor_(0), label_count_(0), reloc_count_(0) {
+    : failed_(false), buffer_(nullptr), capacity_(0), cursor_(0), label_count_(0), reloc_count_(0) {
+    reset();
     ensure_capacity(4096);
 }
 
@@ -16,68 +17,82 @@ AnaEncoder::~AnaEncoder() {
 }
 
 void AnaEncoder::reset() {
+    failed_ = false;
     cursor_ = 0;
     label_count_ = 0;
     reloc_count_ = 0;
-    for (uint32_t i = 0; i < 512; ++i) {
+    for (uint32_t i = 0; i < kMaxLabels; ++i) {
         labels_[i].id = i;
         labels_[i].offset = -1;
         labels_[i].bound = false;
     }
 }
 
-void AnaEncoder::ensure_capacity(size_t additional) {
-    if (cursor_ + additional > capacity_) {
-        size_t new_cap = (capacity_ == 0) ? 4096 : (capacity_ * 2 + additional + 4095) & ~4095UL;
-        void* new_buf = ana::sys::raw_mmap(nullptr, new_cap, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
-        if (new_buf && new_buf != reinterpret_cast<void*>(-1)) {
-            if (buffer_ && cursor_ > 0) {
-                ana::sys::freestanding_memcpy(new_buf, buffer_, cursor_);
-                ana::sys::raw_munmap(buffer_, capacity_);
-            }
-            buffer_ = static_cast<uint8_t*>(new_buf);
-            capacity_ = new_cap;
-        }
+bool AnaEncoder::ensure_capacity(size_t additional) {
+    if (cursor_ + additional <= capacity_) return true;
+
+    size_t new_cap = (capacity_ == 0) ? 4096 : (capacity_ * 2 + additional + 4095) & ~4095UL;
+    void* new_buf = ana::sys::raw_mmap(nullptr, new_cap, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+    if (!new_buf || new_buf == reinterpret_cast<void*>(-1)) {
+        // Out of memory: latch the failure so callers stop trusting the buffer
+        // instead of writing past the end of the old mapping.
+        failed_ = true;
+        return false;
     }
+    if (buffer_ && cursor_ > 0) {
+        ana::sys::freestanding_memcpy(new_buf, buffer_, cursor_);
+    }
+    if (buffer_) {
+        ana::sys::raw_munmap(buffer_, capacity_);
+    }
+    buffer_ = static_cast<uint8_t*>(new_buf);
+    capacity_ = new_cap;
+    return true;
 }
 
 uint32_t AnaEncoder::new_label() {
-    if (label_count_ < 512) {
+    if (label_count_ < kMaxLabels) {
         uint32_t id = label_count_++;
         labels_[id].id = id;
         labels_[id].offset = -1;
         labels_[id].bound = false;
         return id;
     }
-    return 0;
+    // Returning 0 here would silently alias label 0 and emit branches to the
+    // wrong target, so record the overflow and let resolve_labels() reject it.
+    failed_ = true;
+    return kInvalidLabel;
 }
 
 void AnaEncoder::bind_label(uint32_t label_id) {
     if (label_id < label_count_) {
         labels_[label_id].offset = static_cast<int32_t>(cursor_);
         labels_[label_id].bound = true;
+        return;
     }
+    failed_ = true;
 }
 
 void AnaEncoder::emit8(uint8_t byte) {
-    ensure_capacity(1);
+    if (!ensure_capacity(1)) return;
     buffer_[cursor_++] = byte;
 }
 
 void AnaEncoder::emit32(uint32_t dword) {
-    ensure_capacity(4);
+    if (!ensure_capacity(4)) return;
     ana::sys::freestanding_memcpy(buffer_ + cursor_, &dword, 4);
     cursor_ += 4;
 }
 
 void AnaEncoder::emit64(uint64_t qword) {
-    ensure_capacity(8);
+    if (!ensure_capacity(8)) return;
     ana::sys::freestanding_memcpy(buffer_ + cursor_, &qword, 8);
     cursor_ += 8;
 }
 
 void AnaEncoder::emit_bytes(const uint8_t* data, size_t len) {
-    ensure_capacity(len);
+    if (!data || len == 0) return;
+    if (!ensure_capacity(len)) return;
     ana::sys::freestanding_memcpy(buffer_ + cursor_, data, len);
     cursor_ += len;
 }
@@ -462,7 +477,8 @@ void AnaEncoder::test_reg_reg(X86Reg src1, X86Reg src2) {
 
 void AnaEncoder::jmp_label(uint32_t label_id) {
     emit8(0xE9);
-    if (reloc_count_ < 1024) {
+    if (reloc_count_ >= kMaxRelocs) failed_ = true;
+    if (reloc_count_ < kMaxRelocs) {
         relocs_[reloc_count_++] = { label_id, cursor_, false };
     }
     emit32(0);
@@ -470,7 +486,8 @@ void AnaEncoder::jmp_label(uint32_t label_id) {
 
 void AnaEncoder::je_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x84);
-    if (reloc_count_ < 1024) {
+    if (reloc_count_ >= kMaxRelocs) failed_ = true;
+    if (reloc_count_ < kMaxRelocs) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -478,7 +495,8 @@ void AnaEncoder::je_label(uint32_t label_id) {
 
 void AnaEncoder::jne_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x85);
-    if (reloc_count_ < 1024) {
+    if (reloc_count_ >= kMaxRelocs) failed_ = true;
+    if (reloc_count_ < kMaxRelocs) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -486,7 +504,8 @@ void AnaEncoder::jne_label(uint32_t label_id) {
 
 void AnaEncoder::jl_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x8C);
-    if (reloc_count_ < 1024) {
+    if (reloc_count_ >= kMaxRelocs) failed_ = true;
+    if (reloc_count_ < kMaxRelocs) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -494,7 +513,8 @@ void AnaEncoder::jl_label(uint32_t label_id) {
 
 void AnaEncoder::jge_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x8D);
-    if (reloc_count_ < 1024) {
+    if (reloc_count_ >= kMaxRelocs) failed_ = true;
+    if (reloc_count_ < kMaxRelocs) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -712,6 +732,44 @@ void AnaEncoder::psubd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm) {
     emit_modrm(3, dst_xmm & 7, src_xmm & 7);
 }
 
+void AnaEncoder::movss_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp) {
+    uint8_t b = static_cast<uint8_t>(base);
+    emit8(0xF3);
+    if (dst_xmm >= 8 || b >= 8) emit_rex(false, dst_xmm, 0, b);
+    emit8(0x0F); emit8(0x10);
+    if (disp == 0 && (b & 7) != 5) {
+        emit_modrm(0, dst_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+    } else if (disp >= -128 && disp <= 127) {
+        emit_modrm(1, dst_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit8(static_cast<uint8_t>(disp));
+    } else {
+        emit_modrm(2, dst_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit32(static_cast<uint32_t>(disp));
+    }
+}
+
+void AnaEncoder::movss_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm) {
+    uint8_t b = static_cast<uint8_t>(base);
+    emit8(0xF3);
+    if (src_xmm >= 8 || b >= 8) emit_rex(false, src_xmm, 0, b);
+    emit8(0x0F); emit8(0x11);
+    if (disp == 0 && (b & 7) != 5) {
+        emit_modrm(0, src_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+    } else if (disp >= -128 && disp <= 127) {
+        emit_modrm(1, src_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit8(static_cast<uint8_t>(disp));
+    } else {
+        emit_modrm(2, src_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit32(static_cast<uint32_t>(disp));
+    }
+}
+
 void AnaEncoder::movsd_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp) {
     uint8_t b = static_cast<uint8_t>(base);
     emit8(0xF2);
@@ -789,6 +847,12 @@ void AnaEncoder::movdqu_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm) {
 }
 
 void AnaEncoder::emit_vex3(uint8_t m_mmmm, uint8_t pp, bool w, uint8_t vvvv, bool l, uint8_t r, uint8_t x, uint8_t b) {
+    // NOTE: the compact two-byte VEX (0xC5) form would be legal here whenever
+    // map==0F && X==0 && B==0 && !W, and decodes identically. We deliberately
+    // always emit the three-byte 0xC4 form instead: it is valid for every case,
+    // keeps one code path, and the engine's own encoding tests assert a 0xC4
+    // lead byte. Switching to 0xC5 is a pure size optimisation, not a
+    // correctness fix, and it regressed those tests.
     emit8(0xC4);
     uint8_t byte1 = ((~r & 1) << 7) | ((~x & 1) << 6) | ((~b & 1) << 5) | (m_mmmm & 0x1F);
     uint8_t byte2 = ((w ? 1 : 0) << 7) | ((~vvvv & 0x0F) << 3) | ((l ? 1 : 0) << 2) | (pp & 0x03);
@@ -798,22 +862,31 @@ void AnaEncoder::emit_vex3(uint8_t m_mmmm, uint8_t pp, bool w, uint8_t vvvv, boo
 
 void AnaEncoder::emit_evex(uint8_t mm, uint8_t pp, bool w, uint8_t vvvv, uint8_t lll, uint8_t r, uint8_t x, uint8_t b, uint8_t aaa) {
     emit8(0x62);
-    uint8_t byte1 = ((~r & 1) << 7) | ((~x & 1) << 6) | ((~b & 1) << 5) | (mm & 0x07);
-    uint8_t byte2 = ((w ? 1 : 0) << 7) | ((~vvvv & 0x0F) << 3) | 0x04 | (pp & 0x03);
-    uint8_t byte3 = (1 << 7) | ((lll & 0x03) << 5) | (aaa & 0x07);
+    // P0 = R X B R' 0 0 m m. R/X/B/R' are stored inverted; R'=1 selects the
+    // low 16 registers. Leaving R'=0 silently addressed zmm16-31.
+    uint8_t byte1 = static_cast<uint8_t>(((~r & 1) << 7) | ((~x & 1) << 6) |
+                                         ((~b & 1) << 5) | (1 << 4) | (mm & 0x03));
+    // P1 = W vvvv 1 pp, vvvv inverted.
+    uint8_t byte2 = static_cast<uint8_t>(((w ? 1 : 0) << 7) | ((~vvvv & 0x0F) << 3) |
+                                         0x04 | (pp & 0x03));
+    // P2 = z L'L b V' aaa. z must be 0 with aaa=0 (z=1 without a mask is #UD)
+    // and V'=1 selects the low 16 registers.
+    uint8_t byte3 = static_cast<uint8_t>(((lll & 0x03) << 5) | (1 << 3) | (aaa & 0x07));
     emit8(byte1);
     emit8(byte2);
     emit8(byte3);
 }
 
 void AnaEncoder::vpaddd_ymm_ymm(uint8_t dst_ymm, uint8_t src1_ymm, uint8_t src2_ymm) {
-    emit_vex3(0x02 /* 0F38 */, 0x01 /* 66 */, false, src1_ymm, true /* 256-bit */, dst_ymm >> 3, 0, src2_ymm >> 3);
+    // VPADDD is VEX.256.66.0F.WIG FE /r - opcode map 0F, not 0F38.
+    emit_vex3(0x01 /* 0F */, 0x01 /* 66 */, false, src1_ymm, true /* 256-bit */, dst_ymm >> 3, 0, src2_ymm >> 3);
     emit8(0xFE); // VPADDD
     emit_modrm(3, dst_ymm & 7, src2_ymm & 7);
 }
 
 void AnaEncoder::vpaddd_zmm_zmm(uint8_t dst_zmm, uint8_t src1_zmm, uint8_t src2_zmm) {
-    emit_evex(0x02 /* 0F38 */, 0x01 /* 66 */, false, src1_zmm, 0x02 /* 512-bit */, dst_zmm >> 3, 0, src2_zmm >> 3, 0);
+    // EVEX.512.66.0F.W0 FE /r - opcode map 0F, not 0F38.
+    emit_evex(0x01 /* 0F */, 0x01 /* 66 */, false, src1_zmm, 0x02 /* 512-bit */, dst_zmm >> 3, 0, src2_zmm >> 3, 0);
     emit8(0xFE); // VPADDD
     emit_modrm(3, dst_zmm & 7, src2_zmm & 7);
 }
@@ -826,7 +899,7 @@ void AnaEncoder::vpmulld_ymm_ymm(uint8_t dst_ymm, uint8_t src1_ymm, uint8_t src2
 
 void AnaEncoder::vmovdqu_ymm_mem(uint8_t dst_ymm, X86Reg base, int32_t disp) {
     uint8_t b = static_cast<uint8_t>(base);
-    emit_vex3(0x01 /* 0F */, 0x01 /* 66 */, false, 0, true /* 256-bit */, dst_ymm >> 3, 0, b >> 3);
+    emit_vex3(0x01 /* 0F */, 0x02 /* F3 */, false, 0, true /* 256-bit */, dst_ymm >> 3, 0, b >> 3);
     emit8(0x6F); // VMOVDQU
     if (disp == 0 && (b & 7) != 5) {
         emit_modrm(0, dst_ymm & 7, b & 7);
@@ -844,7 +917,7 @@ void AnaEncoder::vmovdqu_ymm_mem(uint8_t dst_ymm, X86Reg base, int32_t disp) {
 
 void AnaEncoder::vmovdqu_mem_ymm(X86Reg base, int32_t disp, uint8_t src_ymm) {
     uint8_t b = static_cast<uint8_t>(base);
-    emit_vex3(0x01 /* 0F */, 0x01 /* 66 */, false, 0, true /* 256-bit */, src_ymm >> 3, 0, b >> 3);
+    emit_vex3(0x01 /* 0F */, 0x02 /* F3 */, false, 0, true /* 256-bit */, src_ymm >> 3, 0, b >> 3);
     emit8(0x7F); // VMOVDQU
     if (disp == 0 && (b & 7) != 5) {
         emit_modrm(0, src_ymm & 7, b & 7);
@@ -862,7 +935,7 @@ void AnaEncoder::vmovdqu_mem_ymm(X86Reg base, int32_t disp, uint8_t src_ymm) {
 
 void AnaEncoder::vmovdqu_zmm_mem(uint8_t dst_zmm, X86Reg base, int32_t disp) {
     uint8_t b = static_cast<uint8_t>(base);
-    emit_evex(0x01 /* 0F */, 0x01 /* 66 */, false, 0, 0x02 /* 512-bit */, dst_zmm >> 3, 0, b >> 3, 0);
+    emit_evex(0x01 /* 0F */, 0x02 /* F3 */, false, 0, 0x02 /* 512-bit */, dst_zmm >> 3, 0, b >> 3, 0);
     emit8(0x6F); // VMOVDQU64
     if (disp == 0 && (b & 7) != 5) {
         emit_modrm(0, dst_zmm & 7, b & 7);
@@ -880,7 +953,7 @@ void AnaEncoder::vmovdqu_zmm_mem(uint8_t dst_zmm, X86Reg base, int32_t disp) {
 
 void AnaEncoder::vmovdqu_mem_zmm(X86Reg base, int32_t disp, uint8_t src_zmm) {
     uint8_t b = static_cast<uint8_t>(base);
-    emit_evex(0x01 /* 0F */, 0x01 /* 66 */, false, 0, 0x02 /* 512-bit */, src_zmm >> 3, 0, b >> 3, 0);
+    emit_evex(0x01 /* 0F */, 0x02 /* F3 */, false, 0, 0x02 /* 512-bit */, src_zmm >> 3, 0, b >> 3, 0);
     emit8(0x7F); // VMOVDQU64
     if (disp == 0 && (b & 7) != 5) {
         emit_modrm(0, src_zmm & 7, b & 7);
@@ -982,16 +1055,49 @@ void AnaEncoder::lea_reg_rip_disp32(X86Reg dst, int32_t disp32) {
 }
 
 bool AnaEncoder::resolve_labels() {
+    // Any latched emission/label/relocation overflow makes the buffer
+    // untrustworthy, so refuse to hand it back as runnable code.
+    if (failed_ || !buffer_) return false;
+
     for (uint32_t i = 0; i < reloc_count_; ++i) {
         const LabelReloc& r = relocs_[i];
         if (r.label_id >= label_count_ || !labels_[r.label_id].bound) return false;
+        if (r.patch_offset + 4 > cursor_) return false;
 
-        int32_t target_off = labels_[r.label_id].offset;
-        int32_t rel = target_off - static_cast<int32_t>(r.patch_offset + 4);
-        uint32_t rel_u32 = static_cast<uint32_t>(rel);
+        int64_t target_off = labels_[r.label_id].offset;
+        int64_t rel = target_off - static_cast<int64_t>(r.patch_offset + 4);
+        if (rel < -2147483648LL || rel > 2147483647LL) return false; // rel32 range
+        uint32_t rel_u32 = static_cast<uint32_t>(static_cast<int32_t>(rel));
         ana::sys::freestanding_memcpy(buffer_ + r.patch_offset, &rel_u32, 4);
     }
     return true;
+}
+
+void AnaEncoder::movsxd_reg_reg(X86Reg dst, X86Reg src) {
+    uint8_t d = static_cast<uint8_t>(dst);
+    uint8_t s = static_cast<uint8_t>(src);
+    emit_rex(true, d, 0, s);
+    emit8(0x63);
+    emit_modrm(3, d & 7, s & 7);
+}
+
+void AnaEncoder::movzxd_reg_reg(X86Reg dst, X86Reg src) {
+    uint8_t d = static_cast<uint8_t>(dst);
+    uint8_t s = static_cast<uint8_t>(src);
+    emit_rex(false, d, 0, s);
+    emit8(0x8B);
+    emit_modrm(3, d & 7, s & 7);
+}
+
+void AnaEncoder::cdq() {
+    emit8(0x99);
+}
+
+void AnaEncoder::idiv_reg32(X86Reg src) {
+    uint8_t s = static_cast<uint8_t>(src);
+    emit_rex(false, 7, 0, s);
+    emit8(0xF7);
+    emit_modrm(3, 7, s & 7);
 }
 
 } // namespace backend

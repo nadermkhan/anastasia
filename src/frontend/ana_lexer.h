@@ -34,7 +34,8 @@ enum class TokenType {
     TOKEN_TYPE,         // i32, i64, ptr, f32, void
     TOKEN_LIKELY,       // likely
     TOKEN_UNLIKELY,     // unlikely
-    TOKEN_STRING_LITERAL // "string literal"
+    TOKEN_STRING_LITERAL, // "string literal"
+    TOKEN_ERROR           // malformed input; never produced by valid source
 };
 
 struct StringView {

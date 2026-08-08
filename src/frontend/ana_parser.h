@@ -12,6 +12,9 @@ private:
     Lexer lexer_;
     Token current_tok_;
     ArenaAllocator& arena_;
+    bool had_error_;
+    const char* error_msg_;
+    uint32_t error_line_;
 
     Token advance();
     bool match(TokenType type);
@@ -31,6 +34,11 @@ private:
 public:
     Parser(const char* source, ArenaAllocator& arena);
     Program* parse_program();
+
+    // parse_program() returns nullptr on malformed input; these describe why.
+    bool has_error() const { return had_error_; }
+    const char* error_message() const { return error_msg_ ? error_msg_ : ""; }
+    uint32_t error_line() const { return error_line_; }
 };
 
 } // namespace frontend

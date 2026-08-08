@@ -19,7 +19,14 @@ private:
     size_t default_chunk_size_;
 
     Chunk* allocate_chunk(size_t size) {
-        size_t alloc_size = size > default_chunk_size_ ? size : default_chunk_size_;
+        // The chunk header is carved out of the same mapping, so the request
+        // has to cover payload + header and then round up to a whole page.
+        // Without this, capacity could come out smaller than the payload the
+        // caller asked for and alloc() would hand back memory past the end.
+        if (size > (~static_cast<size_t>(0)) - sizeof(Chunk) - 4096) return nullptr;
+        size_t need = size + sizeof(Chunk);
+        size_t alloc_size = need > default_chunk_size_ ? need : default_chunk_size_;
+        alloc_size = (alloc_size + 4095) & ~static_cast<size_t>(4095);
         void* mem = ana::sys::raw_mmap(
             nullptr, alloc_size,
             ANA_PROT_READ | ANA_PROT_WRITE,
@@ -49,6 +56,9 @@ public:
 
     void* alloc(size_t bytes, size_t alignment = 8) {
         if (bytes == 0) return nullptr;
+        // Alignment must be a power of two for the masking below to work.
+        if (alignment == 0 || (alignment & (alignment - 1)) != 0) return nullptr;
+        if (bytes > (~static_cast<size_t>(0)) - alignment - 4096) return nullptr;
 
         if (!head_) {
             head_ = allocate_chunk(bytes + alignment);
@@ -70,6 +80,9 @@ public:
             current_ptr = reinterpret_cast<uintptr_t>(curr->data);
             aligned_ptr = (current_ptr + (alignment - 1)) & ~(alignment - 1);
             padding = aligned_ptr - current_ptr;
+
+            // Re-verify: a fresh chunk is not automatically large enough.
+            if (padding + bytes > curr->capacity) return nullptr;
         }
 
         curr->used += padding + bytes;

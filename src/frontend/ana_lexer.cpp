@@ -4,8 +4,27 @@
 namespace ana {
 namespace frontend {
 
+// Bump pool for string literals. The previous version mapped a whole page per
+// literal (never released) and used the mmap result without checking it, so an
+// allocation failure wrote to address -1. Blocks here are never relocated, so
+// pointers handed out earlier stay valid for the life of the process.
+static uint8_t* g_str_pool = nullptr;
+static size_t g_str_pool_cap = 0;
+static size_t g_str_pool_used = 0;
+
 static char* lexer_alloc_string(const char* bytes, size_t len) {
-    char* buf = static_cast<char*>(sys::raw_mmap(nullptr, len + 1, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0));
+    size_t need = (len + 8) & ~static_cast<size_t>(7);
+    if (!g_str_pool || g_str_pool_used + need > g_str_pool_cap) {
+        size_t cap = need > 65536 ? ((need + 4095) & ~static_cast<size_t>(4095)) : 65536;
+        void* mem = sys::raw_mmap(nullptr, cap, ANA_PROT_READ | ANA_PROT_WRITE,
+                                  ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+        if (!mem || mem == reinterpret_cast<void*>(-1)) return nullptr;
+        g_str_pool = static_cast<uint8_t*>(mem);
+        g_str_pool_cap = cap;
+        g_str_pool_used = 0;
+    }
+    char* buf = reinterpret_cast<char*>(g_str_pool + g_str_pool_used);
+    g_str_pool_used += need;
     sys::freestanding_memcpy(buf, bytes, len);
     buf[len] = '\0';
     return buf;
@@ -80,6 +99,7 @@ Token Lexer::next_token() {
         if (peek() == '"') advance();
 
         char* str_copy = lexer_alloc_string(temp_buf, len);
+        if (!str_copy) { tok.type = TokenType::TOKEN_ERROR; return tok; }
         tok.type = TokenType::TOKEN_STRING_LITERAL;
         tok.string_val = str_copy;
         tok.string_len = len;
@@ -150,7 +170,7 @@ Token Lexer::next_token() {
             case fnv1a_hash("end_class", 9):    tok.type = TokenType::TOKEN_END_CLASS; return tok;
             case fnv1a_hash("field", 5):        tok.type = TokenType::TOKEN_FIELD; return tok;
             case fnv1a_hash("registers", 9):    tok.type = TokenType::TOKEN_REGISTERS; return tok;
-            case fnv1a_hash("import-sys", 11):  tok.type = TokenType::TOKEN_IMPORT_SYS; return tok;
+            case fnv1a_hash("import-sys", 10):  tok.type = TokenType::TOKEN_IMPORT_SYS; return tok;
             default: break;
         }
         tok.type = TokenType::TOKEN_IDENTIFIER;
@@ -279,8 +299,11 @@ Token Lexer::next_token() {
         return tok;
     }
 
+    // An unrecognised character used to produce TOKEN_EOF, which silently
+    // discarded the rest of the program. Report it instead.
     advance();
-    tok.type = TokenType::TOKEN_EOF;
+    tok.type = TokenType::TOKEN_ERROR;
+    tok.view.length = 1;
     return tok;
 }
 

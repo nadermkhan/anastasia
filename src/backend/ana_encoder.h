@@ -43,7 +43,15 @@ public:
     AnaEncoder();
     ~AnaEncoder();
 
+    // The encoder owns an mmap'd buffer, so copying would double-unmap it.
+    AnaEncoder(const AnaEncoder&) = delete;
+    AnaEncoder& operator=(const AnaEncoder&) = delete;
+
     void reset();
+
+    // True once any emission, label or relocation operation could not be
+    // completed. Emitted code must be discarded when this is set.
+    bool failed() const { return failed_; }
 
     // Label management
     uint32_t new_label();
@@ -58,6 +66,16 @@ public:
     // REX prefix helper
     void emit_rex(bool w, uint8_t reg_idx, uint8_t index_idx, uint8_t base_idx);
     void emit_modrm(uint8_t mod, uint8_t reg, uint8_t rm);
+
+    // movsxd r64, r/m32 - sign-extends the low 32 bits. Used to give the /32
+    // opcode family true 32-bit wrapping semantics.
+    void movsxd_reg_reg(X86Reg dst, X86Reg src);
+    // mov r32, r/m32 - zero-extends the low 32 bits into the full register.
+    void movzxd_reg_reg(X86Reg dst, X86Reg src);
+    // cdq - sign-extends EAX into EDX:EAX for 32-bit division.
+    void cdq();
+    // idiv r/m32 - 32-bit signed division.
+    void idiv_reg32(X86Reg src);
 
     // Core Instruction Encoding
     void mov_reg_reg(X86Reg dst, X86Reg src);
@@ -131,6 +149,8 @@ public:
     void subsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void mulsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void divsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void movss_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp);
+    void movss_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
     void movsd_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp);
     void movsd_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
 
@@ -165,16 +185,24 @@ public:
     size_t code_size() const { return cursor_; }
 
 private:
-    void ensure_capacity(size_t additional);
+    // Returns false (and latches failed_) when the buffer cannot be grown.
+    bool ensure_capacity(size_t additional);
 
+    bool failed_;
     uint8_t* buffer_;
     size_t capacity_;
     size_t cursor_;
 
-    EncoderLabel labels_[512];
+public:
+    static const uint32_t kMaxLabels = 512;
+    static const uint32_t kMaxRelocs = 1024;
+    static const uint32_t kInvalidLabel = 0xFFFFFFFFu;
+
+private:
+    EncoderLabel labels_[kMaxLabels];
     uint32_t label_count_;
 
-    LabelReloc relocs_[1024];
+    LabelReloc relocs_[kMaxRelocs];
     uint32_t reloc_count_;
 };
 

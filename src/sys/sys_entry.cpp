@@ -54,13 +54,35 @@ extern "C" {
     void _Unwind_Resume(void*) {
         ana::sys::raw_exit(134);
     }
-    int __gxx_personality_v0 = 0;
+    // This was an `int` object. The unwind tables reference the symbol as a
+    // function; had anything ever dispatched through it, control would have
+    // jumped into a data word. Exceptions are disabled in this build, so the
+    // only correct behaviour is to abort loudly.
+    int __gxx_personality_v0(void) {
+        ana::sys::raw_write(2, "Unwind personality invoked\n", 27);
+        ana::sys::raw_exit(134);
+        return 0;
+    }
     void* __dso_handle = nullptr;
     int __cxa_atexit(void (*)(void*), void*, void*) {
         return 0;
     }
     int __cxa_guard_acquire(int64_t* guard) {
-        if (*reinterpret_cast<volatile char*>(guard) == 0) return 1;
+        // Returning 1 without claiming the guard let two threads both run the
+        // initialiser. Claim it atomically; if another thread already did,
+        // spin until it publishes the initialised value.
+        volatile char* g = reinterpret_cast<volatile char*>(guard);
+        char* in_progress = reinterpret_cast<char*>(guard) + 1;
+        if (__atomic_load_n(g, __ATOMIC_ACQUIRE) != 0) return 0;
+
+        char expected = 0;
+        if (__atomic_compare_exchange_n(in_progress, &expected, static_cast<char>(1),
+                                        false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+            return 1; // this thread runs the initialiser
+        }
+        while (__atomic_load_n(g, __ATOMIC_ACQUIRE) == 0) {
+            __asm__ __volatile__("pause" ::: "memory");
+        }
         return 0;
     }
     void __cxa_guard_release(int64_t* guard) {

@@ -27,6 +27,13 @@ static void print_cli_msg(const char* s) {
 
 
 int ana_main(int argc, char** argv) {
+    // `--aot` with too few arguments used to fall through and silently run the
+    // whole test suite instead of reporting a usage error.
+    if (argc >= 2 && streq_check(argv[1], "--aot") && argc < 4) {
+        print_cli_msg("[AOT Compiler ERROR] Usage: anastasia_engine --aot <input.ana> <output.o>\n");
+        return 2;
+    }
+
     if (argc >= 4 && streq_check(argv[1], "--aot")) {
         const char* in_filepath = argv[2];
         const char* out_obj = argv[3];
@@ -45,23 +52,60 @@ int ana_main(int argc, char** argv) {
             return 1;
         }
 
-        static char code_buf[65536];
-        ana::sys::freestanding_memset(code_buf, 0, sizeof(code_buf));
-        int64_t bytes = ana::sys::raw_read(fd, code_buf, sizeof(code_buf) - 1);
+        // A single read into a fixed 64 KiB buffer silently truncated any
+        // larger source mid-token and then compiled the fragment as if it were
+        // the whole program. Read to end of file into a growing buffer.
+        size_t cap = 65536;
+        size_t len = 0;
+        char* code_buf = static_cast<char*>(malloc(cap));
+        if (!code_buf) {
+            ana::sys::raw_close(fd);
+            print_cli_msg("[AOT Compiler ERROR] Out of memory reading source\n");
+            return 1;
+        }
+
+        for (;;) {
+            if (len + 1 >= cap) {
+                size_t new_cap = cap * 2;
+                char* grown = static_cast<char*>(realloc(code_buf, new_cap));
+                if (!grown) {
+                    free(code_buf);
+                    ana::sys::raw_close(fd);
+                    print_cli_msg("[AOT Compiler ERROR] Out of memory reading source\n");
+                    return 1;
+                }
+                code_buf = grown;
+                cap = new_cap;
+            }
+            int64_t n = ana::sys::raw_read(fd, code_buf + len, cap - 1 - len);
+            if (n < 0) {
+                free(code_buf);
+                ana::sys::raw_close(fd);
+                print_cli_msg("[AOT Compiler ERROR] Read error on input source file\n");
+                return 1;
+            }
+            if (n == 0) break;
+            len += static_cast<size_t>(n);
+        }
         ana::sys::raw_close(fd);
 
-        if (bytes <= 0) {
+        if (len == 0) {
+            free(code_buf);
             print_cli_msg("[AOT Compiler ERROR] Empty or unreadable source file\n");
             return 1;
         }
-        code_buf[bytes] = '\0';
+        code_buf[len] = '\0';
 
         ana::frontend::ArenaAllocator arena;
         ana::frontend::Parser parser(code_buf, arena);
         ana::frontend::Program* prog = parser.parse_program();
 
         if (!prog || !prog->functions) {
-            print_cli_msg("[AOT Compiler ERROR] Failed to parse AST from input source\n");
+            // The parser can report a reason now, so surface it.
+            print_cli_msg("[AOT Compiler ERROR] Failed to parse AST from input source: ");
+            print_cli_msg(parser.error_message());
+            print_cli_msg("\n");
+            free(code_buf);
             return 1;
         }
 
@@ -69,13 +113,16 @@ int ana_main(int argc, char** argv) {
         ana::backend::AnaLowerer lowerer(runtime);
 
         bool success = lowerer.compile_to_elf(prog, out_obj);
+        // Freed only after lowering: AST nodes may still reference the source.
         if (success) {
             print_cli_msg("[AOT Compiler SUCCESS] Emitted relocatable ELF object file: ");
             print_cli_msg(out_obj);
             print_cli_msg("\n");
+            free(code_buf);
             return 0;
         } else {
             print_cli_msg("[AOT Compiler ERROR] Failed to generate ELF object file\n");
+            free(code_buf);
             return 1;
         }
     }

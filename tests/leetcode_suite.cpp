@@ -1002,7 +1002,7 @@ static const char* code_lc30_valid_anagram =
 // -------------------------------------------------------------------
 bool run_leetcode_tests() {
     print_lc("\n=======================================================\n");
-    print_lc("    Anastasia Extended Smali LeetCode Test Suite (30 Problems)\n");
+    print_lc("    Anastasia Assembly LeetCode Test Suite (30 Problems)\n");
     print_lc("=======================================================\n");
 
     bool all_ok = true;

@@ -1,7 +1,7 @@
 # Anastasia Engine v7.1
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Language-Extended%20Smali%20%7C%20C%2B%2B20-blue.svg" alt="Language">
+  <img src="https://img.shields.io/badge/Language-Anastasia%20Assembly%20%7C%20C%2B%2B20-blue.svg" alt="Language">
   <img src="https://img.shields.io/badge/Dependencies-Zero%20%28100%25%20Freestanding%20Zero--CRT%29-brightgreen.svg" alt="Dependencies">
   <img src="https://img.shields.io/badge/Architecture-x86__64%20%7C%20AArch64%20%28ARM64%29-orange.svg" alt="Architecture">
   <img src="https://img.shields.io/badge/SIMD-AVX2%20%7C%20AVX--512%20%7C%20VEX%2FEVEX-purple.svg" alt="SIMD">
@@ -9,9 +9,9 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </p>
 
-> **The World's Fastest Embeddable, Bare-Metal, Zero-CRT JIT & AOT Compiler Engine for Extended Smali (`.ana`)**
+> **The World's Fastest Embeddable, Bare-Metal, Zero-CRT JIT & AOT Compiler Engine for Anastasia Assembly (`.ana`)**
 
-**Anastasia** is a state-of-the-art, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Extended Smali** (`.ana`) instructions directly into native machine code, Anastasia targets x86_64 (AVX2 / AVX-512 VEX & EVEX vector encodings) and AArch64 (ARM64) at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
+**Anastasia** is a state-of-the-art, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets x86_64 (AVX2 / AVX-512 VEX & EVEX vector encodings) and AArch64 (ARM64) at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
 
 Designed for ultra-low latency system software, high-frequency data pipelines, real-time analytics, and high-performance computing, Anastasia pairs raw assembly execution speed with advanced SSA optimizations, zero-copy `io_uring` hardware async I/O, non-temporal RAM streaming, and trap-free garbage collection.
 
@@ -39,7 +39,7 @@ Designed for ultra-low latency system software, high-frequency data pipelines, r
 ```
  ┌───────────────────────────────────────────────────────────────────────────┐
  │                         Anastasia Frontend Core                           │
- │  Smali Lexer ──> SMALI Parser ──> AST ──> SSA Optimizer & Vectorizer     │
+ │  Ana Lexer ──> Ana Parser ──> AST ──> SSA Optimizer & Vectorizer           │
  │  Arena-Based AST Memory (Zero-CRT, Lock-Free Thread-Local Arena)          │
  └─────────────────────────────────────┬─────────────────────────────────────┘
                                        │
@@ -96,10 +96,10 @@ cd anastasia
 
 ### CLI Command Options
 ```bash
-# Execute Extended Smali program in JIT Mode
+# Execute Anastasia Assembly program in JIT Mode
 ./build/anastasia_engine program.ana
 
-# Compile Extended Smali program to Relocatable ELF Object File (AOT Mode)
+# Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
 ./build/anastasia_engine --aot input.ana output.o
 
 # Perform clean build and run tests
@@ -108,7 +108,7 @@ cd anastasia
 
 ---
 
-## 📜 Extended Smali (`.ana`) Code Examples
+## 📜 Anastasia Assembly (`.ana`) Code Examples
 
 ### 1. High-Performance Loop with Branch Hints & Volatile Sink
 ```smali

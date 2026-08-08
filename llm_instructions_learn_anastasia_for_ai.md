@@ -1,9 +1,9 @@
-# LLM AI Instruction Manual: Extended Smali (.ana) for Anastasia v7.1
+# LLM AI Instruction Manual: Anastasia Assembly (.ana) for Anastasia v7.1
 
 > **System Prompt & Grammar Specification for Large Language Models (LLMs)**  
 > **Target System**: Anastasia v7.1 Bare-Metal Compiler Engine  
 > **File Extension**: `.ana`  
-> **Objective**: Enable LLMs to parse, validate, and emit 100% syntactically correct, non-hallucinated Extended Smali assembly programs.
+> **Objective**: Enable LLMs to parse, validate, and emit 100% syntactically correct, non-hallucinated Anastasia Assembly programs.
 
 ---
 
@@ -15,7 +15,7 @@ When generating code for Anastasia, you MUST adhere to the following strict rule
    - Never generate `#include`, `import`, `printf`, `malloc`, or `std::cout`. Anastasia is a 100% bare-metal, zero-CRT environment.
 2. **NO Synthetic Assembly Opcodes**:
    - Never generate raw x86_64 or ARM assembly instructions (e.g. `movq`, `push`, `pop`, `call`, `jmp`, `ldr`, `str`).
-   - Use **ONLY** valid Extended Smali opcodes defined in Section 4.
+   - Use **ONLY** valid Anastasia Assembly opcodes defined in Section 4.
 3. **Destination-First Operand Ordering**:
    - All instructions follow 3-operand destination-first format: `opcode dest, src1, src2` or 2-operand `opcode dest, src`.
 4. **Mandatory Function Framing**:
@@ -143,7 +143,7 @@ Instruction ::= Opcode OperandList ;
 
 ---
 
-## 5. Verified Canonical Extended Smali Examples
+## 5. Verified Canonical Anastasia Assembly Examples
 
 ### Example 1: Arithmetic & Function Signature
 ```smali
@@ -215,7 +215,7 @@ loop_end:
 
 ## 6. LLM Validation & Self-Correction Checklist
 
-Before outputting Extended Smali code, perform this self-audit:
+Before outputting Anastasia Assembly code, perform this self-audit:
 
 1. [ ] Does every function have `.registers N local` declared immediately after `.fn`?
 2. [ ] Are parameter registers (`p0`, `p1`, ...) used in order of function parameter declarations?

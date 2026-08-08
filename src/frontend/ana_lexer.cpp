@@ -227,7 +227,7 @@ Token Lexer::next_token() {
             default: break;
         }
 
-        // Extended Smali Opcodes
+        // Anastasia Assembly Opcodes
         switch (hash) {
             case fnv1a_hash("add-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_I32; return tok;
             case fnv1a_hash("sub-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_I32; return tok;

@@ -773,7 +773,7 @@ static bool test_simd_vector_and_float_isa() {
         return false;
     }
 
-    // JIT Compile Extended Smali SIMD Vector addition program
+    // JIT Compile Anastasia Assembly SIMD Vector addition program
     const char* smali_vector_code =
         ".fn test_vector_add(p0: ptr, p1: ptr, p2: ptr) -> void\n"
         ".registers 3 local\n"

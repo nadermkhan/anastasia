@@ -481,7 +481,7 @@ static bool run_example_9() {
 
 bool run_all_examples() {
     print("\n=======================================================\n");
-    print("    Anastasia Extended Smali Example Execution Suite\n");
+    print("    Anastasia Assembly Example Execution Suite\n");
     print("=======================================================\n");
 
     bool all_ok = true;

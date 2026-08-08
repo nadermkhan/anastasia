@@ -38,7 +38,7 @@ int ana_main(int argc, char** argv) {
         const char* in_filepath = argv[2];
         const char* out_obj = argv[3];
 
-        print_cli_msg("[AOT Compiler] Compiling Extended Smali source '");
+        print_cli_msg("[AOT Compiler] Compiling Anastasia Assembly source '");
         print_cli_msg(in_filepath);
         print_cli_msg("' -> '");
         print_cli_msg(out_obj);

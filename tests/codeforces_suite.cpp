@@ -1575,7 +1575,7 @@ static const char* code_cf30_zero_one_bfs =
 // -------------------------------------------------------------------
 bool run_codeforces_tests() {
     print_cf("\n=======================================================\n");
-    print_cf("    Anastasia Extended Smali Codeforces 1800+ Suite (30 Problems)\n");
+    print_cf("    Anastasia Assembly Codeforces 1800+ Suite (30 Problems)\n");
     print_cf("=======================================================\n");
 
     bool all_ok = true;

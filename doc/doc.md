@@ -2,7 +2,7 @@
 
 ## 1. Overview & Philosophy
 
-**Anastasia v7.1** is an embeddable, adaptive, bare-metal, zero-CRT compiler ecosystem and execution engine for **Extended Smali** (`.ana`). Designed for maximum execution throughput, zero runtime overhead, adaptive dynamic tiering, non-temporal data streaming, and zero-copy hardware I/O, Anastasia compiles high-level Extended Smali programs directly to native x86_64 and AArch64 (ARM64) machine code at runtime (JIT) or emits relocatable ELF object files (`.o`) and standalone Windows PE32+ executables (`.exe`) for static linking (AOT) without linking against standard C runtimes (`libc`, `libstdc++`), C++ standard libraries, or third-party dependencies.
+**Anastasia v7.1** is an embeddable, adaptive, bare-metal, zero-CRT compiler ecosystem and execution engine for **Anastasia Assembly** (`.ana`). Designed for maximum execution throughput, zero runtime overhead, adaptive dynamic tiering, non-temporal data streaming, and zero-copy hardware I/O, Anastasia compiles high-level Anastasia Assembly programs directly to native x86_64 and AArch64 (ARM64) machine code at runtime (JIT) or emits relocatable ELF object files (`.o`) and standalone Windows PE32+ executables (`.exe`) for static linking (AOT) without linking against standard C runtimes (`libc`, `libstdc++`), C++ standard libraries, or third-party dependencies.
 
 ### Core Architectural Principles
 * **Freestanding Bare-Metal Execution**: Operates exclusively under GCC/Clang freestanding flags (`-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti`) with direct assembly syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_munmap`, `raw_write`, `raw_read`, `raw_open`, `raw_close`, `raw_clone`, `raw_futex`, `raw_exit`, `raw_sched_setaffinity`, `raw_mbind`, `raw_io_uring_setup`, `raw_io_uring_enter`). Completely purged external dependencies like `asmjit` in favor of native freestanding machine code encoders.
@@ -28,7 +28,7 @@
 ```
  ┌───────────────────────────────────────────────────────────────────────────┐
  │                         Anastasia Frontend Core                           │
- │  Smali Lexer ──> SMALI Parser ──> AST ──> SSA Optimizer & Vectorizer     │
+ │  Ana Lexer ──> Ana Parser ──> AST ──> SSA Optimizer & Vectorizer           │
  │  Arena-Based AST Memory (Zero-CRT, Lock-Free Thread-Local Arena)          │
  └─────────────────────────────────────┬─────────────────────────────────────┘
                                        │
@@ -59,10 +59,10 @@
 
 ---
 
-## 3. Extended Smali (`.ana`) Syntax & Language Fundamentals
+## 3. Anastasia Assembly (`.ana`) Syntax & Language Fundamentals
 
 ### 3.1 File Structure
-An Extended Smali file (`.ana`) contains class definitions (with optional virtual method tables) followed by top-level or method function declarations. Basic blocks are delineated by label declarations (`label_name:`). Structural exception handling uses `.try` and `.catch(ExceptionClass)` blocks.
+An Anastasia Assembly file (`.ana`) contains class definitions (with optional virtual method tables) followed by top-level or method function declarations. Basic blocks are delineated by label declarations (`label_name:`). Structural exception handling uses `.try` and `.catch(ExceptionClass)` blocks.
 
 ### 3.2 Type System
 Anastasia supports primitive, vector, string, reference, and exception types:
@@ -136,10 +136,10 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 
 ### 5.1 Command Line Interface
 ```bash
-# 1. Execute Extended Smali program in JIT Mode
+# 1. Execute Anastasia Assembly program in JIT Mode
 ./build/anastasia_engine program.ana
 
-# 2. Compile Extended Smali program to Relocatable ELF Object File (AOT Mode)
+# 2. Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
 ./build/anastasia_engine --aot input.ana output.o
 
 # 3. Run full QA matrix test suite (99 / 99 Tests)
@@ -161,7 +161,7 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 [Test 40/40] Anastasia v7.0 Native Strings, JIT Interning & AOT .rodata Relocations... PASSED
 
 =======================================================
-    Anastasia Extended Smali LeetCode Test Suite (30 Problems)
+    Anastasia Assembly LeetCode Test Suite (30 Problems)
 =======================================================
   Running LC 1: Two Sum... PASSED
   Running LC 2: Reverse Integer... PASSED
@@ -172,7 +172,7 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 =======================================================
 
 =======================================================
-    Anastasia Extended Smali Codeforces 1800+ Suite (30 Problems)
+    Anastasia Assembly Codeforces 1800+ Suite (30 Problems)
 =======================================================
   Running CF 1: Segment Tree Point Update & Range Sum... PASSED
   Running CF 2: O(N log N) LIS... PASSED

@@ -1,4 +1,6 @@
 #include "test_suite.h"
+#include "leetcode_suite.h"
+#include "codeforces_suite.h"
 #include "../src/sys/sys_raw.h"
 #include "../src/sys/cpu_features.h"
 #include "../src/frontend/arena_allocator.h"
@@ -1541,6 +1543,7 @@ bool run_all_tests() {
     ok &= test_numa_first_touch_and_barriers();
     ok &= test_v7_string_literals_and_rodata_emission();
     ok &= run_leetcode_tests();
+    ok &= run_codeforces_tests();
 
     print_msg("=======================================================\n");
     if (ok) {

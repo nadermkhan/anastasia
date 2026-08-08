@@ -32,6 +32,7 @@ public:
 
     size_t stack_frame_size() const { return stack_frame_size_; }
     bool requires_frame() const { return requires_frame_; }
+    uint32_t param_count() const { return param_count_; }
 
 private:
     RegLocation local_locs_[64];

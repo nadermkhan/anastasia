@@ -1,6 +1,7 @@
 build/
 output.log
 run.log
+*.log
 *.o
 *.exe
 .DS_Store

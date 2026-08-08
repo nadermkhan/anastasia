@@ -31,7 +31,7 @@ void Lexer::skip_whitespace_and_comments() {
         char c = peek();
         if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
             advance();
-        } else if (c == '#') {
+        } else if (c == '#' || c == ';') {
             while (peek() != '\n' && peek() != '\0') {
                 advance();
             }

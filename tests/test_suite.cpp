@@ -20,6 +20,7 @@
 #include "../src/backend/host_interop.h"
 #include "../src/backend/pe_emitter.h"
 #include "../src/optimizer/pgo_profiler.h"
+#include "leetcode_suite.h"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -1539,6 +1540,7 @@ bool run_all_tests() {
     ok &= test_adaptive_prefetch_injection();
     ok &= test_numa_first_touch_and_barriers();
     ok &= test_v7_string_literals_and_rodata_emission();
+    ok &= run_leetcode_tests();
 
     print_msg("=======================================================\n");
     if (ok) {

@@ -70,13 +70,14 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
     }
 
     // Save incoming parameter registers (RDI, RSI, RDX...) into stack frame slots
-    if (fn->params) {
-        uint32_t p_idx = 0;
-        for (frontend::Parameter* p = fn->params; p != nullptr; p = p->next, ++p_idx) {
-            X86Reg raw_reg = regalloc->get_param_raw_reg(p_idx);
-            RegLocation p_loc = regalloc->get_param_loc(p_idx);
-            if (p_loc.kind == RegLocKind::STACK_SPILL) {
-                enc->mov_mem_reg(X86Reg::RBP, -p_loc.stack_disp, raw_reg);
+    for (uint32_t p_idx = 0; p_idx < regalloc->param_count(); ++p_idx) {
+        X86Reg raw_reg = regalloc->get_param_raw_reg(p_idx);
+        RegLocation p_loc = regalloc->get_param_loc(p_idx);
+        if (p_loc.kind == RegLocKind::STACK_SPILL) {
+            enc->mov_mem_reg(X86Reg::RBP, -p_loc.stack_disp, raw_reg);
+        } else if (p_loc.kind == RegLocKind::PHYSICAL_REG) {
+            if (p_loc.phys_reg != raw_reg) {
+                enc->mov_reg_reg(p_loc.phys_reg, raw_reg);
             }
         }
     }
@@ -117,10 +118,13 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 case frontend::Opcode::ADD_I32:
                 case frontend::Opcode::ADD_I64: {
                     X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
-                    if (s2 != X86Reg::R11 && insn->src2.kind == frontend::OperandKind::CONST_INT) enc->mov_reg_reg(X86Reg::R11, s2);
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                    if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                        enc->mov_reg_reg(X86Reg::R11, s2);
+                        s2 = X86Reg::R11;
+                    }
                     enc->mov_reg_reg(dst_reg, s1);
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->add_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
@@ -133,10 +137,13 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 case frontend::Opcode::SUB_I32:
                 case frontend::Opcode::SUB_I64: {
                     X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
-                    if (s2 != X86Reg::R11 && insn->src2.kind == frontend::OperandKind::CONST_INT) enc->mov_reg_reg(X86Reg::R11, s2);
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                    if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                        enc->mov_reg_reg(X86Reg::R11, s2);
+                        s2 = X86Reg::R11;
+                    }
                     enc->mov_reg_reg(dst_reg, s1);
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->sub_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
@@ -195,14 +202,18 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::AND_I32:
                 case frontend::Opcode::AND_I64: {
+                    X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                    if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                        enc->mov_reg_reg(X86Reg::R11, s2);
+                        s2 = X86Reg::R11;
+                    }
                     enc->mov_reg_reg(dst_reg, s1);
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->and_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                         enc->and_reg_reg(dst_reg, s2);
                     }
                     store_operand(insn->dest.reg, dst_reg);
@@ -210,14 +221,18 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::OR_I32:
                 case frontend::Opcode::OR_I64: {
+                    X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                    if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                        enc->mov_reg_reg(X86Reg::R11, s2);
+                        s2 = X86Reg::R11;
+                    }
                     enc->mov_reg_reg(dst_reg, s1);
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->or_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                         enc->or_reg_reg(dst_reg, s2);
                     }
                     store_operand(insn->dest.reg, dst_reg);
@@ -225,14 +240,18 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::XOR_I32:
                 case frontend::Opcode::XOR_I64: {
+                    X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                    if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                        enc->mov_reg_reg(X86Reg::R11, s2);
+                        s2 = X86Reg::R11;
+                    }
                     enc->mov_reg_reg(dst_reg, s1);
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->xor_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                         enc->xor_reg_reg(dst_reg, s2);
                     }
                     store_operand(insn->dest.reg, dst_reg);
@@ -240,6 +259,10 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::SHL_I32:
                 case frontend::Opcode::SHL_I64: {
+                    X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
+                    if (insn->src2.kind != frontend::OperandKind::CONST_INT && s2 != X86Reg::RCX) {
+                        enc->mov_reg_reg(X86Reg::RCX, s2);
+                    }
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
@@ -247,8 +270,6 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->shl_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
-                        if (s2 != X86Reg::RCX) enc->mov_reg_reg(X86Reg::RCX, s2);
                         enc->shl_reg_cl(dst_reg);
                     }
                     store_operand(insn->dest.reg, dst_reg);
@@ -256,6 +277,10 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::SHR_I32:
                 case frontend::Opcode::SHR_I64: {
+                    X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
+                    if (insn->src2.kind != frontend::OperandKind::CONST_INT && s2 != X86Reg::RCX) {
+                        enc->mov_reg_reg(X86Reg::RCX, s2);
+                    }
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
@@ -263,8 +288,6 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->sar_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
-                        if (s2 != X86Reg::RCX) enc->mov_reg_reg(X86Reg::RCX, s2);
                         enc->sar_reg_cl(dst_reg);
                     }
                     store_operand(insn->dest.reg, dst_reg);
@@ -272,6 +295,10 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::USHR_I32:
                 case frontend::Opcode::USHR_I64: {
+                    X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
+                    if (insn->src2.kind != frontend::OperandKind::CONST_INT && s2 != X86Reg::RCX) {
+                        enc->mov_reg_reg(X86Reg::RCX, s2);
+                    }
                     X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
                                      ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
@@ -279,8 +306,6 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->shr_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
-                        if (s2 != X86Reg::RCX) enc->mov_reg_reg(X86Reg::RCX, s2);
                         enc->shr_reg_cl(dst_reg);
                     }
                     store_operand(insn->dest.reg, dst_reg);
@@ -461,14 +486,14 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                 }
                 case frontend::Opcode::STORE_MEM: {
                     X86Reg base = load_operand(frontend::Operand::make_reg(insn->dest.mem.base.type, insn->dest.mem.base.index), X86Reg::RAX);
-                    X86Reg src = load_operand(insn->src1, X86Reg::R10);
+                    X86Reg src = load_operand(insn->src1, X86Reg::R11);
                     enc->mov_mem_reg(base, insn->dest.mem.offset, src);
                     break;
                 }
                 case frontend::Opcode::BIND_VTABLE: {
                     X86Reg obj = load_operand(insn->src1, X86Reg::RAX);
-                    enc->mov_reg_imm64(X86Reg::R10, insn->src2.const_val);
-                    enc->mov_mem_reg(obj, 0, X86Reg::R10);
+                    enc->mov_reg_imm64(X86Reg::R11, insn->src2.const_val);
+                    enc->mov_mem_reg(obj, 0, X86Reg::R11);
                     break;
                 }
                 case frontend::Opcode::CALL_VIRT:
@@ -476,8 +501,8 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     X86Reg obj = load_operand(insn->src1, X86Reg::RDI);
                     if (obj != X86Reg::RDI) enc->mov_reg_reg(X86Reg::RDI, obj);
 
-                    enc->mov_reg_mem(X86Reg::R10, X86Reg::RDI, 0);
-                    enc->mov_reg_mem(X86Reg::R11, X86Reg::R10, insn->vtable_slot * 8);
+                    enc->mov_reg_mem(X86Reg::R11, X86Reg::RDI, 0);
+                    enc->mov_reg_mem(X86Reg::R11, X86Reg::R11, insn->vtable_slot * 8);
                     enc->call_reg(X86Reg::R11);
 
                     store_operand(insn->dest.reg, X86Reg::RAX);
@@ -529,7 +554,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
                         enc->cmp_reg_imm32(s1, static_cast<int32_t>(insn->src2.const_val));
                     } else {
-                        X86Reg s2 = load_operand(insn->src2, X86Reg::R10);
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
                         enc->cmp_reg_reg(s1, s2);
                     }
 
@@ -684,13 +709,14 @@ bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filenam
             enc->sub_reg_imm32(X86Reg::RSP, static_cast<int32_t>(regalloc.stack_frame_size()));
         }
 
-        if (fn->params) {
-            uint32_t p_idx = 0;
-            for (frontend::Parameter* p = fn->params; p != nullptr; p = p->next, ++p_idx) {
-                X86Reg raw_reg = regalloc.get_param_raw_reg(p_idx);
-                RegLocation p_loc = regalloc.get_param_loc(p_idx);
-                if (p_loc.kind == RegLocKind::STACK_SPILL) {
-                    enc->mov_mem_reg(X86Reg::RBP, -p_loc.stack_disp, raw_reg);
+        for (uint32_t p_idx = 0; p_idx < regalloc.param_count(); ++p_idx) {
+            X86Reg raw_reg = regalloc.get_param_raw_reg(p_idx);
+            RegLocation p_loc = regalloc.get_param_loc(p_idx);
+            if (p_loc.kind == RegLocKind::STACK_SPILL) {
+                enc->mov_mem_reg(X86Reg::RBP, -p_loc.stack_disp, raw_reg);
+            } else if (p_loc.kind == RegLocKind::PHYSICAL_REG) {
+                if (p_loc.phys_reg != raw_reg) {
+                    enc->mov_reg_reg(p_loc.phys_reg, raw_reg);
                 }
             }
         }

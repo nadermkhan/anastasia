@@ -501,7 +501,25 @@ Instruction* Parser::parse_instruction() {
             break;
         }
         case Opcode::STORE_MEM: {
-            if (match(TokenType::TOKEN_LBRACKET)) {
+            if (current_tok_.type == TokenType::TOKEN_REGISTER) {
+                // Form 1: store-mem src_reg, [base + offset]
+                Operand src_op = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                advance();
+                expect(TokenType::TOKEN_COMMA, "Expected ,");
+                if (match(TokenType::TOKEN_LBRACKET)) {
+                    Register base_reg = current_tok_.reg;
+                    advance();
+                    int32_t off = 0;
+                    if (match(TokenType::TOKEN_PLUS)) {
+                        off = static_cast<int32_t>(current_tok_.int_val);
+                        advance();
+                    }
+                    expect(TokenType::TOKEN_RBRACKET, "Expected ]");
+                    insn->dest = Operand::make_mem(base_reg.type, base_reg.index, off);
+                    insn->src1 = src_op;
+                }
+            } else if (match(TokenType::TOKEN_LBRACKET)) {
+                // Form 2: store-mem [base + offset], src
                 Register base_reg = current_tok_.reg;
                 advance();
                 int32_t off = 0;
@@ -512,13 +530,13 @@ Instruction* Parser::parse_instruction() {
                 expect(TokenType::TOKEN_RBRACKET, "Expected ]");
                 insn->dest = Operand::make_mem(base_reg.type, base_reg.index, off);
                 expect(TokenType::TOKEN_COMMA, "Expected ,");
-            }
-            if (current_tok_.type == TokenType::TOKEN_REGISTER) {
-                insn->src1 = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
-                advance();
-            } else if (current_tok_.type == TokenType::TOKEN_INT_LITERAL) {
-                insn->src1 = Operand::make_const(current_tok_.int_val);
-                advance();
+                if (current_tok_.type == TokenType::TOKEN_REGISTER) {
+                    insn->src1 = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                    advance();
+                } else if (current_tok_.type == TokenType::TOKEN_INT_LITERAL) {
+                    insn->src1 = Operand::make_const(current_tok_.int_val);
+                    advance();
+                }
             }
             break;
         }

@@ -41,6 +41,7 @@ set(SOURCES
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
     src/optimizer/pgo_profiler.cpp
+    tests/leetcode_suite.cpp
     tests/test_suite.cpp
     examples/example_runner.cpp
     src/main.cpp

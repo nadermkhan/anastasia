@@ -51,11 +51,35 @@ void AnaRegAlloc::allocate_registers(frontend::Function* fn) {
         }
     }
 
-    param_count_ = (fn && fn->params) ? fn->param_count : 0;
+    uint32_t max_param = 0;
+    if (fn) {
+        auto check_p = [&](const frontend::Operand& op) {
+            if (op.kind == frontend::OperandKind::REGISTER && op.reg.type == frontend::RegisterType::PARAM) {
+                if (op.reg.index + 1 > max_param) max_param = op.reg.index + 1;
+            }
+        };
+        for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+            for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+                check_p(insn->dest);
+                check_p(insn->src1);
+                check_p(insn->src2);
+            }
+        }
+    }
 
-    if (spill_count > 0) {
+    param_count_ = (fn && fn->params && fn->param_count > max_param) ? fn->param_count : max_param;
+    if (param_count_ > 8) param_count_ = 8;
+
+    for (uint32_t i = 0; i < param_count_; ++i) {
+        param_locs_[i].kind = RegLocKind::STACK_SPILL;
+        param_locs_[i].phys_reg = X86Reg::NONE;
+        param_locs_[i].stack_disp = static_cast<int32_t>(8 * (spill_count + 1 + i));
+    }
+
+    size_t total_slots = spill_count + param_count_;
+    if (total_slots > 0) {
         requires_frame_ = true;
-        stack_frame_size_ = (spill_count * 8 + 15) & ~15UL;
+        stack_frame_size_ = (total_slots * 8 + 15) & ~15UL;
     } else {
         requires_frame_ = false;
         stack_frame_size_ = 0;
@@ -67,18 +91,21 @@ X86Reg AnaRegAlloc::get_param_raw_reg(uint32_t param_idx) const {
         case 0: return X86Reg::RDI;
         case 1: return X86Reg::RSI;
         case 2: return X86Reg::RDX;
-        case 3: return X86Reg::R8;
-        case 4: return X86Reg::R9;
-        case 5: return X86Reg::R10;
+        case 3: return X86Reg::RCX;
+        case 4: return X86Reg::R8;
+        case 5: return X86Reg::R9;
         default: return X86Reg::RDI;
     }
 }
 
 RegLocation AnaRegAlloc::get_param_loc(uint32_t param_idx) const {
+    if (param_idx < param_count_ && param_idx < 8) {
+        return param_locs_[param_idx];
+    }
     RegLocation loc;
-    loc.kind = RegLocKind::PHYSICAL_REG;
-    loc.phys_reg = get_param_raw_reg(param_idx);
-    loc.stack_disp = 0;
+    loc.kind = RegLocKind::STACK_SPILL;
+    loc.phys_reg = X86Reg::NONE;
+    loc.stack_disp = static_cast<int32_t>(8 * (param_idx + 1));
     return loc;
 }
 

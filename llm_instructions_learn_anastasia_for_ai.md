@@ -1,7 +1,7 @@
-# LLM AI Instruction Manual: Extended Smali (.ana) for Anastasia v3.0
+# LLM AI Instruction Manual: Extended Smali (.ana) for Anastasia v7.1
 
 > **System Prompt & Grammar Specification for Large Language Models (LLMs)**  
-> **Target System**: Anastasia v3.0 Bare-Metal Compiler Engine  
+> **Target System**: Anastasia v7.1 Bare-Metal Compiler Engine  
 > **File Extension**: `.ana`  
 > **Objective**: Enable LLMs to parse, validate, and emit 100% syntactically correct, non-hallucinated Extended Smali assembly programs.
 
@@ -12,7 +12,7 @@
 When generating code for Anastasia, you MUST adhere to the following strict rules. Failure to obey any rule will cause a compilation error in the Anastasia Bare-Metal Engine.
 
 1. **NO Dynamic Imports or External Standard Libraries**:
-   - Never generate `#include`, `import`, `printf`, `malloc`, or `std::cout`. Anastasia is a bare-metal, zero-CRT environment.
+   - Never generate `#include`, `import`, `printf`, `malloc`, or `std::cout`. Anastasia is a 100% bare-metal, zero-CRT environment.
 2. **NO Synthetic Assembly Opcodes**:
    - Never generate raw x86_64 or ARM assembly instructions (e.g. `movq`, `push`, `pop`, `call`, `jmp`, `ldr`, `str`).
    - Use **ONLY** valid Extended Smali opcodes defined in Section 4.
@@ -25,12 +25,14 @@ When generating code for Anastasia, you MUST adhere to the following strict rule
 5. **Explicit Returns**:
    - Non-void functions MUST terminate paths with `return-val register`.
    - Void functions MUST terminate paths with `return-void`.
+6. **Native String Literals (`const-string`)**:
+   - Use `const-string dest, "literal"` to load string pointers. Lengths are tracked at compile time (0-copy `strlen`), interned into read-only memory in JIT mode, and emitted as RIP-relative `.rodata` relocations in freestanding AOT mode.
 
 ---
 
 ## 2. Type System & Register Architecture
 
-### 2.1 Primitive and Vector Types
+### 2.1 Primitive, Vector, and String Types
 | Type | Description | Size |
 | :--- | :--- | :--- |
 | `i32` | 32-bit signed integer | 4 bytes |
@@ -38,7 +40,9 @@ When generating code for Anastasia, you MUST adhere to the following strict rule
 | `f32` | 32-bit single-precision float | 4 bytes |
 | `f64` | 64-bit double-precision float | 8 bytes |
 | `i32x4` | 128-bit SIMD vector (4 x 32-bit integers) | 16 bytes |
-| `ptr` | 64-bit raw pointer / object reference | 8 bytes |
+| `i32x8` | 256-bit AVX2 SIMD vector (8 x 32-bit integers) | 32 bytes |
+| `i32x16` | 512-bit AVX-512 SIMD vector (16 x 32-bit integers) | 64 bytes |
+| `ptr` | 64-bit raw pointer / object reference / string pointer | 8 bytes |
 | `void` | Empty return type | 0 bytes |
 
 ### 2.2 Register Naming Rules
@@ -75,9 +79,11 @@ Instruction ::= Opcode OperandList ;
 
 ## 4. Complete Valid Opcode Dictionary
 
-### 4.1 Data Movement & Memory
+### 4.1 Data Movement & Read-Only Memory
 - `move-const dest, constant`: Loads 64-bit immediate integer into `dest`.  
   *Example*: `move-const v0, 42`
+- `const-string dest, "string"`: Loads interned string pointer into `dest`.  
+  *Example*: `const-string v0, "Hello Anastasia"`
 - `move dest, src`: Copies register `src` to `dest`.  
   *Example*: `move v1, p0`
 - `load-mem dest, [base + offset]`: Reads 64-bit word from `base + offset`.  
@@ -86,20 +92,20 @@ Instruction ::= Opcode OperandList ;
   *Example*: `store-mem [p0 + 16], v1`
 
 ### 4.2 Integer Arithmetic
-- `add-int/32 dest, src1, src2`: 32-bit addition (`dest = src1 + src2`).  
-- `add-int/64 dest, src1, src2`: 64-bit addition (`dest = src1 + src2`).  
-- `sub-int/32 dest, src1, src2`: 32-bit subtraction (`dest = src1 - src2`).  
-- `sub-int/64 dest, src1, src2`: 64-bit subtraction (`dest = src1 - src2`).  
-- `mul-int/32 dest, src1, src2`: 32-bit multiplication (`dest = src1 * src2`).  
+- `add-int/32 dest, src1, src2` | `add-int/64 dest, src1, src2`: Addition (`dest = src1 + src2`).  
+- `sub-int/32 dest, src1, src2` | `sub-int/64 dest, src1, src2`: Subtraction (`dest = src1 - src2`).  
+- `mul-int/32 dest, src1, src2` | `mul-int/64 dest, src1, src2`: Signed multiplication (`dest = src1 * src2`).  
+- `div-int/32 dest, src1, src2` | `div-int/64 dest, src1, src2`: Signed division (`dest = src1 / src2`).  
 
-### 4.3 Floating-Point & 128-bit SIMD Vector
+### 4.3 Floating-Point & Wide SIMD Vectors
 - `add-float/32 dest, src1, src2`: 32-bit single-precision float addition (`addss`).  
 - `add-float/64 dest, src1, src2`: 64-bit double-precision float addition (`addsd`).  
 - `sub-float/64 dest, src1, src2`: 64-bit double-precision float subtraction (`subsd`).  
 - `mul-float/64 dest, src1, src2`: 64-bit double-precision float multiplication (`mulsd`).  
 - `div-float/64 dest, src1, src2`: 64-bit double-precision float division (`divsd`).  
 - `add-vector/i32x4 dest, src1, src2`: 128-bit packed SIMD integer addition (`paddd`).  
-- `sub-vector/i32x4 dest, src1, src2`: 128-bit packed SIMD integer subtraction (`psubd`).  
+- `add-vector/i32x8 dest, src1, src2`: 256-bit AVX2 packed SIMD integer addition (`vpaddd ymm`).  
+- `add-vector/i32x16 dest, src1, src2`: 512-bit AVX-512 packed SIMD integer addition (`vpaddd zmm`).  
 
 ### 4.4 Bitwise & Shifts
 - `and-int/32 dest, src1, src2` | `and-int/64 dest, src1, src2`: Bitwise AND.  
@@ -192,6 +198,15 @@ loop_end:
     atomic-add/64 [p0 + 0], p1
     fence
     load-mem v0, [p0 + 0]
+    return-val v0
+.end_fn
+```
+
+### Example 5: Native String Literals & Pointer Return
+```smali
+.fn get_greeting() -> ptr
+    .registers 1 local
+    const-string v0, "Hello Anastasia v7.1!"
     return-val v0
 .end_fn
 ```

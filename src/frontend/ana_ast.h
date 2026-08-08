@@ -68,7 +68,12 @@ enum class Opcode {
     MUL_FLOAT_64,
     DIV_FLOAT_64,
     ADD_VECTOR_I32X4,
-    SUB_VECTOR_I32X4
+    SUB_VECTOR_I32X4,
+    ADD_VECTOR_I32X8,
+    ADD_VECTOR_I32X16,
+    MUL_VECTOR_I32X8,
+    LOAD_VECTOR_256,
+    LOAD_VECTOR_512
 };
 
 enum class RegisterType {

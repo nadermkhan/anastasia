@@ -21,9 +21,11 @@ public:
     uint32_t hoisted_invariants() const { return hoisted_invariants_; }
     uint32_t eliminated_gvn_exprs() const { return eliminated_gvn_exprs_; }
     uint32_t scalar_replaced_objects() const { return scalar_replaced_objects_; }
+    uint32_t vectorized_loops() const { return vectorized_loops_; }
 
 private:
     bool run_escape_analysis(frontend::Function* fn);
+    bool run_autovectorizer(frontend::Function* fn);
     bool run_mem2reg(frontend::Function* fn);
     bool run_licm(frontend::Function* fn);
     bool run_gvn(frontend::Function* fn);
@@ -32,6 +34,7 @@ private:
     uint32_t hoisted_invariants_;
     uint32_t eliminated_gvn_exprs_;
     uint32_t scalar_replaced_objects_;
+    uint32_t vectorized_loops_;
 };
 
 } // namespace optimizer

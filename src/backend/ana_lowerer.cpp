@@ -342,6 +342,36 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     enc->movdqu_mem_xmm(dst_base, 0, 0);
                     break;
                 }
+                case frontend::Opcode::ADD_VECTOR_I32X8: {
+                    X86Reg base1 = load_operand(insn->src1, X86Reg::RDI);
+                    X86Reg base2 = load_operand(insn->src2, X86Reg::RSI);
+                    enc->vmovdqu_ymm_mem(0, base1, 0);
+                    enc->vmovdqu_ymm_mem(1, base2, 0);
+                    enc->vpaddd_ymm_ymm(0, 0, 1);
+                    X86Reg dst_base = load_operand(frontend::Operand::make_reg(insn->dest.reg.type, insn->dest.reg.index), X86Reg::RAX);
+                    enc->vmovdqu_mem_ymm(dst_base, 0, 0);
+                    break;
+                }
+                case frontend::Opcode::ADD_VECTOR_I32X16: {
+                    X86Reg base1 = load_operand(insn->src1, X86Reg::RDI);
+                    X86Reg base2 = load_operand(insn->src2, X86Reg::RSI);
+                    enc->vmovdqu_zmm_mem(0, base1, 0);
+                    enc->vmovdqu_zmm_mem(1, base2, 0);
+                    enc->vpaddd_zmm_zmm(0, 0, 1);
+                    X86Reg dst_base = load_operand(frontend::Operand::make_reg(insn->dest.reg.type, insn->dest.reg.index), X86Reg::RAX);
+                    enc->vmovdqu_mem_zmm(dst_base, 0, 0);
+                    break;
+                }
+                case frontend::Opcode::MUL_VECTOR_I32X8: {
+                    X86Reg base1 = load_operand(insn->src1, X86Reg::RDI);
+                    X86Reg base2 = load_operand(insn->src2, X86Reg::RSI);
+                    enc->vmovdqu_ymm_mem(0, base1, 0);
+                    enc->vmovdqu_ymm_mem(1, base2, 0);
+                    enc->vpmulld_ymm_ymm(0, 0, 1);
+                    X86Reg dst_base = load_operand(frontend::Operand::make_reg(insn->dest.reg.type, insn->dest.reg.index), X86Reg::RAX);
+                    enc->vmovdqu_mem_ymm(dst_base, 0, 0);
+                    break;
+                }
                 case frontend::Opcode::SUB_VECTOR_I32X4: {
                     X86Reg base1 = load_operand(insn->src1, X86Reg::RDI);
                     X86Reg base2 = load_operand(insn->src2, X86Reg::RSI);

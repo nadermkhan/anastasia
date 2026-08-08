@@ -206,6 +206,43 @@ int raw_futex(int* uaddr, int futex_op, int val, const void* timeout) {
 #endif
 }
 
+int raw_sched_setaffinity(int pid, size_t cpusetsize, const void* mask) {
+#if defined(__linux__) && defined(__x86_64__)
+    int64_t ret;
+    __asm__ __volatile__(
+        "syscall"
+        : "=a"(ret)
+        : "a"(203), "D"(static_cast<int64_t>(pid)), "S"(cpusetsize), "d"(mask)
+        : "rcx", "r11", "memory"
+    );
+    return static_cast<int>(ret);
+#else
+    (void)pid; (void)cpusetsize; (void)mask;
+    return 0;
+#endif
+}
+
+int raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned long maxnode, unsigned flags) {
+#if defined(__linux__) && defined(__x86_64__)
+    int64_t ret;
+    register int64_t r10_reg __asm__("r10") = static_cast<int64_t>(mode);
+    register const void* r8_reg __asm__("r8") = nodemask;
+    register unsigned long r9_reg __asm__("r9") = maxnode;
+
+    __asm__ __volatile__(
+        "syscall"
+        : "=a"(ret)
+        : "a"(237), "D"(addr), "S"(len), "r"(r10_reg), "r"(r8_reg), "r"(r9_reg)
+        : "rcx", "r11", "memory"
+    );
+    (void)flags;
+    return static_cast<int>(ret);
+#else
+    (void)addr; (void)len; (void)mode; (void)nodemask; (void)maxnode; (void)flags;
+    return 0;
+#endif
+}
+
 void raw_exit(int code) {
 #if defined(__linux__) && defined(__x86_64__)
     __asm__ __volatile__(

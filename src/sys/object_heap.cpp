@@ -38,7 +38,7 @@ void ObjectHeap::ensure_capacity(size_t size) {
 
 void* ObjectHeap::allocate_object(uint32_t instance_size, void* vtable_ptr, uint32_t class_id) {
     uint32_t total_size = sizeof(ObjectHeader) + instance_size;
-    total_size = (total_size + 7) & ~7U; // Align to 8 bytes
+    total_size = (total_size + 63) & ~63U; // Align to 64-byte cache line boundary
 
     ensure_capacity(total_size);
     if (!buffer_) return nullptr;

@@ -1,4 +1,5 @@
 #include "bench_suite.h"
+#include "../src/sys/cpu_features.h"
 
 #if defined(__linux__) && defined(__x86_64__)
 struct timespec_raw {
@@ -257,14 +258,70 @@ static void bench_object_heap_bump_alloc() {
     print_benchmark_result(res);
 }
 
+// 5. 256-bit AVX2 Wide SIMD Vector Throughput Benchmark (8 ops/vec)
+static void bench_avx2_vector_throughput() {
+    print_benchmark_header("256-bit AVX2 SIMD Vector Execution Speed (10M Iterations = 80M Ops)");
+
+    const char* vec_program =
+        ".fn vec256_bench_fn(p0: ptr, p1: ptr, p2: i64) -> void\n"
+        "    .registers 2 local\n"
+        "    move-const v0, 0\n"
+        "vec_loop:\n"
+        "    if-ge likely v0, p2, vec_end\n"
+        "    add-vector/i32x8 p0, p0, p1\n"
+        "    add-int/64 v0, v0, 1\n"
+        "    goto vec_loop\n"
+        "vec_end:\n"
+        "    return-void\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(vec_program, arena);
+    frontend::Program* prog = parser.parse_program();
+    AnastasiaJitRuntime runtime;
+    AnaLowerer lowerer(runtime);
+
+    typedef void (*VecFn)(void*, void*, int64_t);
+    VecFn compiled_vec = reinterpret_cast<VecFn>(lowerer.compile_function(prog->functions, prog));
+    if (!compiled_vec) return;
+
+    constexpr uint64_t vec_iters = 10000000ULL;
+    alignas(32) int32_t a[8] = {10, 20, 30, 40, 50, 60, 70, 80};
+    alignas(32) int32_t b[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+
+    if (!sys::get_cpu_features().avx2) {
+        print_str("  [SKIPPED] Host CPU does not support AVX2 instruction set\n");
+        return;
+    }
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    compiled_vec(a, b, static_cast<int64_t>(vec_iters));
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "256-bit AVX2 SIMD Vector Throughput";
+    res.iterations = vec_iters * 8; // 8 int32 ops per 256-bit vector
+    res.total_ns = t_end - t_start;
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(res.iterations) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(res.iterations);
+
+    print_benchmark_result(res);
+}
+
 void run_all_benchmarks() {
     print_str("\n=======================================================\n");
-    print_str("  Anastasia v3.0 Bare-Metal Engine Benchmark Suite\n");
+    print_str("  Anastasia v6.0 Terabyte-Compute Engine Benchmark Suite\n");
     print_str("=======================================================\n");
 
     bench_jit_compilation_speed();
     bench_execution_loop();
     bench_simd_vector_throughput();
+    bench_avx2_vector_throughput();
     bench_object_heap_bump_alloc();
 
     print_str("\n=======================================================\n");

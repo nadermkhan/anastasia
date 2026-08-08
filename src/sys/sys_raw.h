@@ -38,6 +38,8 @@ int   raw_open(const char* pathname, int flags, int mode);
 int   raw_close(int fd);
 int   raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg);
 int   raw_futex(int* uaddr, int futex_op, int val, const void* timeout = nullptr);
+int   raw_sched_setaffinity(int pid, size_t cpusetsize, const void* mask);
+int   raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned long maxnode, unsigned flags);
 void  raw_exit(int code) __attribute__((noreturn));
 void  clear_icache(void* addr, size_t size);
 

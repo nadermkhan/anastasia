@@ -123,18 +123,31 @@ public:
     void mfence();
     void clflush(X86Reg base, int32_t disp);
 
-    // Floating-Point & SSE2 Vector Instructions (XMM0..XMM15)
+    // SSE2 Scalar & 128-bit Vector
     void addss_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void addsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void subsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void mulsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void divsd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
-    void paddd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
-    void psubd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void movsd_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp);
     void movsd_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
+
+    void paddd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
+    void psubd_xmm_xmm(uint8_t dst_xmm, uint8_t src_xmm);
     void movdqu_xmm_mem(uint8_t dst_xmm, X86Reg base, int32_t disp);
     void movdqu_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
+
+    // VEX (256-bit AVX2) & EVEX (512-bit AVX-512) Encoders
+    void emit_vex3(uint8_t m_mmmm, uint8_t pp, bool w, uint8_t vvvv, bool l, uint8_t r, uint8_t x, uint8_t b);
+    void emit_evex(uint8_t mm, uint8_t pp, bool w, uint8_t vvvv, uint8_t lll, uint8_t r, uint8_t x, uint8_t b, uint8_t aaa);
+
+    void vpaddd_ymm_ymm(uint8_t dst_ymm, uint8_t src1_ymm, uint8_t src2_ymm);
+    void vpaddd_zmm_zmm(uint8_t dst_zmm, uint8_t src1_zmm, uint8_t src2_zmm);
+    void vpmulld_ymm_ymm(uint8_t dst_ymm, uint8_t src1_ymm, uint8_t src2_ymm);
+    void vmovdqu_ymm_mem(uint8_t dst_ymm, X86Reg base, int32_t disp);
+    void vmovdqu_mem_ymm(X86Reg base, int32_t disp, uint8_t src_ymm);
+    void vmovdqu_zmm_mem(uint8_t dst_zmm, X86Reg base, int32_t disp);
+    void vmovdqu_mem_zmm(X86Reg base, int32_t disp, uint8_t src_zmm);
 
     // Final resolution
     bool resolve_labels();

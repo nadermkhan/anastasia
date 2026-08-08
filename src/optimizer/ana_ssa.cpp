@@ -5,7 +5,7 @@ namespace ana {
 namespace optimizer {
 
 AnaSSAIR::AnaSSAIR()
-    : promoted_stack_slots_(0), hoisted_invariants_(0), eliminated_gvn_exprs_(0), scalar_replaced_objects_(0) {}
+    : promoted_stack_slots_(0), hoisted_invariants_(0), eliminated_gvn_exprs_(0), scalar_replaced_objects_(0), vectorized_loops_(0) {}
 
 AnaSSAIR::~AnaSSAIR() {}
 
@@ -23,11 +23,29 @@ bool AnaSSAIR::optimize_function(frontend::Function* fn) {
 
     bool opt = false;
     opt |= run_escape_analysis(fn);
+    opt |= run_autovectorizer(fn);
     opt |= run_mem2reg(fn);
     opt |= run_licm(fn);
     opt |= run_gvn(fn);
 
     return opt;
+}
+
+bool AnaSSAIR::run_autovectorizer(frontend::Function* fn) {
+    if (!fn) return false;
+
+    bool changed = false;
+    for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+        for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+            // Transform scalar vector-capable operations inside loops
+            if (insn->op == frontend::Opcode::ADD_VECTOR_I32X4) {
+                insn->op = frontend::Opcode::ADD_VECTOR_I32X8;
+                vectorized_loops_++;
+                changed = true;
+            }
+        }
+    }
+    return changed;
 }
 
 bool AnaSSAIR::run_escape_analysis(frontend::Function* fn) {

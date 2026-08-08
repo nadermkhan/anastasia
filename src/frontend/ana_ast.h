@@ -73,7 +73,8 @@ enum class Opcode {
     ADD_VECTOR_I32X16,
     MUL_VECTOR_I32X8,
     LOAD_VECTOR_256,
-    LOAD_VECTOR_512
+    LOAD_VECTOR_512,
+    SINK_MEM
 };
 
 enum class RegisterType {

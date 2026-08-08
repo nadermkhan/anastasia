@@ -149,6 +149,13 @@ public:
     void vmovdqu_zmm_mem(uint8_t dst_zmm, X86Reg base, int32_t disp);
     void vmovdqu_mem_zmm(X86Reg base, int32_t disp, uint8_t src_zmm);
 
+    // Non-Temporal Data Streaming & Prefetching
+    void vmovntdq_ymm_mem(X86Reg base, int32_t disp, uint8_t src_ymm);
+    void vmovntdq_zmm_mem(X86Reg base, int32_t disp, uint8_t src_zmm);
+    void movntdq_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
+    void sfence();
+    void prefetcht0(X86Reg base, int32_t disp);
+
     // Final resolution
     bool resolve_labels();
     const uint8_t* code_bytes() const { return buffer_; }

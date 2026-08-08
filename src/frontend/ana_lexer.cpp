@@ -229,6 +229,7 @@ Token Lexer::next_token() {
             case fnv1a_hash("mul-vector/i32x8", 16): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MUL_VECTOR_I32X8; return tok;
             case fnv1a_hash("load-vector/256", 15): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_VECTOR_256; return tok;
             case fnv1a_hash("load-vector/512", 15): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_VECTOR_512; return tok;
+            case fnv1a_hash("sink-mem", 8):         tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SINK_MEM; return tok;
             default: break;
         }
 

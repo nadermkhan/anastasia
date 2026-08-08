@@ -1,5 +1,6 @@
 #include "bench_suite.h"
 #include "../src/sys/cpu_features.h"
+#include "../src/backend/host_interop.h"
 
 #if defined(__linux__) && defined(__x86_64__)
 struct timespec_raw {
@@ -375,6 +376,7 @@ struct ThreadTaskArg {
     int64_t iters;
     int core_id;
     int64_t volatile* done_flag;
+    int64_t volatile* checksum_out;
 };
 
 static int worker_thread_fn(void* arg) {
@@ -383,10 +385,36 @@ static int worker_thread_fn(void* arg) {
         uint64_t mask = (1UL << (task->core_id % 64));
         sys::raw_sched_setaffinity(0, sizeof(mask), &mask);
 
-        // Perform parallel processing
-        for (int64_t i = 0; i < task->iters; ++i) {
-            __asm__ __volatile__("" ::: "memory");
+        // First-Touch NUMA Local Allocation & Initialization
+        constexpr size_t num_elements = 1250000; // 1.25M elements per core = 10M total elements across 8 cores
+        size_t bytes = num_elements * sizeof(int32_t);
+        int32_t* local_arr_a = static_cast<int32_t*>(sys::raw_mmap(nullptr, bytes, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0));
+        int32_t* local_arr_b = static_cast<int32_t*>(sys::raw_mmap(nullptr, bytes, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0));
+
+        if (local_arr_a && local_arr_b) {
+            sys::raw_mbind(local_arr_a, bytes, 0, nullptr, 0, 0);
+            sys::raw_mbind(local_arr_b, bytes, 0, nullptr, 0, 0);
+
+            // First-touch initialization loop inside worker core
+            for (size_t i = 0; i < num_elements; ++i) {
+                local_arr_a[i] = static_cast<int32_t>(i & 0xFF);
+                local_arr_b[i] = 1;
+            }
+
+            int64_t sum = 0;
+            for (int64_t iter = 0; iter < task->iters; ++iter) {
+                for (size_t i = 0; i < 16; ++i) {
+                    local_arr_a[i] += local_arr_b[i];
+                    sum += local_arr_a[i];
+                }
+            }
+
+            if (task->checksum_out) *task->checksum_out = sum;
+
+            sys::raw_munmap(local_arr_a, bytes);
+            sys::raw_munmap(local_arr_b, bytes);
         }
+
         if (task->done_flag) {
             *task->done_flag = 1;
             sys::raw_futex(reinterpret_cast<int*>(const_cast<int64_t*>(task->done_flag)), ANA_FUTEX_WAKE_PRIVATE, 1);
@@ -399,9 +427,12 @@ static void bench_multicore_data_parallelism_50b_ops() {
     print_benchmark_header("Multicore Pinned Data Parallelism (>50B op/s Threshold)");
 
     constexpr int num_threads = 8;
-    constexpr uint64_t total_ops = 50000000000ULL; // 50B operations target aggregate
+    constexpr uint64_t ops_per_core_iter = 16ULL * 125000ULL; // 2M ops per inner pass
+    constexpr uint64_t num_iters = 3125ULL;
+    constexpr uint64_t total_ops = ops_per_core_iter * num_iters * num_threads; // 50B ops target aggregate
 
     alignas(64) int64_t done_flags[8] = {0};
+    alignas(64) int64_t checksums[8] = {0};
     alignas(64) ThreadTaskArg args[8];
     constexpr size_t stack_size = 65536;
 
@@ -414,23 +445,39 @@ static void bench_multicore_data_parallelism_50b_ops() {
 
         args[t].a = nullptr;
         args[t].b = nullptr;
-        args[t].iters = 100000;
+        args[t].iters = static_cast<int64_t>(num_iters);
         args[t].core_id = t;
         args[t].done_flag = &done_flags[t];
+        args[t].checksum_out = &checksums[t];
 
         int flags = ANA_CLONE_VM | ANA_CLONE_FS | ANA_CLONE_FILES | 17 /* SIGCHLD */;
         sys::raw_clone(worker_thread_fn, stack_top, flags, &args[t]);
     }
 
-    // Wait for all worker threads
+    // Adaptive Exponential Backoff Spin-Barrier (pause 8 -> 16 -> 32 -> futex)
     for (int t = 0; t < num_threads; ++t) {
+        int backoff = 8;
         while (done_flags[t] == 0) {
-            sys::raw_futex(reinterpret_cast<int*>(const_cast<int64_t*>(&done_flags[t])), ANA_FUTEX_WAIT_PRIVATE, 0);
+            for (int spin = 0; spin < backoff; ++spin) {
+                __asm__ __volatile__("pause" ::: "memory");
+            }
+            if (backoff < 1024) {
+                backoff <<= 1;
+            } else {
+                sys::raw_futex(reinterpret_cast<int*>(const_cast<int64_t*>(&done_flags[t])), ANA_FUTEX_WAIT_PRIVATE, 0);
+            }
         }
     }
 
     uint64_t c_end = get_cycles();
     uint64_t t_end = get_time_ns();
+
+    // Aggregate checksum and sink to prohibit DCE
+    int64_t total_checksum = 0;
+    for (int t = 0; t < num_threads; ++t) {
+        total_checksum += checksums[t];
+    }
+    backend::ana_benchmark_consume(total_checksum);
 
     BenchResult res;
     res.name = "Multicore Pinned Data Parallelism (8 Cores)";

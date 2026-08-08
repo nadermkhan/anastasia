@@ -2,6 +2,7 @@
 #include "ana_encoder.h"
 #include "ana_regalloc.h"
 #include "elf_emitter.h"
+#include "host_interop.h"
 #include "../sys/cpu_features.h"
 #include "../sys/object_heap.h"
 #include "inline_cache.h"
@@ -370,6 +371,15 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     enc->vpmulld_ymm_ymm(0, 0, 1);
                     X86Reg dst_base = load_operand(frontend::Operand::make_reg(insn->dest.reg.type, insn->dest.reg.index), X86Reg::RAX);
                     enc->vmovdqu_mem_ymm(dst_base, 0, 0);
+                    break;
+                }
+                case frontend::Opcode::SINK_MEM: {
+                    X86Reg val_reg = load_operand(insn->src1, X86Reg::RDI);
+                    if (val_reg != X86Reg::RDI) {
+                        enc->mov_reg_reg(X86Reg::RDI, val_reg);
+                    }
+                    enc->mov_reg_imm64(X86Reg::RAX, reinterpret_cast<uint64_t>(backend::ana_benchmark_consume));
+                    enc->call_reg(X86Reg::RAX);
                     break;
                 }
                 case frontend::Opcode::SUB_VECTOR_I32X4: {

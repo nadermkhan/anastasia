@@ -31,6 +31,7 @@ private:
 };
 
 extern "C" void* ana_register_host_func(const char* name, void* fn_ptr);
+extern "C" void  ana_benchmark_consume(int64_t val);
 
 } // namespace backend
 } // namespace ana

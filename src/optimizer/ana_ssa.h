@@ -22,10 +22,12 @@ public:
     uint32_t eliminated_gvn_exprs() const { return eliminated_gvn_exprs_; }
     uint32_t scalar_replaced_objects() const { return scalar_replaced_objects_; }
     uint32_t vectorized_loops() const { return vectorized_loops_; }
+    uint32_t non_temporal_streams() const { return non_temporal_streams_; }
 
 private:
     bool run_escape_analysis(frontend::Function* fn);
     bool run_autovectorizer(frontend::Function* fn);
+    bool run_stream_analysis(frontend::Function* fn);
     bool run_mem2reg(frontend::Function* fn);
     bool run_licm(frontend::Function* fn);
     bool run_gvn(frontend::Function* fn);
@@ -35,6 +37,7 @@ private:
     uint32_t eliminated_gvn_exprs_;
     uint32_t scalar_replaced_objects_;
     uint32_t vectorized_loops_;
+    uint32_t non_temporal_streams_;
 };
 
 } // namespace optimizer

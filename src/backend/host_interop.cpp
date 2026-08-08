@@ -60,5 +60,9 @@ extern "C" void* ana_register_host_func(const char* name, void* fn_ptr) {
     return HostInterop::instance().register_host_function(name, fn_ptr, false);
 }
 
+extern "C" void ana_benchmark_consume(int64_t val) {
+    __asm__ __volatile__("" :: "r"(val) : "memory");
+}
+
 } // namespace backend
 } // namespace ana

@@ -885,6 +885,83 @@ void AnaEncoder::vmovdqu_mem_zmm(X86Reg base, int32_t disp, uint8_t src_zmm) {
     }
 }
 
+void AnaEncoder::vmovntdq_ymm_mem(X86Reg base, int32_t disp, uint8_t src_ymm) {
+    uint8_t b = static_cast<uint8_t>(base);
+    emit_vex3(0x01 /* 0F */, 0x01 /* 66 */, false, 0, true /* 256-bit */, src_ymm >> 3, 0, b >> 3);
+    emit8(0xE7); // VMOVNTDQ
+    if (disp == 0 && (b & 7) != 5) {
+        emit_modrm(0, src_ymm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+    } else if (disp >= -128 && disp <= 127) {
+        emit_modrm(1, src_ymm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit8(static_cast<uint8_t>(disp));
+    } else {
+        emit_modrm(2, src_ymm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit32(static_cast<uint32_t>(disp));
+    }
+}
+
+void AnaEncoder::vmovntdq_zmm_mem(X86Reg base, int32_t disp, uint8_t src_zmm) {
+    uint8_t b = static_cast<uint8_t>(base);
+    emit_evex(0x01 /* 0F */, 0x01 /* 66 */, false, 0, 0x02 /* 512-bit */, src_zmm >> 3, 0, b >> 3, 0);
+    emit8(0xE7); // VMOVNTDQ
+    if (disp == 0 && (b & 7) != 5) {
+        emit_modrm(0, src_zmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+    } else if (disp >= -128 && disp <= 127) {
+        emit_modrm(1, src_zmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit8(static_cast<uint8_t>(disp));
+    } else {
+        emit_modrm(2, src_zmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit32(static_cast<uint32_t>(disp));
+    }
+}
+
+void AnaEncoder::movntdq_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm) {
+    uint8_t b = static_cast<uint8_t>(base);
+    emit8(0x66);
+    if (src_xmm >= 8 || b >= 8) emit_rex(false, src_xmm, 0, b);
+    emit8(0x0F); emit8(0xE7); // MOVNTDQ
+    if (disp == 0 && (b & 7) != 5) {
+        emit_modrm(0, src_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+    } else if (disp >= -128 && disp <= 127) {
+        emit_modrm(1, src_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit8(static_cast<uint8_t>(disp));
+    } else {
+        emit_modrm(2, src_xmm & 7, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit32(static_cast<uint32_t>(disp));
+    }
+}
+
+void AnaEncoder::sfence() {
+    emit8(0x0F); emit8(0xAE); emit8(0xF8); // SFENCE
+}
+
+void AnaEncoder::prefetcht0(X86Reg base, int32_t disp) {
+    uint8_t b = static_cast<uint8_t>(base);
+    if (b >= 8) emit_rex(false, 1, 0, b);
+    emit8(0x0F); emit8(0x18);
+    if (disp == 0 && (b & 7) != 5) {
+        emit_modrm(0, 1 /* PREFETCHT0 */, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+    } else if (disp >= -128 && disp <= 127) {
+        emit_modrm(1, 1, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit8(static_cast<uint8_t>(disp));
+    } else {
+        emit_modrm(2, 1, b & 7);
+        if ((b & 7) == 4) emit8(0x24);
+        emit32(static_cast<uint32_t>(disp));
+    }
+}
+
 bool AnaEncoder::resolve_labels() {
     for (uint32_t i = 0; i < reloc_count_; ++i) {
         const LabelReloc& r = relocs_[i];

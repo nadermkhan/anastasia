@@ -34,6 +34,7 @@ set(SOURCES
     src/backend/pic_dispatcher.cpp
     src/backend/exception_unwinder.cpp
     src/backend/osr_engine.cpp
+    src/backend/jit_string_pool.cpp
     src/backend/host_interop.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
@@ -67,6 +68,7 @@ set(BENCH_SOURCES
     src/backend/pic_dispatcher.cpp
     src/backend/exception_unwinder.cpp
     src/backend/osr_engine.cpp
+    src/backend/jit_string_pool.cpp
     src/backend/host_interop.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp

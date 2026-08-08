@@ -4,8 +4,6 @@ namespace ana {
 namespace backend {
 
 static const X86Reg kAllocatablePhysRegs[] = {
-    X86Reg::RAX,
-    X86Reg::RDX,
     X86Reg::R8,
     X86Reg::R9,
     X86Reg::R10

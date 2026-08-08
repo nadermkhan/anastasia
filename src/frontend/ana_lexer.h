@@ -33,7 +33,8 @@ enum class TokenType {
     TOKEN_ARROW,        // ->
     TOKEN_TYPE,         // i32, i64, ptr, f32, void
     TOKEN_LIKELY,       // likely
-    TOKEN_UNLIKELY      // unlikely
+    TOKEN_UNLIKELY,     // unlikely
+    TOKEN_STRING_LITERAL // "string literal"
 };
 
 struct StringView {
@@ -56,6 +57,9 @@ struct Token {
     Opcode opcode;
     DataType data_type;
     int64_t int_val;
+    const char* string_val;
+    size_t string_len;
+    uint64_t string_hash;
     Register reg;
     uint32_t line;
 };

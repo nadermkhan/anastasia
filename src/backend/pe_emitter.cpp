@@ -7,10 +7,11 @@ namespace backend {
 PeEmitter::PeEmitter() {}
 PeEmitter::~PeEmitter() {}
 
-bool PeEmitter::write_pe_executable(const char* output_filename, const uint8_t* text_bytes, size_t text_size) {
+bool PeEmitter::write_pe_executable(const char* output_filename, const uint8_t* text_bytes, size_t text_size, const uint8_t* rdata_bytes, size_t rdata_size) {
     if (!output_filename || !text_bytes || text_size == 0) return false;
 
     SimpleByteBuffer pe_buf;
+    bool has_rdata = (rdata_bytes != nullptr && rdata_size > 0);
 
     // 1. DOS Header
     ImageDosHeader dos_hdr;
@@ -27,15 +28,21 @@ bool PeEmitter::write_pe_executable(const char* output_filename, const uint8_t* 
 
     // File Header
     nt_hdrs.FileHeader.Machine = 0x8664; // AMD64
-    nt_hdrs.FileHeader.NumberOfSections = 1; // .text section
+    nt_hdrs.FileHeader.NumberOfSections = has_rdata ? 2 : 1;
     nt_hdrs.FileHeader.SizeOfOptionalHeader = sizeof(ImageOptionalHeader64);
     nt_hdrs.FileHeader.Characteristics = 0x0022; // EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE
+
+    uint32_t text_virt_size = static_cast<uint32_t>((text_size + 0xFFF) & ~0xFFFUL);
+    uint32_t rdata_virt_size = has_rdata ? static_cast<uint32_t>((rdata_size + 0xFFF) & ~0xFFFUL) : 0;
+    uint32_t text_raw_size = static_cast<uint32_t>((text_size + 0x1FF) & ~0x1FFUL);
+    uint32_t rdata_raw_size = has_rdata ? static_cast<uint32_t>((rdata_size + 0x1FF) & ~0x1FFUL) : 0;
 
     // Optional Header 64
     nt_hdrs.OptionalHeader.Magic = 0x020B; // PE32+
     nt_hdrs.OptionalHeader.MajorLinkerVersion = 14;
     nt_hdrs.OptionalHeader.MinorLinkerVersion = 0;
-    nt_hdrs.OptionalHeader.SizeOfCode = static_cast<uint32_t>((text_size + 0x1FFF) & ~0x1FFF);
+    nt_hdrs.OptionalHeader.SizeOfCode = text_raw_size;
+    nt_hdrs.OptionalHeader.SizeOfInitializedData = rdata_raw_size;
     nt_hdrs.OptionalHeader.AddressOfEntryPoint = 0x1000;
     nt_hdrs.OptionalHeader.BaseOfCode = 0x1000;
     nt_hdrs.OptionalHeader.ImageBase = 0x00400000;
@@ -45,7 +52,7 @@ bool PeEmitter::write_pe_executable(const char* output_filename, const uint8_t* 
     nt_hdrs.OptionalHeader.MinorOperatingSystemVersion = 0;
     nt_hdrs.OptionalHeader.MajorSubsystemVersion = 6;
     nt_hdrs.OptionalHeader.MinorSubsystemVersion = 0;
-    nt_hdrs.OptionalHeader.SizeOfImage = 0x1000 + nt_hdrs.OptionalHeader.SizeOfCode;
+    nt_hdrs.OptionalHeader.SizeOfImage = 0x1000 + text_virt_size + rdata_virt_size;
     nt_hdrs.OptionalHeader.SizeOfHeaders = 0x200;
     nt_hdrs.OptionalHeader.Subsystem = 3; // IMAGE_SUBSYSTEM_WINDOWS_CUI (Console)
     nt_hdrs.OptionalHeader.DllCharacteristics = 0x8160; // DYNAMIC_BASE | NX_COMPAT | TERMINAL_SERVER_AWARE
@@ -63,24 +70,44 @@ bool PeEmitter::write_pe_executable(const char* output_filename, const uint8_t* 
     sys::freestanding_memcpy(text_sh.Name, ".text", 5);
     text_sh.VirtualSize = static_cast<uint32_t>(text_size);
     text_sh.VirtualAddress = 0x1000;
-    text_sh.SizeOfRawData = static_cast<uint32_t>((text_size + 0x1FF) & ~0x1FF);
+    text_sh.SizeOfRawData = text_raw_size;
     text_sh.PointerToRawData = 0x200;
     text_sh.Characteristics = 0x60000020; // CODE | EXECUTE | READ
-
     pe_buf.write(&text_sh, sizeof(text_sh));
+
+    // 4. Section Header (.rdata) if present
+    if (has_rdata) {
+        ImageSectionHeader rdata_sh;
+        sys::freestanding_memset(&rdata_sh, 0, sizeof(rdata_sh));
+        sys::freestanding_memcpy(rdata_sh.Name, ".rdata", 6);
+        rdata_sh.VirtualSize = static_cast<uint32_t>(rdata_size);
+        rdata_sh.VirtualAddress = 0x1000 + text_virt_size;
+        rdata_sh.SizeOfRawData = rdata_raw_size;
+        rdata_sh.PointerToRawData = 0x200 + text_raw_size;
+        rdata_sh.Characteristics = 0x40000040; // INITIALIZED_DATA | READ
+        pe_buf.write(&rdata_sh, sizeof(rdata_sh));
+    }
 
     // Pad headers to FileAlignment (0x200)
     while (pe_buf.size() < 0x200) {
         pe_buf.write_u8(0);
     }
 
-    // 4. Append Machine Code (.text raw data)
+    // 5. Append Machine Code (.text raw data)
     pe_buf.write(text_bytes, text_size);
-    while (pe_buf.size() % 0x200 != 0) {
+    while (pe_buf.size() < 0x200 + text_raw_size) {
         pe_buf.write_u8(0);
     }
 
-    // 5. Write to output binary file
+    // 6. Append Read-Only Data (.rdata raw data)
+    if (has_rdata) {
+        pe_buf.write(rdata_bytes, rdata_size);
+        while (pe_buf.size() % 0x200 != 0) {
+            pe_buf.write_u8(0);
+        }
+    }
+
+    // Write to output binary file
     int fd = sys::raw_open(output_filename, 0100 | 01 /* O_CREAT | O_WRONLY */, 0755);
     if (fd < 0) return false;
 

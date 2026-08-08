@@ -22,6 +22,7 @@ bool AnaSSAIR::optimize_function(frontend::Function* fn) {
     if (!fn || !fn->first_block) return false;
 
     bool opt = false;
+    opt |= run_length_folding(fn);
     opt |= run_escape_analysis(fn);
     opt |= run_autovectorizer(fn);
     opt |= run_stream_analysis(fn);
@@ -30,6 +31,49 @@ bool AnaSSAIR::optimize_function(frontend::Function* fn) {
     opt |= run_gvn(fn);
 
     return opt;
+}
+
+bool AnaSSAIR::run_length_folding(frontend::Function* fn) {
+    if (!fn) return false;
+    bool changed = false;
+
+    struct RegStringLen {
+        frontend::Register reg;
+        size_t len;
+    } known_strings[64];
+    uint32_t known_count = 0;
+
+    for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+        for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+            if (insn->op == frontend::Opcode::CONST_STRING && insn->dest.kind == frontend::OperandKind::REGISTER) {
+                if (known_count < 64) {
+                    known_strings[known_count++] = { insn->dest.reg, insn->string_len };
+                }
+            } else if (insn->op == frontend::Opcode::STR_LEN) {
+                size_t len = 0;
+                bool found = false;
+                if (insn->string_val != nullptr) {
+                    len = insn->string_len;
+                    found = true;
+                } else if (insn->src1.kind == frontend::OperandKind::REGISTER) {
+                    for (uint32_t k = 0; k < known_count; ++k) {
+                        if (known_strings[k].reg == insn->src1.reg) {
+                            len = known_strings[k].len;
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                if (found) {
+                    insn->op = frontend::Opcode::MOVE_CONST;
+                    insn->src1 = frontend::Operand::make_const(static_cast<int64_t>(len));
+                    folded_string_lengths_++;
+                    changed = true;
+                }
+            }
+        }
+    }
+    return changed;
 }
 
 bool AnaSSAIR::run_stream_analysis(frontend::Function* fn) {

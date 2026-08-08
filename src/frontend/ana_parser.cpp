@@ -241,6 +241,8 @@ Instruction* Parser::parse_instruction() {
         case Opcode::DIV_I32:
         case Opcode::ADD_I64:
         case Opcode::SUB_I64:
+        case Opcode::MUL_I64:
+        case Opcode::DIV_I64:
         case Opcode::AND_I32:
         case Opcode::AND_I64:
         case Opcode::OR_I32:
@@ -297,6 +299,37 @@ Instruction* Parser::parse_instruction() {
                 advance();
             } else if (current_tok_.type == TokenType::TOKEN_INT_LITERAL) {
                 insn->src1 = Operand::make_const(current_tok_.int_val);
+                advance();
+            }
+            break;
+        }
+        case Opcode::CONST_STRING: {
+            if (current_tok_.type == TokenType::TOKEN_REGISTER) {
+                insn->dest = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                advance();
+                expect(TokenType::TOKEN_COMMA, "Expected ,");
+            }
+            if (current_tok_.type == TokenType::TOKEN_STRING_LITERAL) {
+                insn->string_val = current_tok_.string_val;
+                insn->string_len = current_tok_.string_len;
+                insn->string_hash = current_tok_.string_hash;
+                advance();
+            }
+            break;
+        }
+        case Opcode::STR_LEN: {
+            if (current_tok_.type == TokenType::TOKEN_REGISTER) {
+                insn->dest = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                advance();
+                expect(TokenType::TOKEN_COMMA, "Expected ,");
+            }
+            if (current_tok_.type == TokenType::TOKEN_REGISTER) {
+                insn->src1 = Operand::make_reg(current_tok_.reg.type, current_tok_.reg.index);
+                advance();
+            } else if (current_tok_.type == TokenType::TOKEN_STRING_LITERAL) {
+                insn->string_val = current_tok_.string_val;
+                insn->string_len = current_tok_.string_len;
+                insn->string_hash = current_tok_.string_hash;
                 advance();
             }
             break;

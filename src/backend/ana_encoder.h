@@ -113,6 +113,8 @@ public:
     void push_reg(X86Reg reg);
     void pop_reg(X86Reg reg);
     void ret();
+    void cqo();
+    void idiv_reg(X86Reg reg);
 
     // Atomics & Memory Barriers
     void lock_cmpxchg_mem_reg(X86Reg base, int32_t disp, X86Reg src);
@@ -155,6 +157,7 @@ public:
     void movntdq_mem_xmm(X86Reg base, int32_t disp, uint8_t src_xmm);
     void sfence();
     void prefetcht0(X86Reg base, int32_t disp);
+    void lea_reg_rip_disp32(X86Reg dst, int32_t disp32);
 
     // Final resolution
     bool resolve_labels();
@@ -168,10 +171,10 @@ private:
     size_t capacity_;
     size_t cursor_;
 
-    EncoderLabel labels_[64];
+    EncoderLabel labels_[512];
     uint32_t label_count_;
 
-    LabelReloc relocs_[128];
+    LabelReloc relocs_[1024];
     uint32_t reloc_count_;
 };
 

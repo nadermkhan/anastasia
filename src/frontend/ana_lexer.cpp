@@ -1,7 +1,15 @@
 #include "ana_lexer.h"
+#include "../sys/sys_raw.h"
 
 namespace ana {
 namespace frontend {
+
+static char* lexer_alloc_string(const char* bytes, size_t len) {
+    char* buf = static_cast<char*>(sys::raw_mmap(nullptr, len + 1, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0));
+    sys::freestanding_memcpy(buf, bytes, len);
+    buf[len] = '\0';
+    return buf;
+}
 
 Lexer::Lexer(const char* source) : source_(source), cursor_(0), line_(1) {}
 
@@ -47,6 +55,36 @@ Token Lexer::next_token() {
     char c = peek();
     if (c == '\0') {
         tok.type = TokenType::TOKEN_EOF;
+        return tok;
+    }
+
+    if (c == '"') {
+        advance();
+        char temp_buf[2048];
+        size_t len = 0;
+        while (peek() != '"' && peek() != '\0' && len < sizeof(temp_buf) - 1) {
+            char ch = advance();
+            if (ch == '\\') {
+                char esc = advance();
+                if (esc == 'n') temp_buf[len++] = '\n';
+                else if (esc == 't') temp_buf[len++] = '\t';
+                else if (esc == 'r') temp_buf[len++] = '\r';
+                else if (esc == '0') temp_buf[len++] = '\0';
+                else if (esc == '\\') temp_buf[len++] = '\\';
+                else if (esc == '"') temp_buf[len++] = '"';
+                else temp_buf[len++] = esc;
+            } else {
+                temp_buf[len++] = ch;
+            }
+        }
+        if (peek() == '"') advance();
+
+        char* str_copy = lexer_alloc_string(temp_buf, len);
+        tok.type = TokenType::TOKEN_STRING_LITERAL;
+        tok.string_val = str_copy;
+        tok.string_len = len;
+        tok.string_hash = fnv1a_hash(str_copy, len);
+        tok.view.length = &source_[cursor_] - tok.view.str;
         return tok;
     }
 
@@ -177,6 +215,8 @@ Token Lexer::next_token() {
             case fnv1a_hash("div-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::DIV_I32; return tok;
             case fnv1a_hash("add-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_I64; return tok;
             case fnv1a_hash("sub-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_I64; return tok;
+            case fnv1a_hash("mul-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MUL_I64; return tok;
+            case fnv1a_hash("div-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::DIV_I64; return tok;
             case fnv1a_hash("and-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::AND_I32; return tok;
             case fnv1a_hash("and-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::AND_I64; return tok;
             case fnv1a_hash("or-int/32", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::OR_I32; return tok;
@@ -230,6 +270,8 @@ Token Lexer::next_token() {
             case fnv1a_hash("load-vector/256", 15): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_VECTOR_256; return tok;
             case fnv1a_hash("load-vector/512", 15): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_VECTOR_512; return tok;
             case fnv1a_hash("sink-mem", 8):         tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SINK_MEM; return tok;
+            case fnv1a_hash("const-string", 12):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CONST_STRING; return tok;
+            case fnv1a_hash("str-len", 7):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::STR_LEN; return tok;
             default: break;
         }
 

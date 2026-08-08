@@ -23,8 +23,10 @@ public:
     uint32_t scalar_replaced_objects() const { return scalar_replaced_objects_; }
     uint32_t vectorized_loops() const { return vectorized_loops_; }
     uint32_t non_temporal_streams() const { return non_temporal_streams_; }
+    uint32_t folded_string_lengths() const { return folded_string_lengths_; }
 
 private:
+    bool run_length_folding(frontend::Function* fn);
     bool run_escape_analysis(frontend::Function* fn);
     bool run_autovectorizer(frontend::Function* fn);
     bool run_stream_analysis(frontend::Function* fn);
@@ -38,6 +40,7 @@ private:
     uint32_t scalar_replaced_objects_;
     uint32_t vectorized_loops_;
     uint32_t non_temporal_streams_;
+    uint32_t folded_string_lengths_{0};
 };
 
 } // namespace optimizer

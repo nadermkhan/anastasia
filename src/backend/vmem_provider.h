@@ -2,6 +2,7 @@
 #define ANA_VMEM_PROVIDER_H
 
 #include "../sys/sys_raw.h"
+#include "jit_string_pool.h"
 
 namespace ana {
 namespace backend {
@@ -37,6 +38,11 @@ public:
 class AnastasiaJitRuntime {
 public:
     AnastasiaJitRuntime() {}
+
+    JitStringPool& string_pool() { return string_pool_; }
+
+private:
+    JitStringPool string_pool_;
 };
 
 } // namespace backend

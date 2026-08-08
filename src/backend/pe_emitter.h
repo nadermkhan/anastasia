@@ -104,7 +104,7 @@ public:
     PeEmitter();
     ~PeEmitter();
 
-    bool write_pe_executable(const char* output_filename, const uint8_t* text_bytes, size_t text_size);
+    bool write_pe_executable(const char* output_filename, const uint8_t* text_bytes, size_t text_size, const uint8_t* rdata_bytes = nullptr, size_t rdata_size = 0);
 };
 
 } // namespace backend

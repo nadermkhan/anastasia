@@ -122,7 +122,11 @@ public:
     uint32_t add_symbol(const char* name, uint8_t binding, uint8_t type, uint16_t section_idx, uint64_t value, uint64_t size);
     uint32_t add_symbol(const char* name, uint64_t value, uint64_t size, bool is_global = true);
     void append_text(const void* bytes, size_t size);
+    uint64_t append_rodata(const void* bytes, size_t size);
     void add_relocation(uint64_t offset, uint32_t symbol_idx, uint32_t type, int64_t addend);
+
+    SimpleByteBuffer* rodata_section() { return rodata_section_; }
+    SimpleByteBuffer* text_section() { return text_section_; }
 
     bool write_elf_object(const char* output_filename, const uint8_t* text_bytes, size_t text_size);
     uint8_t* finalize(size_t* out_size);
@@ -131,6 +135,7 @@ public:
 private:
     uint16_t machine_arch_{62}; // EM_X86_64 by default
     SimpleByteBuffer* text_section_;
+    SimpleByteBuffer* rodata_section_;
     SimpleByteBuffer* strtab_section_;
     SimpleByteBuffer* shstrtab_section_;
     SimpleByteBuffer* symtab_section_;

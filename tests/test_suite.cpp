@@ -18,6 +18,7 @@
 #include "../src/backend/osr_engine.h"
 #include "../src/sys/io_ring.h"
 #include "../src/backend/host_interop.h"
+#include "../src/backend/pe_emitter.h"
 #include "../src/optimizer/pgo_profiler.h"
 #include <fcntl.h>
 #include <unistd.h>
@@ -1369,11 +1370,123 @@ static bool test_adaptive_prefetch_injection() {
 }
 
 static bool test_numa_first_touch_and_barriers() {
-    print_msg("[Test 39/39] NUMA First-Touch & Exponential Backoff Spin-Barriers... ");
+    print_msg("[Test 39/40] NUMA First-Touch & Exponential Backoff Spin-Barriers... ");
 
     int backoff = 8;
     for (int i = 0; i < backoff; ++i) {
         __asm__ __volatile__("pause" ::: "memory");
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
+static bool test_v7_string_literals_and_rodata_emission() {
+    print_msg("[Test 40/40] Anastasia v7.0 Native Strings, JIT Interning & AOT .rodata Relocations... ");
+
+    // 1. Lexer Escape & Length Test
+    const char* code_esc =
+        ".fn test_esc() -> i64\n"
+        "  .registers 1 local\n"
+        "  const-string v0, \"Tab\\tNewline\\n\"\n"
+        "  return-val v0\n"
+        ".end_fn\n";
+    frontend::ArenaAllocator arena1;
+    frontend::Parser parser1(code_esc, arena1);
+    frontend::Program* prog1 = parser1.parse_program();
+    if (!prog1 || !prog1->functions || !prog1->functions->first_block || !prog1->functions->first_block->first_insn) {
+        print_msg("FAILED (AST String Lexing)\n");
+        return false;
+    }
+    frontend::Instruction* insn_str = prog1->functions->first_block->first_insn;
+    if (insn_str->string_len != 12) { // "Tab\tNewline\n" -> 12 bytes
+        print_msg("FAILED (String Escape Length=");
+        print_int(insn_str->string_len);
+        print_msg(")\n");
+        return false;
+    }
+
+    // 2. JIT Interning & Execution Test
+    const char* code_intern =
+        ".fn test_intern() -> i64\n"
+        "  .registers 3 local\n"
+        "  const-string v0, \"Anastasia String Interning\"\n"
+        "  const-string v1, \"Anastasia String Interning\"\n"
+        "  sub-int/64 v2, v0, v1\n"
+        "  return-val v2\n"
+        ".end_fn\n";
+    frontend::ArenaAllocator arena2;
+    frontend::Parser parser2(code_intern, arena2);
+    frontend::Program* prog2 = parser2.parse_program();
+    if (!prog2 || !prog2->functions) {
+        print_msg("FAILED (JIT Interning Parse)\n");
+        return false;
+    }
+    backend::AnastasiaJitRuntime runtime;
+    backend::AnaLowerer lowerer(runtime);
+    typedef int64_t (*FnType)();
+    FnType fn_intern = reinterpret_cast<FnType>(lowerer.compile_function(prog2->functions, prog2));
+    if (!fn_intern) {
+        print_msg("FAILED (JIT Interning Lowering)\n");
+        return false;
+    }
+    int64_t intern_diff = fn_intern();
+    if (intern_diff != 0) {
+        print_msg("FAILED (JIT String Deduplication Failed: diff=");
+        print_int(intern_diff);
+        print_msg(")\n");
+        return false;
+    }
+
+    // 3. SSA Length Folding Test
+    const char* code_len =
+        ".fn test_len() -> i64\n"
+        "  .registers 2 local\n"
+        "  const-string v0, \"Hello Anastasia\"\n"
+        "  str-len v1, v0\n"
+        "  return-val v1\n"
+        ".end_fn\n";
+    frontend::ArenaAllocator arena3;
+    frontend::Parser parser3(code_len, arena3);
+    frontend::Program* prog3 = parser3.parse_program();
+    optimizer::AnaSSAIR ssa;
+    ssa.optimize_program(prog3);
+    if (ssa.folded_string_lengths() != 1) {
+        print_msg("FAILED (SSA String Length Folding)\n");
+        return false;
+    }
+    FnType fn_len = reinterpret_cast<FnType>(lowerer.compile_function(prog3->functions, prog3));
+    if (!fn_len || fn_len() != 15) {
+        print_msg("FAILED (SSA Folded Exec Length=");
+        print_int(fn_len ? fn_len() : -1);
+        print_msg(")\n");
+        return false;
+    }
+
+    // 4. ELF AOT .rodata Relocation Test
+    const char* test_elf_path = "test_v7_string.o";
+    bool elf_ok = lowerer.compile_to_elf(prog3, test_elf_path);
+    if (!elf_ok) {
+        print_msg("FAILED (ELF .rodata AOT Emission)\n");
+        return false;
+    }
+
+    // 5. PE AOT .rdata Relocation Test
+    backend::PeEmitter pe_emitter;
+    uint8_t dummy_text[32] = { 0x48, 0x8D, 0x05, 0x00, 0x00, 0x00, 0x00, 0xC3 };
+    uint8_t dummy_rdata[16] = "Hello Windows\0";
+    bool pe_ok = pe_emitter.write_pe_executable("test_v7_string.exe", dummy_text, sizeof(dummy_text), dummy_rdata, sizeof(dummy_rdata));
+    if (!pe_ok) {
+        print_msg("FAILED (PE .rdata AOT Emission)\n");
+        return false;
+    }
+
+    // 6. AArch64 AOT Relocation Test
+    backend::AArch64TargetBackend aarch64_backend;
+    bool aarch64_ok = aarch64_backend.compile_to_elf(prog3, "test_v7_arm64.o");
+    if (!aarch64_ok) {
+        print_msg("FAILED (AArch64 ADRP/ADD Relocation Emission)\n");
+        return false;
     }
 
     print_msg("PASSED\n");
@@ -1425,6 +1538,7 @@ bool run_all_tests() {
     ok &= test_cache_miss_reduction_stream();
     ok &= test_adaptive_prefetch_injection();
     ok &= test_numa_first_touch_and_barriers();
+    ok &= test_v7_string_literals_and_rodata_emission();
 
     print_msg("=======================================================\n");
     if (ok) {

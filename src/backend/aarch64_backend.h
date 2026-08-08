@@ -56,6 +56,8 @@ public:
     void mov_fp_sp();
     void sub_sp_imm32(uint32_t imm);
     void add_sp_imm32(uint32_t imm);
+    void adrp(Arm64Reg rd, int32_t imm21_pages);
+    void add_imm12(Arm64Reg rd, Arm64Reg rn, uint16_t imm12);
     void ret();
     void nop();
 

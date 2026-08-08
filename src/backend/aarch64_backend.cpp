@@ -182,8 +182,23 @@ void AArch64Encoder::add_sp_imm32(uint32_t imm) {
     emit32(0x910003FFUL | (imm12 << 10));
 }
 
+void AArch64Encoder::adrp(Arm64Reg rd, int32_t imm21_pages) {
+    uint32_t imm21 = static_cast<uint32_t>(imm21_pages) & 0x1FFFFF;
+    uint32_t immlo = imm21 & 3;
+    uint32_t immhi = (imm21 >> 2) & 0x7FFFF;
+    uint32_t code = 0x90000000UL | (immlo << 29) | (immhi << 5) | static_cast<uint32_t>(arm64_u8(rd));
+    emit32(code);
+}
+
+void AArch64Encoder::add_imm12(Arm64Reg rd, Arm64Reg rn, uint16_t imm12) {
+    uint32_t code = 0x91000000UL | ((static_cast<uint32_t>(imm12) & 0xFFF) << 10)
+                                 | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
+                                 | static_cast<uint32_t>(arm64_u8(rd));
+    emit32(code);
+}
+
 void AArch64Encoder::ret() {
-    // RET (X30): 0xD65F03C0
+    // RET (X30)
     emit32(0xD65F03C0UL);
 }
 
@@ -274,6 +289,22 @@ bool AArch64TargetBackend::compile_to_elf(frontend::Program* prog, const char* o
                     case frontend::Opcode::MUL_I32:
                         enc.mul_reg_reg(Arm64Reg::X0, Arm64Reg::X0, Arm64Reg::X1);
                         break;
+                    case frontend::Opcode::CONST_STRING: {
+                        uint64_t ro_off = elf->append_rodata(insn->string_val, insn->string_len + 1);
+                        uint64_t insn_off = func_offset + enc.code_size();
+
+                        int32_t text_page = static_cast<int32_t>(insn_off >> 12);
+                        int32_t rodata_page = static_cast<int32_t>((text_buf->size() + enc.code_size() + ro_off) >> 12);
+                        int32_t page_disp = rodata_page - text_page;
+                        uint16_t page_offset = static_cast<uint16_t>(ro_off & 0xFFF);
+
+                        enc.adrp(Arm64Reg::X0, page_disp);
+                        enc.add_imm12(Arm64Reg::X0, Arm64Reg::X0, page_offset);
+
+                        elf->add_relocation(insn_off, 2 /* .rodata */, 275 /* R_AARCH64_ADR_PREL_PG_HI21 */, static_cast<int64_t>(ro_off));
+                        elf->add_relocation(insn_off + 4, 2 /* .rodata */, 277 /* R_AARCH64_ADD_ABS_LO12_NC */, static_cast<int64_t>(ro_off));
+                        break;
+                    }
                     case frontend::Opcode::RETURN_VAL:
                     case frontend::Opcode::RETURN_VOID:
                         enc.pop_fp_lr();

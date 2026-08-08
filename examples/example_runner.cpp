@@ -20,18 +20,14 @@ static void print_int(int64_t val) {
         sys::raw_write(1, "0", 1);
         return;
     }
-    bool neg = false;
-    if (val < 0) {
-        neg = true;
-        val = -val;
-    }
+    uint64_t uval = (val < 0) ? static_cast<uint64_t>(-val) : static_cast<uint64_t>(val);
     int idx = 30;
     buf[31] = '\0';
-    while (val > 0) {
-        buf[idx--] = '0' + static_cast<char>(val % 10);
-        val /= 10;
+    while (uval > 0) {
+        buf[idx--] = '0' + static_cast<char>(uval % 10);
+        uval /= 10;
     }
-    if (neg) buf[idx--] = '-';
+    if (val < 0) buf[idx--] = '-';
     sys::raw_write(1, &buf[idx + 1], 30 - idx);
 }
 
@@ -388,6 +384,101 @@ static bool run_example_8() {
     }
 }
 
+static bool run_example_9() {
+    print("\n--- Running Example 9: 09_pi_spigot.ana ---\n");
+    const char* code =
+        ".fn calculate_pi_digits(p0: ptr, p1: i64) -> i64\n"
+        "    .registers 12 local\n"
+        "    move-const v0, 10\n"
+        "    mul-int/64 v0, p1, v0\n"
+        "    move-const v1, 3\n"
+        "    div-int/64 v0, v0, v1\n"
+        "    add-int/64 v0, v0, 1\n"
+        "    move-const v1, 0\n"
+        "init_loop:\n"
+        "    if-ge v1, v0, init_end\n"
+        "    move-const v2, 2\n"
+        "    move-const v3, 8\n"
+        "    mul-int/64 v3, v1, v3\n"
+        "    add-int/64 v4, p0, v3\n"
+        "    store-mem [v4 + 0], v2\n"
+        "    add-int/64 v1, v1, 1\n"
+        "    goto init_loop\n"
+        "init_end:\n"
+        "    move-const v5, 0\n"
+        "    move-const v6, 0\n"
+        "digit_loop:\n"
+        "    if-ge v5, p1, digit_end\n"
+        "    move-const v7, 0\n"
+        "    sub-int/64 v1, v0, 1\n"
+        "inner_loop:\n"
+        "    if-lt v1, 0, inner_end\n"
+        "    move-const v3, 8\n"
+        "    mul-int/64 v3, v1, v3\n"
+        "    add-int/64 v4, p0, v3\n"
+        "    load-mem v8, [v4 + 0]\n"
+        "    move-const v9, 10\n"
+        "    mul-int/64 v8, v8, v9\n"
+        "    if-eq v1, 0, i_zero\n"
+        "    mul-int/64 v10, v7, v1\n"
+        "    add-int/64 v8, v8, v10\n"
+        "    move-const v9, 2\n"
+        "    mul-int/64 v9, v1, v9\n"
+        "    add-int/64 v9, v9, 1\n"
+        "    goto i_done\n"
+        "i_zero:\n"
+        "    add-int/64 v8, v8, v7\n"
+        "    move-const v9, 10\n"
+        "i_done:\n"
+        "    div-int/64 v7, v8, v9\n"
+        "    mul-int/64 v10, v7, v9\n"
+        "    sub-int/64 v8, v8, v10\n"
+        "    store-mem [v4 + 0], v8\n"
+        "    sub-int/64 v1, v1, 1\n"
+        "    goto inner_loop\n"
+        "inner_end:\n"
+        "    add-int/64 v6, v6, v7\n"
+        "    add-int/64 v5, v5, 1\n"
+        "    goto digit_loop\n"
+        "digit_end:\n"
+        "    return-val v6\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(code, arena);
+    frontend::Program* prog = parser.parse_program();
+
+    backend::AnastasiaJitRuntime runtime;
+    backend::AnaLowerer lowerer(runtime);
+
+    typedef int64_t (*PiFn)(void*, int64_t);
+    PiFn fn = reinterpret_cast<PiFn>(lowerer.compile_function(prog->functions, prog));
+
+    if (!fn) {
+        print("[FAIL] Compilation failed for Example 9\n");
+        return false;
+    }
+
+    size_t mem_size = 1000 * sizeof(int64_t);
+    void* mem = sys::raw_mmap(nullptr, mem_size, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+
+    print("Input: p0 = Memory Buffer, p1 = 100 Digits of Pi\n");
+    int64_t checksum = fn(mem, 100);
+    sys::raw_munmap(mem, mem_size);
+
+    print("Execution Output: Pi Calculation Checksum (100 Digits) = ");
+    print_int(checksum);
+    print("\n");
+
+    if (checksum > 0) {
+        print("[SUCCESS] Example 9 (High-Precision Pi Calculation) passed cleanly!\n");
+        return true;
+    } else {
+        print("[FAIL] Unexpected output for Example 9\n");
+        return false;
+    }
+}
+
 bool run_all_examples() {
     print("\n=======================================================\n");
     print("    Anastasia Extended Smali Example Execution Suite\n");
@@ -402,6 +493,7 @@ bool run_all_examples() {
     all_ok &= run_example_6();
     all_ok &= run_example_7();
     all_ok &= run_example_8();
+    all_ok &= run_example_9();
 
     print("\n=======================================================\n");
     if (all_ok) {

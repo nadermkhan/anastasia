@@ -19,7 +19,7 @@ void AnaEncoder::reset() {
     cursor_ = 0;
     label_count_ = 0;
     reloc_count_ = 0;
-    for (uint32_t i = 0; i < 64; ++i) {
+    for (uint32_t i = 0; i < 512; ++i) {
         labels_[i].id = i;
         labels_[i].offset = -1;
         labels_[i].bound = false;
@@ -42,7 +42,7 @@ void AnaEncoder::ensure_capacity(size_t additional) {
 }
 
 uint32_t AnaEncoder::new_label() {
-    if (label_count_ < 64) {
+    if (label_count_ < 512) {
         uint32_t id = label_count_++;
         labels_[id].id = id;
         labels_[id].offset = -1;
@@ -462,7 +462,7 @@ void AnaEncoder::test_reg_reg(X86Reg src1, X86Reg src2) {
 
 void AnaEncoder::jmp_label(uint32_t label_id) {
     emit8(0xE9);
-    if (reloc_count_ < 128) {
+    if (reloc_count_ < 1024) {
         relocs_[reloc_count_++] = { label_id, cursor_, false };
     }
     emit32(0);
@@ -470,7 +470,7 @@ void AnaEncoder::jmp_label(uint32_t label_id) {
 
 void AnaEncoder::je_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x84);
-    if (reloc_count_ < 128) {
+    if (reloc_count_ < 1024) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -478,7 +478,7 @@ void AnaEncoder::je_label(uint32_t label_id) {
 
 void AnaEncoder::jne_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x85);
-    if (reloc_count_ < 128) {
+    if (reloc_count_ < 1024) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -486,7 +486,7 @@ void AnaEncoder::jne_label(uint32_t label_id) {
 
 void AnaEncoder::jl_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x8C);
-    if (reloc_count_ < 128) {
+    if (reloc_count_ < 1024) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -494,7 +494,7 @@ void AnaEncoder::jl_label(uint32_t label_id) {
 
 void AnaEncoder::jge_label(uint32_t label_id) {
     emit8(0x0F); emit8(0x8D);
-    if (reloc_count_ < 128) {
+    if (reloc_count_ < 1024) {
         relocs_[reloc_count_++] = { label_id, cursor_, true };
     }
     emit32(0);
@@ -549,6 +549,17 @@ void AnaEncoder::lock_cmpxchg_mem_reg(X86Reg base, int32_t disp, X86Reg src) {
         if ((b & 7) == 4) emit8(0x24);
         emit32(static_cast<uint32_t>(disp));
     }
+}
+
+void AnaEncoder::cqo() {
+    emit8(0x48); emit8(0x99); // CQO (sign extend RAX to RDX:RAX)
+}
+
+void AnaEncoder::idiv_reg(X86Reg reg) {
+    uint8_t r = static_cast<uint8_t>(reg);
+    emit_rex(true, 7 /* /7 for idiv */, 0, r);
+    emit8(0xF7);
+    emit_modrm(3, 7, r);
 }
 
 void AnaEncoder::xchg_mem_reg(X86Reg base, int32_t disp, X86Reg src) {
@@ -960,6 +971,14 @@ void AnaEncoder::prefetcht0(X86Reg base, int32_t disp) {
         if ((b & 7) == 4) emit8(0x24);
         emit32(static_cast<uint32_t>(disp));
     }
+}
+
+void AnaEncoder::lea_reg_rip_disp32(X86Reg dst, int32_t disp32) {
+    uint8_t d = static_cast<uint8_t>(dst);
+    emit_rex(true, d, 0, 0);
+    emit8(0x8D);
+    emit_modrm(0, d & 7, 5);
+    emit32(static_cast<uint32_t>(disp32));
 }
 
 bool AnaEncoder::resolve_labels() {

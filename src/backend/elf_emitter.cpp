@@ -69,6 +69,7 @@ uint32_t SimpleByteBuffer::write_string(const char* str) {
 
 ElfEmitter::ElfEmitter() {
     text_section_ = new SimpleByteBuffer();
+    rodata_section_ = new SimpleByteBuffer();
     strtab_section_ = new SimpleByteBuffer();
     shstrtab_section_ = new SimpleByteBuffer();
     symtab_section_ = new SimpleByteBuffer();
@@ -81,10 +82,16 @@ ElfEmitter::ElfEmitter() {
     // Initial symbol table STN_UNDEF (all zeros)
     Elf64Sym null_sym = {};
     if (symtab_section_) symtab_section_->write(&null_sym, sizeof(null_sym));
+
+    // Section symbol 1: .text
+    add_symbol(".text", STB_LOCAL, STT_SECTION, 1, 0, 0);
+    // Section symbol 2: .rodata
+    add_symbol(".rodata", STB_LOCAL, STT_SECTION, 2, 0, 0);
 }
 
 ElfEmitter::~ElfEmitter() {
     if (text_section_) delete text_section_;
+    if (rodata_section_) delete rodata_section_;
     if (strtab_section_) delete strtab_section_;
     if (shstrtab_section_) delete shstrtab_section_;
     if (symtab_section_) delete symtab_section_;
@@ -126,24 +133,24 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     // Build shstrtab string entries
     uint32_t name_null = 0;
     uint32_t name_text = shstrtab_section_->write_string(".text");
+    bool has_rodata = (rodata_section_ && rodata_section_->size() > 0);
+    bool has_rela = (rela_section_ && rela_section_->size() > 0);
+    uint32_t name_rodata = has_rodata ? shstrtab_section_->write_string(".rodata") : 0;
     uint32_t name_shstrtab = shstrtab_section_->write_string(".shstrtab");
     uint32_t name_strtab = shstrtab_section_->write_string(".strtab");
     uint32_t name_symtab = shstrtab_section_->write_string(".symtab");
-    uint32_t name_rela_text = shstrtab_section_->write_string(".rela.text");
+    uint32_t name_rela_text = has_rela ? shstrtab_section_->write_string(".rela.text") : 0;
 
-    bool has_rela = (rela_section_ && rela_section_->size() > 0);
-    uint16_t num_sections = has_rela ? 6 : 5;
+    uint16_t num_sections = 5 + (has_rodata ? 1 : 0) + (has_rela ? 1 : 0);
 
     size_t header_size = sizeof(Elf64Ehdr);
     size_t text_offset = header_size;
-    size_t shstrtab_offset = text_offset + text_section_->size();
+    size_t rodata_offset = text_offset + text_section_->size();
+    size_t shstrtab_offset = rodata_offset + (has_rodata ? rodata_section_->size() : 0);
     size_t strtab_offset = shstrtab_offset + shstrtab_section_->size();
     size_t symtab_offset = strtab_offset + strtab_section_->size();
     size_t rela_offset = symtab_offset + symtab_section_->size();
-    size_t shoff = has_rela ? (rela_offset + rela_section_->size()) : rela_offset;
-
-    // Align section header offset to 8 bytes
-    shoff = (shoff + 7) & ~7UL;
+    size_t shoff = ((has_rela ? rela_offset + rela_section_->size() : symtab_offset + symtab_section_->size()) + 7) & ~7UL;
 
     // Construct ELF Header
     alignas(16) Elf64Ehdr ehdr;
@@ -169,7 +176,7 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     ehdr.e_phnum = 0;
     ehdr.e_shentsize = sizeof(Elf64Shdr);
     ehdr.e_shnum = num_sections;
-    ehdr.e_shstrndx = 2; // .shstrtab section index
+    ehdr.e_shstrndx = has_rodata ? 3 : 2; // .shstrtab section index
 
     // Section Headers
     Elf64Shdr* shdrs = static_cast<Elf64Shdr*>(malloc(sizeof(Elf64Shdr) * num_sections));
@@ -189,41 +196,59 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     shdrs[1].sh_size = text_section_->size();
     shdrs[1].sh_addralign = 16;
 
-    // 2: .shstrtab Section
-    shdrs[2].sh_name = name_shstrtab;
-    shdrs[2].sh_type = SHT_STRTAB;
-    shdrs[2].sh_offset = shstrtab_offset;
-    shdrs[2].sh_size = shstrtab_section_->size();
-    shdrs[2].sh_addralign = 1;
+    uint16_t cur_sec = 2;
+    if (has_rodata) {
+        // 2: .rodata Section
+        shdrs[cur_sec].sh_name = name_rodata;
+        shdrs[cur_sec].sh_type = SHT_PROGBITS;
+        shdrs[cur_sec].sh_flags = SHF_ALLOC;
+        shdrs[cur_sec].sh_addr = 0;
+        shdrs[cur_sec].sh_offset = rodata_offset;
+        shdrs[cur_sec].sh_size = rodata_section_->size();
+        shdrs[cur_sec].sh_addralign = 8;
+        cur_sec++;
+    }
 
-    // 3: .strtab Section
-    shdrs[3].sh_name = name_strtab;
-    shdrs[3].sh_type = SHT_STRTAB;
-    shdrs[3].sh_offset = strtab_offset;
-    shdrs[3].sh_size = strtab_section_->size();
-    shdrs[3].sh_addralign = 1;
+    // .shstrtab Section
+    shdrs[cur_sec].sh_name = name_shstrtab;
+    shdrs[cur_sec].sh_type = SHT_STRTAB;
+    shdrs[cur_sec].sh_offset = shstrtab_offset;
+    shdrs[cur_sec].sh_size = shstrtab_section_->size();
+    shdrs[cur_sec].sh_addralign = 1;
+    cur_sec++;
 
-    // 4: .symtab Section
-    shdrs[4].sh_name = name_symtab;
-    shdrs[4].sh_type = SHT_SYMTAB;
-    shdrs[4].sh_offset = symtab_offset;
-    shdrs[4].sh_size = symtab_section_ ? symtab_section_->size() : 0;
-    shdrs[4].sh_link = 3; // Link to .strtab
-    shdrs[4].sh_info = 1; // Number of local symbols
-    shdrs[4].sh_addralign = 8;
-    shdrs[4].sh_entsize = sizeof(Elf64Sym);
+    // .strtab Section
+    shdrs[cur_sec].sh_name = name_strtab;
+    shdrs[cur_sec].sh_type = SHT_STRTAB;
+    shdrs[cur_sec].sh_offset = strtab_offset;
+    shdrs[cur_sec].sh_size = strtab_section_->size();
+    shdrs[cur_sec].sh_addralign = 1;
+    uint16_t strtab_idx = cur_sec;
+    cur_sec++;
 
-    // 5: .rela.text Section (if any)
+    // .symtab Section
+    shdrs[cur_sec].sh_name = name_symtab;
+    shdrs[cur_sec].sh_type = SHT_SYMTAB;
+    shdrs[cur_sec].sh_offset = symtab_offset;
+    shdrs[cur_sec].sh_size = symtab_section_ ? symtab_section_->size() : 0;
+    shdrs[cur_sec].sh_link = strtab_idx; // Link to .strtab
+    shdrs[cur_sec].sh_info = 3; // Number of local symbols (.null, .text, .rodata)
+    shdrs[cur_sec].sh_addralign = 8;
+    shdrs[cur_sec].sh_entsize = sizeof(Elf64Sym);
+    uint16_t symtab_idx = cur_sec;
+    cur_sec++;
+
+    // .rela.text Section (if any)
     if (has_rela) {
-        shdrs[5].sh_name = name_rela_text;
-        shdrs[5].sh_type = SHT_RELA;
-        shdrs[5].sh_flags = 0;
-        shdrs[5].sh_offset = rela_offset;
-        shdrs[5].sh_size = rela_section_->size();
-        shdrs[5].sh_link = 4; // Link to .symtab
-        shdrs[5].sh_info = 1; // Applies to section 1 (.text)
-        shdrs[5].sh_addralign = 8;
-        shdrs[5].sh_entsize = sizeof(Elf64Rela);
+        shdrs[cur_sec].sh_name = name_rela_text;
+        shdrs[cur_sec].sh_type = SHT_RELA;
+        shdrs[cur_sec].sh_flags = 0;
+        shdrs[cur_sec].sh_offset = rela_offset;
+        shdrs[cur_sec].sh_size = rela_section_->size();
+        shdrs[cur_sec].sh_link = symtab_idx; // Link to .symtab
+        shdrs[cur_sec].sh_info = 1; // Applies to section 1 (.text)
+        shdrs[cur_sec].sh_addralign = 8;
+        shdrs[cur_sec].sh_entsize = sizeof(Elf64Rela);
     }
 
     // Open file using raw system call
@@ -280,22 +305,37 @@ void ElfEmitter::append_text(const void* bytes, size_t size) {
     }
 }
 
+uint64_t ElfEmitter::append_rodata(const void* bytes, size_t size) {
+    if (!rodata_section_ || !bytes || size == 0) return 0;
+    uint64_t offset = rodata_section_->size();
+    rodata_section_->write(bytes, size);
+    return offset;
+}
+
 uint8_t* ElfEmitter::finalize(size_t* out_size) {
     if (!text_section_ || !shstrtab_section_ || !strtab_section_ || !symtab_section_) return nullptr;
 
     uint32_t name_null = 0;
     uint32_t name_text = shstrtab_section_->write_string(".text");
+    uint32_t name_rodata = shstrtab_section_->write_string(".rodata");
     uint32_t name_shstrtab = shstrtab_section_->write_string(".shstrtab");
     uint32_t name_strtab = shstrtab_section_->write_string(".strtab");
     uint32_t name_symtab = shstrtab_section_->write_string(".symtab");
 
-    uint16_t num_sections = 5;
+    bool has_rodata = (rodata_section_ && rodata_section_->size() > 0);
+    bool has_rela = (rela_section_ && rela_section_->size() > 0);
+    uint32_t name_rela_text = has_rela ? shstrtab_section_->write_string(".rela.text") : 0;
+    (void)name_null; (void)name_text; (void)name_rodata; (void)name_shstrtab; (void)name_strtab; (void)name_symtab; (void)name_rela_text;
+
+    uint16_t num_sections = 5 + (has_rodata ? 1 : 0) + (has_rela ? 1 : 0);
     size_t header_size = sizeof(Elf64Ehdr);
     size_t text_offset = header_size;
-    size_t shstrtab_offset = text_offset + text_section_->size();
+    size_t rodata_offset = text_offset + text_section_->size();
+    size_t shstrtab_offset = rodata_offset + (has_rodata ? rodata_section_->size() : 0);
     size_t strtab_offset = shstrtab_offset + shstrtab_section_->size();
     size_t symtab_offset = strtab_offset + strtab_section_->size();
-    size_t shoff = (symtab_offset + symtab_section_->size() + 7) & ~7UL;
+    size_t rela_offset = symtab_offset + symtab_section_->size();
+    size_t shoff = ((has_rela ? rela_offset + rela_section_->size() : symtab_offset + symtab_section_->size()) + 7) & ~7UL;
 
     size_t total_elf_size = shoff + sizeof(Elf64Shdr) * num_sections;
     uint8_t* buffer = static_cast<uint8_t*>(malloc(total_elf_size));

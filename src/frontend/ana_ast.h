@@ -22,6 +22,8 @@ enum class Opcode {
     DIV_I32,
     ADD_I64,
     SUB_I64,
+    MUL_I64,
+    DIV_I64,
     MOVE,
     MOVE_CONST,
     SYS_CALL,
@@ -74,7 +76,9 @@ enum class Opcode {
     MUL_VECTOR_I32X8,
     LOAD_VECTOR_256,
     LOAD_VECTOR_512,
-    SINK_MEM
+    SINK_MEM,
+    CONST_STRING,
+    STR_LEN
 };
 
 enum class RegisterType {
@@ -144,6 +148,9 @@ struct Instruction {
     Operand src2;
     int32_t vtable_slot;
     const char* target_label;
+    const char* string_val;
+    size_t string_len;
+    uint64_t string_hash;
     bool is_likely;
     Instruction* next;
 };

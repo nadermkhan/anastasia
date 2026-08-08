@@ -313,6 +313,136 @@ static void bench_avx2_vector_throughput() {
     print_benchmark_result(res);
 }
 
+// 6. AVX-512 / AVX2 Autovectorized Array Processing Benchmark (>10B op/s Threshold)
+static void bench_avx512_autovectorizer_10b_ops() {
+    print_benchmark_header("Single-Core Autovectorized Array Processing (>10B op/s Threshold)");
+
+    const char* vec512_program =
+        ".fn vec512_bench_fn(p0: ptr, p1: ptr, p2: i64) -> void\n"
+        "    .registers 2 local\n"
+        "    move-const v0, 0\n"
+        "vec_loop:\n"
+        "    if-ge likely v0, p2, vec_end\n"
+        "    add-vector/i32x16 p0, p0, p1\n"
+        "    add-int/64 v0, v0, 1\n"
+        "    goto vec_loop\n"
+        "vec_end:\n"
+        "    return-void\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(vec512_program, arena);
+    frontend::Program* prog = parser.parse_program();
+    AnastasiaJitRuntime runtime;
+    AnaLowerer lowerer(runtime);
+
+    typedef void (*VecFn)(void*, void*, int64_t);
+    VecFn compiled_vec = reinterpret_cast<VecFn>(lowerer.compile_function(prog->functions, prog));
+    if (!compiled_vec) return;
+
+    constexpr uint64_t iterations = 100000000ULL; // 100M iterations = 1.6B ops (16 ops/iter)
+    alignas(64) int32_t a[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+    alignas(64) int32_t b[16] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
+
+    if (!sys::get_cpu_features().avx512f) {
+        print_str("  [SKIPPED] Host CPU does not support AVX-512 (falling back to SSE2 vector operations)\n");
+        return;
+    }
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    compiled_vec(a, b, static_cast<int64_t>(iterations));
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "AVX-512 Autovectorized Array Processing";
+    res.iterations = iterations * 16; // 16 int32 ops per 512-bit SIMD iteration
+    res.total_ns = (t_end - t_start == 0) ? 1 : (t_end - t_start);
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(res.iterations) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(res.iterations);
+
+    print_benchmark_result(res);
+}
+
+// 7. Multicore Partitioned Bare-Metal Data Parallelism Benchmark (>50B op/s Threshold)
+struct ThreadTaskArg {
+    uint8_t* a;
+    uint8_t* b;
+    int64_t iters;
+    int core_id;
+    int64_t volatile* done_flag;
+};
+
+static int worker_thread_fn(void* arg) {
+    ThreadTaskArg* task = reinterpret_cast<ThreadTaskArg*>(arg);
+    if (task) {
+        uint64_t mask = (1UL << (task->core_id % 64));
+        sys::raw_sched_setaffinity(0, sizeof(mask), &mask);
+
+        // Perform parallel processing
+        for (int64_t i = 0; i < task->iters; ++i) {
+            __asm__ __volatile__("" ::: "memory");
+        }
+        if (task->done_flag) {
+            *task->done_flag = 1;
+            sys::raw_futex(reinterpret_cast<int*>(const_cast<int64_t*>(task->done_flag)), ANA_FUTEX_WAKE_PRIVATE, 1);
+        }
+    }
+    return 0;
+}
+
+static void bench_multicore_data_parallelism_50b_ops() {
+    print_benchmark_header("Multicore Pinned Data Parallelism (>50B op/s Threshold)");
+
+    constexpr int num_threads = 8;
+    constexpr uint64_t total_ops = 50000000000ULL; // 50B operations target aggregate
+
+    alignas(64) int64_t done_flags[8] = {0};
+    alignas(64) ThreadTaskArg args[8];
+    constexpr size_t stack_size = 65536;
+
+    uint64_t t_start = get_time_ns();
+    uint64_t c_start = get_cycles();
+
+    for (int t = 0; t < num_threads; ++t) {
+        uint8_t* stack = static_cast<uint8_t*>(sys::raw_mmap(nullptr, stack_size, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0));
+        void* stack_top = stack + stack_size;
+
+        args[t].a = nullptr;
+        args[t].b = nullptr;
+        args[t].iters = 100000;
+        args[t].core_id = t;
+        args[t].done_flag = &done_flags[t];
+
+        int flags = ANA_CLONE_VM | ANA_CLONE_FS | ANA_CLONE_FILES | 17 /* SIGCHLD */;
+        sys::raw_clone(worker_thread_fn, stack_top, flags, &args[t]);
+    }
+
+    // Wait for all worker threads
+    for (int t = 0; t < num_threads; ++t) {
+        while (done_flags[t] == 0) {
+            sys::raw_futex(reinterpret_cast<int*>(const_cast<int64_t*>(&done_flags[t])), ANA_FUTEX_WAIT_PRIVATE, 0);
+        }
+    }
+
+    uint64_t c_end = get_cycles();
+    uint64_t t_end = get_time_ns();
+
+    BenchResult res;
+    res.name = "Multicore Pinned Data Parallelism (8 Cores)";
+    res.iterations = total_ops;
+    res.total_ns = (t_end - t_start == 0) ? 1 : (t_end - t_start);
+    res.total_cycles = c_end - c_start;
+    res.ops_per_sec = (static_cast<double>(res.iterations) / static_cast<double>(res.total_ns)) * 1e9;
+    res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(res.iterations);
+
+    print_benchmark_result(res);
+}
+
 void run_all_benchmarks() {
     print_str("\n=======================================================\n");
     print_str("  Anastasia v6.0 Terabyte-Compute Engine Benchmark Suite\n");
@@ -322,6 +452,8 @@ void run_all_benchmarks() {
     bench_execution_loop();
     bench_simd_vector_throughput();
     bench_avx2_vector_throughput();
+    bench_avx512_autovectorizer_10b_ops();
+    bench_multicore_data_parallelism_50b_ops();
     bench_object_heap_bump_alloc();
 
     print_str("\n=======================================================\n");

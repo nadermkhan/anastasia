@@ -29,6 +29,14 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
         return reinterpret_cast<void*>(-1);
     }
     return reinterpret_cast<void*>(ret);
+#elif defined(_WIN32) || defined(_WIN64)
+    (void)flags; (void)fd; (void)offset;
+    // Win32 VirtualAlloc allocation
+    extern "C" __declspec(dllimport) void* __stdcall VirtualAlloc(void*, size_t, uint32_t, uint32_t);
+    uint32_t win_prot = 0x04; // PAGE_READWRITE
+    if (prot & ANA_PROT_EXEC) win_prot = 0x40; // PAGE_EXECUTE_READWRITE
+    void* ptr = VirtualAlloc(addr, length, 0x1000 | 0x2000 /* MEM_COMMIT | MEM_RESERVE */, win_prot);
+    return ptr ? ptr : reinterpret_cast<void*>(-1);
 #else
     (void)addr; (void)length; (void)prot; (void)flags; (void)fd; (void)offset;
     return reinterpret_cast<void*>(-1);
@@ -50,6 +58,12 @@ int raw_mprotect(void* addr, size_t length, int prot) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(_WIN32) || defined(_WIN64)
+    extern "C" __declspec(dllimport) int __stdcall VirtualProtect(void*, size_t, uint32_t, uint32_t*);
+    uint32_t win_prot = 0x04; // PAGE_READWRITE
+    if ((prot & ANA_PROT_READ) && (prot & ANA_PROT_EXEC)) win_prot = 0x20; // PAGE_EXECUTE_READ
+    uint32_t old_prot = 0;
+    return VirtualProtect(addr, length, win_prot, &old_prot) ? 0 : -1;
 #else
     (void)addr; (void)length; (void)prot;
     return -1;
@@ -71,6 +85,10 @@ int raw_munmap(void* addr, size_t length) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(_WIN32) || defined(_WIN64)
+    (void)length;
+    extern "C" __declspec(dllimport) int __stdcall VirtualFree(void*, size_t, uint32_t);
+    return VirtualFree(addr, 0, 0x8000 /* MEM_RELEASE */) ? 0 : -1;
 #else
     (void)addr; (void)length;
     return -1;
@@ -88,6 +106,15 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
         : "rcx", "r11", "memory"
     );
     return ret;
+#elif defined(_WIN32) || defined(_WIN64)
+    extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(uint32_t);
+    extern "C" __declspec(dllimport) int   __stdcall WriteFile(void*, const void*, uint32_t, uint32_t*, void*);
+    void* h_out = GetStdHandle(static_cast<uint32_t>(-11) /* STD_OUTPUT_HANDLE */);
+    uint32_t written = 0;
+    if (WriteFile(h_out, buf, static_cast<uint32_t>(count), &written, nullptr)) {
+        return written;
+    }
+    return -1;
 #else
     (void)fd; (void)buf; (void)count;
     return -1;
@@ -97,14 +124,22 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
 int64_t raw_read(int fd, void* buf, size_t count) {
 #if defined(__linux__) && defined(__x86_64__)
     int64_t ret;
-    int64_t fd64 = static_cast<int64_t>(fd);
     __asm__ __volatile__(
         "syscall"
         : "=a"(ret)
-        : "a"(0), "D"(fd64), "S"(buf), "d"(count)
+        : "a"(0), "D"(static_cast<int64_t>(fd)), "S"(buf), "d"(count)
         : "rcx", "r11", "memory"
     );
     return ret;
+#elif defined(_WIN32) || defined(_WIN64)
+    extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(uint32_t);
+    extern "C" __declspec(dllimport) int   __stdcall ReadFile(void*, void*, uint32_t, uint32_t*, void*);
+    void* h_in = GetStdHandle(static_cast<uint32_t>(-10) /* STD_INPUT_HANDLE */);
+    uint32_t read_bytes = 0;
+    if (ReadFile(h_in, buf, static_cast<uint32_t>(count), &read_bytes, nullptr)) {
+        return read_bytes;
+    }
+    return -1;
 #else
     (void)fd; (void)buf; (void)count;
     return -1;

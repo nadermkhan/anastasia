@@ -34,6 +34,25 @@ int ana_main(int argc, char** argv) {
         return 2;
     }
 
+    if (argc > 1 && streq_check(argv[1], "--debug-parse")) {
+        int fd = ana::sys::raw_open(argv[2], 0, 0);
+        char buf[8096];
+        int64_t n = ana::sys::raw_read(fd, buf, sizeof(buf)-1);
+        ana::sys::raw_close(fd);
+        buf[n] = '\0';
+        ana::frontend::ArenaAllocator arena;
+        ana::frontend::Parser parser(buf, arena);
+        ana::frontend::Program* prog = parser.parse_program();
+        if (prog && prog->functions) {
+            print_cli_msg("PARSE SUCCESS\n");
+        } else {
+            print_cli_msg("PARSE FAILURE: ");
+            print_cli_msg(parser.error_message());
+            print_cli_msg("\n");
+        }
+        return 0;
+    }
+
     if (argc >= 4 && streq_check(argv[1], "--aot")) {
         const char* in_filepath = argv[2];
         const char* out_obj = argv[3];

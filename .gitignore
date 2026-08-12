@@ -1,6 +1,7 @@
 build/
 output.log
 run.log
+test_programs/
 *.log
 *.o
 *.exe

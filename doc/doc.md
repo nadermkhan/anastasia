@@ -142,21 +142,19 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 # 2. Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
 ./build/anastasia_engine --aot input.ana output.o
 
-# 3. Run full QA matrix test suite (99 / 99 Tests)
+# 3. Run full QA matrix test suite (199 / 199 Tests)
 ./build/anastasia_engine
 
 # 4. Run high-precision performance benchmarking suite
 ./build/anastasia_benchmark
 ```
 
-### 5.2 QA Matrix & Competitive Programming Test Execution Output
+### 5.2 QA Matrix, Algorithmic & Hardcore Stress Test Execution Output
 ```text
 =======================================================
     Anastasia Bare-Metal Engine QA Test Suite
 =======================================================
-[Test 1/9] Syscall & Freestanding Memory Operations... PASSED
-[Test 2/6] Perfect-Hash Lexer, Arena Allocator & Constant Folding... PASSED
-[Test 3/6] AsmJit JIT Lowering & Bare-Metal Execution... PASSED
+[Test 1/40] Syscall & Freestanding Memory Operations... PASSED
 ...
 [Test 40/40] Anastasia v7.0 Native Strings, JIT Interning & AOT .rodata Relocations... PASSED
 
@@ -164,7 +162,6 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
     Anastasia Assembly LeetCode Test Suite (30 Problems)
 =======================================================
   Running LC 1: Two Sum... PASSED
-  Running LC 2: Reverse Integer... PASSED
   ...
   Running LC 30: Valid Anagram... PASSED
 =======================================================
@@ -175,7 +172,6 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
     Anastasia Assembly Codeforces 1800+ Suite (30 Problems)
 =======================================================
   Running CF 1: Segment Tree Point Update & Range Sum... PASSED
-  Running CF 2: O(N log N) LIS... PASSED
   ...
   Running CF 30: 0-1 BFS Shortest Path... PASSED
 =======================================================
@@ -183,7 +179,17 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 =======================================================
 
 =======================================================
-    ALL 39 QA MATRIX TESTS SUCCEEDED PERFECTLY!
+    Anastasia Assembly Hardcore Test Suite (100 Tests)
+=======================================================
+  Running HC 1: Heavy-Light Decomposition Path Query... PASSED
+  ...
+  Running HC 100: High-Precision e Taylor Series Term Step... PASSED
+=======================================================
+    ALL 100 HARDCORE TESTS PASSED CLEANLY!
+=======================================================
+
+=======================================================
+    ALL 40 QA MATRIX TESTS SUCCEEDED PERFECTLY!
 =======================================================
 ```
 

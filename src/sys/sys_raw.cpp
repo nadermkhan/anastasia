@@ -26,6 +26,26 @@ void* realloc(void* ptr, size_t size) {
     }
     return new_ptr;
 }
+
+void* memcpy(void* dest, const void* src, size_t n) {
+    return ana::sys::freestanding_memcpy(dest, src, n);
+}
+
+void* memset(void* s, int c, size_t n) {
+    return ana::sys::freestanding_memset(s, c, n);
+}
+
+void* memmove(void* dest, const void* src, size_t n) {
+    return ana::sys::freestanding_memmove(dest, src, n);
+}
+
+int memcmp(const void* s1, const void* s2, size_t n) {
+    return ana::sys::freestanding_memcmp(s1, s2, n);
+}
+
+size_t strlen(const char* s) {
+    return ana::sys::freestanding_strlen(s);
+}
 }
 
 namespace ana {
@@ -42,6 +62,17 @@ void* freestanding_memset(void* s, int c, size_t n) {
     unsigned char* p = static_cast<unsigned char*>(s);
     for (size_t i = 0; i < n; ++i) p[i] = static_cast<unsigned char>(c);
     return s;
+}
+
+void* freestanding_memmove(void* dest, const void* src, size_t n) {
+    unsigned char* d = static_cast<unsigned char*>(dest);
+    const unsigned char* s = static_cast<const unsigned char*>(src);
+    if (d < s) {
+        for (size_t i = 0; i < n; ++i) d[i] = s[i];
+    } else if (d > s) {
+        for (size_t i = n; i > 0; --i) d[i - 1] = s[i - 1];
+    }
+    return dest;
 }
 
 int freestanding_memcmp(const void* s1, const void* s2, size_t n) {

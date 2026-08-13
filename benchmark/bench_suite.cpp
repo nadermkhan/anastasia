@@ -459,7 +459,7 @@ static void bench_multicore_data_parallelism_50b_ops() {
         int backoff = 8;
         while (done_flags[t] == 0) {
             for (int spin = 0; spin < backoff; ++spin) {
-                __asm__ __volatile__("pause" ::: "memory");
+                sys::spinlock_yield();
             }
             if (backoff < 1024) {
                 backoff <<= 1;

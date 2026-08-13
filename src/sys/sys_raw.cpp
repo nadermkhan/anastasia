@@ -478,8 +478,8 @@ int raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg) {
 #elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
     if (!fn || !child_stack) return -1;
     uint64_t* stack = reinterpret_cast<uint64_t*>(reinterpret_cast<uintptr_t>(child_stack) & ~15UL);
-    *(--stack) = reinterpret_cast<uint64_t>(arg);
-    *(--stack) = reinterpret_cast<uint64_t>(fn);
+    *(--stack) = reinterpret_cast<uint64_t>(fn);  // offset 8 -> loaded into x1 by ldp
+    *(--stack) = reinterpret_cast<uint64_t>(arg); // offset 0 -> loaded into x0 by ldp
 
     register int64_t x8_reg __asm__("x8") = 220; // __NR_clone
     register int64_t x0_reg __asm__("x0") = flags;

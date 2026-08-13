@@ -61,7 +61,11 @@ extern "C" void* ana_register_host_func(const char* name, void* fn_ptr) {
 }
 
 extern "C" void ana_benchmark_consume(int64_t val) {
+#if defined(_MSC_VER)
+    (void)val;
+#else
     __asm__ __volatile__("" :: "r"(val) : "memory");
+#endif
 }
 
 } // namespace backend

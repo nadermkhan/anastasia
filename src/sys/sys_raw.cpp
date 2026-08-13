@@ -314,11 +314,10 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
     }
     return static_cast<int64_t>(done);
 #elif defined(_WIN32) || defined(_WIN64)
-    extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(uint32_t);
-    extern "C" __declspec(dllimport) int   __stdcall WriteFile(void*, const void*, uint32_t, uint32_t*, void*);
-    void* h_out = GetStdHandle(static_cast<uint32_t>(-11) /* STD_OUTPUT_HANDLE */);
-    uint32_t written = 0;
-    if (WriteFile(h_out, buf, static_cast<uint32_t>(count), &written, nullptr)) {
+    (void)fd;
+    HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD written = 0;
+    if (WriteFile(h_out, buf, static_cast<DWORD>(count), &written, nullptr)) {
         return written;
     }
     return -1;
@@ -358,11 +357,10 @@ int64_t raw_read(int fd, void* buf, size_t count) {
         return x0;
     }
 #elif defined(_WIN32) || defined(_WIN64)
-    extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(uint32_t);
-    extern "C" __declspec(dllimport) int   __stdcall ReadFile(void*, void*, uint32_t, uint32_t*, void*);
-    void* h_in = GetStdHandle(static_cast<uint32_t>(-10) /* STD_INPUT_HANDLE */);
-    uint32_t read_bytes = 0;
-    if (ReadFile(h_in, buf, static_cast<uint32_t>(count), &read_bytes, nullptr)) {
+    (void)fd;
+    HANDLE h_in = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD read_bytes = 0;
+    if (ReadFile(h_in, buf, static_cast<DWORD>(count), &read_bytes, nullptr)) {
         return read_bytes;
     }
     return -1;

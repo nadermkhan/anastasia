@@ -571,13 +571,7 @@ static bool test_atomic_wx_patching_and_clflush() {
     uint64_t* patch_slot = static_cast<uint64_t*>(code_mem);
     __atomic_store_n(patch_slot, 0x90909090C3909090ULL, __ATOMIC_RELEASE);
 
-    __asm__ __volatile__(
-        "clflush (%0)\n\t"
-        "mfence"
-        :
-        : "r"(patch_slot)
-        : "memory"
-    );
+    ana::sys::clear_icache(code_mem, 4096);
 
     ana::sys::raw_mprotect(code_mem, 4096, ANA_PROT_READ | ANA_PROT_EXEC);
     ana::sys::clear_icache(code_mem, 4096);
@@ -1430,7 +1424,7 @@ static bool test_numa_first_touch_and_barriers() {
 
     int backoff = 8;
     for (int i = 0; i < backoff; ++i) {
-        __asm__ __volatile__("pause" ::: "memory");
+        ana::sys::spinlock_yield();
     }
 
     print_msg("PASSED\n");

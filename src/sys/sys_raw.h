@@ -42,6 +42,7 @@ int   raw_sched_setaffinity(int pid, size_t cpusetsize, const void* mask);
 int   raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned long maxnode, unsigned flags);
 void  raw_exit(int code) __attribute__((noreturn));
 void  clear_icache(void* addr, size_t size);
+void  spinlock_yield();
 
 // Freestanding memory routines
 void* freestanding_memcpy(void* dest, const void* src, size_t n);

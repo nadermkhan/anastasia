@@ -79,8 +79,8 @@ button {
 
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);
@@ -95,6 +95,7 @@ button {
 
 /* Container */
 .container {
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 24px;
@@ -193,6 +194,7 @@ h1, h2, h3, h4 {
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .btn-primary {
@@ -233,17 +235,19 @@ h1, h2, h3, h4 {
   font-size: 0.85rem;
   font-weight: 600;
   margin-bottom: 24px;
+  max-width: 100%;
 }
 
 .hero-title {
-  font-size: 3.5rem;
+  font-size: clamp(2.2rem, 5.5vw, 3.5rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   margin-bottom: 20px;
+  word-wrap: break-word;
 }
 
 .hero-description {
-  font-size: 1.15rem;
+  font-size: clamp(1rem, 2.2vw, 1.15rem);
   color: var(--text-muted);
   max-width: 800px;
   margin: 0 auto 36px;
@@ -267,6 +271,7 @@ h1, h2, h3, h4 {
   margin: 0 auto;
   text-align: left;
   overflow: hidden;
+  width: 100%;
 }
 
 .terminal-header {
@@ -300,10 +305,11 @@ h1, h2, h3, h4 {
 .terminal-body {
   padding: 18px 22px;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, 2vw, 0.9rem);
   color: #34d399;
   line-height: 1.8;
   overflow-x: auto;
+  white-space: nowrap;
 }
 
 .terminal-line {
@@ -327,6 +333,7 @@ h1, h2, h3, h4 {
   align-items: center;
   gap: 6px;
   transition: border-color 0.15s ease;
+  white-space: nowrap;
 }
 
 .copy-btn:hover {
@@ -355,13 +362,13 @@ h1, h2, h3, h4 {
 }
 
 .section-title {
-  font-size: 2.2rem;
+  font-size: clamp(1.75rem, 4vw, 2.2rem);
   margin-bottom: 12px;
 }
 
 .grid-3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
 }
 
@@ -436,6 +443,7 @@ h1, h2, h3, h4 {
   display: flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
 }
 
 .doc-nav-btn:hover {
@@ -475,14 +483,14 @@ h1, h2, h3, h4 {
 }
 
 .doc-article-title {
-  font-size: 1.8rem;
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
   margin-bottom: 14px;
   color: #fff;
 }
 
 .doc-article-text {
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 0.98rem;
   line-height: 1.7;
   margin-bottom: 20px;
 }
@@ -507,11 +515,17 @@ h1, h2, h3, h4 {
   font-size: 0.93rem;
 }
 
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .opcode-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 16px;
   font-size: 0.88rem;
+  min-width: 500px;
 }
 
 .opcode-table th, .opcode-table td {
@@ -548,7 +562,7 @@ h1, h2, h3, h4 {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 16px;
   margin-top: 20px;
 }
@@ -593,6 +607,7 @@ h1, h2, h3, h4 {
   font-size: 0.88rem;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
 }
 
 .filter-pill:hover {
@@ -682,6 +697,8 @@ h1, h2, h3, h4 {
   display: flex;
   flex-direction: column;
   background: var(--bg-code);
+  width: 100%;
+  overflow: hidden;
 }
 
 .ide-viewer-header {
@@ -706,7 +723,7 @@ h1, h2, h3, h4 {
 .ide-code-pane {
   padding: 24px;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   color: #34d399;
   line-height: 1.7;
   overflow-x: auto;
@@ -734,6 +751,7 @@ h1, h2, h3, h4 {
 .ide-output-content {
   color: var(--accent-cyan);
   line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 /* Comparison Table */
@@ -741,7 +759,7 @@ h1, h2, h3, h4 {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  overflow-x: auto;
   margin-top: 24px;
 }
 
@@ -750,6 +768,7 @@ h1, h2, h3, h4 {
   border-collapse: collapse;
   text-align: left;
   font-size: 0.9rem;
+  min-width: 640px;
 }
 
 .compare-table th, .compare-table td {
@@ -869,13 +888,60 @@ h1, h2, h3, h4 {
   font-size: 0.88rem;
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-  .hero-title { font-size: 2.5rem; }
-  .ide-playground-container { grid-template-columns: 1fr; }
-  .doc-hub-container { grid-template-columns: 1fr; }
-  .doc-nav-sidebar { display: flex; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border-color); padding: 12px; }
-  .ide-sidebar { display: flex; flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border-color); max-height: none; }
-  .ide-example-btn { min-width: 220px; }
+/* ==========================================================================
+   Responsive Breakpoints (Mobile, Tablet, Desktop)
+   ========================================================================== */
+
+/* Tablet & Mobile Breakpoint (<= 860px) */
+@media (max-width: 860px) {
   .nav-links { display: none; }
+  
+  .container { padding: 0 16px; }
+
+  .hero-section { padding: 110px 0 50px; }
+
+  /* Doc Hub Responsive 1-Column Layout */
+  .doc-hub-container { grid-template-columns: 1fr; }
+  
+  .doc-nav-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .doc-nav-btn { flex-shrink: 0; }
+
+  .doc-content-pane { padding: 24px 18px; max-height: none; }
+
+  /* IDE Playground Responsive 1-Column Layout */
+  .ide-playground-container { grid-template-columns: 1fr; min-height: auto; }
+
+  .ide-sidebar {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+    padding: 12px;
+    max-height: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ide-example-btn {
+    min-width: 220px;
+    flex-shrink: 0;
+  }
+
+  .ide-code-pane { padding: 18px; font-size: 0.82rem; }
+  .ide-output-box { padding: 14px 18px; }
+}
+
+/* Extra Small Mobile Screens (<= 480px) */
+@media (max-width: 480px) {
+  .hero-actions { flex-direction: column; width: 100%; }
+  .btn { width: 100%; }
+
+  .footer-content { flex-direction: column; text-align: center; justify-content: center; }
 }

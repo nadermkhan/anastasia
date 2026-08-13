@@ -88,6 +88,7 @@ extern "C" {
 
 extern "C" {
 
+#ifndef _WIN32
 uintptr_t __stack_chk_guard = 0xdeadbeefcafebabeULL;
 uintptr_t __security_cookie = 0xdeadbeefcafebabeULL;
 
@@ -97,6 +98,7 @@ void __stack_chk_fail(void) {
 }
 
 void __chkstk(void) {}
+#endif
 
 #if (defined(__ELF__) || defined(__linux__)) && !defined(_WIN32)
 extern "C" __attribute__((noreturn)) void _start_c(int argc, char** argv) {

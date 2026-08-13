@@ -6,6 +6,7 @@
 #include "../sys/cpu_features.h"
 #include "../sys/object_heap.h"
 #include "inline_cache.h"
+#include "aarch64_backend.h"
 
 namespace ana {
 namespace backend {
@@ -46,6 +47,11 @@ static bool is_i32_op(frontend::Opcode op) {
 
 void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* prog) {
     if (!fn) return nullptr;
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+    AArch64TargetBackend arm_backend;
+    return arm_backend.compile_function(fn, prog);
+#else
 
     AnaRegAlloc* regalloc = new AnaRegAlloc();
     regalloc->allocate_registers(fn);
@@ -770,10 +776,16 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
     register_jit_code_region(fn_ptr, map_sz);
 
     return fn_ptr;
+#endif
 }
 
 bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filename) {
     if (!prog || !out_filename) return false;
+
+#if defined(__aarch64__) || defined(_M_ARM64)
+    AArch64TargetBackend arm_backend;
+    return arm_backend.compile_to_elf(prog, out_filename);
+#else
 
     ElfEmitter* elf = new ElfEmitter();
     SimpleByteBuffer* text_buf = new SimpleByteBuffer();
@@ -964,6 +976,7 @@ bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filenam
     delete text_buf;
     delete elf;
     return success;
+#endif
 }
 
 } // namespace backend

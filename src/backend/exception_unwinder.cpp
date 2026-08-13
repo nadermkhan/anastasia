@@ -67,7 +67,11 @@ void ExceptionUnwinder::throw_exception(void* exception_obj, uint32_t type_id) {
 
 extern "C" void sys_throw_exception(void* exception_obj, uint32_t type_id) {
     ExceptionUnwinder::instance().throw_exception(exception_obj, type_id);
+#if defined(_MSC_VER)
+    __assume(0);
+#else
     __builtin_unreachable();
+#endif
 }
 
 } // namespace backend

@@ -74,11 +74,7 @@ extern "C" {
             return 1;
         }
         while (__atomic_load_n(g, __ATOMIC_ACQUIRE) == 0) {
-#if defined(__x86_64__) || defined(_M_X64)
-            __asm__ __volatile__("pause" ::: "memory");
-#elif defined(__aarch64__) || defined(_M_ARM64)
-            __asm__ __volatile__("yield" ::: "memory");
-#endif
+            ana::sys::spinlock_yield();
         }
         return 0;
     }

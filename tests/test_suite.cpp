@@ -25,7 +25,9 @@
 #include "../src/optimizer/pgo_profiler.h"
 #include "leetcode_suite.h"
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 namespace ana {
 namespace tests {

@@ -1,5 +1,11 @@
 #include "sys_raw.h"
 #include "cpu_features.h"
+#include <stdarg.h>
+
+#if defined(_WIN32)
+#include <windows.h>
+typedef int mode_t;
+#endif
 
 #ifndef _WIN32
 extern "C" {
@@ -160,10 +166,9 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
     return reinterpret_cast<void*>(x0);
 #elif defined(_WIN32) || defined(_WIN64)
     (void)flags; (void)fd; (void)offset;
-    extern "C" __declspec(dllimport) void* __stdcall VirtualAlloc(void*, size_t, uint32_t, uint32_t);
-    uint32_t win_prot = 0x04; // PAGE_READWRITE
-    if (prot & ANA_PROT_EXEC) win_prot = 0x40; // PAGE_EXECUTE_READWRITE
-    void* ptr = VirtualAlloc(addr, length, 0x1000 | 0x2000 /* MEM_COMMIT | MEM_RESERVE */, win_prot);
+    DWORD win_prot = PAGE_READWRITE;
+    if (prot & ANA_PROT_EXEC) win_prot = PAGE_EXECUTE_READWRITE;
+    void* ptr = VirtualAlloc(addr, length, MEM_COMMIT | MEM_RESERVE, win_prot);
     return ptr ? ptr : reinterpret_cast<void*>(-1);
 #else
     (void)addr; (void)length; (void)prot; (void)flags; (void)fd; (void)offset;
@@ -207,10 +212,9 @@ int raw_mprotect(void* addr, size_t length, int prot) {
     );
     return static_cast<int>(x0);
 #elif defined(_WIN32) || defined(_WIN64)
-    extern "C" __declspec(dllimport) int __stdcall VirtualProtect(void*, size_t, uint32_t, uint32_t*);
-    uint32_t win_prot = 0x04; // PAGE_READWRITE
-    if ((prot & ANA_PROT_READ) && (prot & ANA_PROT_EXEC)) win_prot = 0x20; // PAGE_EXECUTE_READ
-    uint32_t old_prot = 0;
+    DWORD win_prot = PAGE_READWRITE;
+    if ((prot & ANA_PROT_READ) && (prot & ANA_PROT_EXEC)) win_prot = PAGE_EXECUTE_READ;
+    DWORD old_prot = 0;
     return VirtualProtect(addr, length, win_prot, &old_prot) ? 0 : -1;
 #else
     (void)addr; (void)length; (void)prot;
@@ -254,8 +258,7 @@ int raw_munmap(void* addr, size_t length) {
     return static_cast<int>(x0);
 #elif defined(_WIN32) || defined(_WIN64)
     (void)length;
-    extern "C" __declspec(dllimport) int __stdcall VirtualFree(void*, size_t, uint32_t);
-    return VirtualFree(addr, 0, 0x8000 /* MEM_RELEASE */) ? 0 : -1;
+    return VirtualFree(addr, 0, MEM_RELEASE) ? 0 : -1;
 #else
     (void)addr; (void)length;
     return -1;
@@ -585,7 +588,6 @@ void raw_exit(int code) {
     );
     __builtin_unreachable();
 #elif defined(_WIN32)
-    extern "C" __declspec(dllimport) void __stdcall ExitProcess(uint32_t);
     ExitProcess(static_cast<uint32_t>(code));
 #else
     (void)code;
@@ -593,7 +595,9 @@ void raw_exit(int code) {
 }
 
 void spinlock_yield() {
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(_MSC_VER)
+    _mm_pause();
+#elif defined(__x86_64__) || defined(_M_X64)
     __asm__ __volatile__("pause" ::: "memory");
 #elif defined(__aarch64__) || defined(_M_ARM64)
     __asm__ __volatile__("yield" ::: "memory");

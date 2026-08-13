@@ -21,6 +21,61 @@
 
 #if defined(_MSC_VER)
 #define ANA_NORETURN __declspec(noreturn)
+#include <intrin.h>
+
+#define __ATOMIC_RELAXED 0
+#define __ATOMIC_CONSUME 1
+#define __ATOMIC_ACQUIRE 2
+#define __ATOMIC_RELEASE 3
+#define __ATOMIC_ACQ_REL 4
+#define __ATOMIC_SEQ_CST 5
+
+template <typename T>
+inline T __atomic_load_n(const volatile T* ptr, int memorder) {
+    (void)memorder;
+    T val = *ptr;
+    _ReadWriteBarrier();
+    return val;
+}
+
+template <typename T, typename ValT>
+inline void __atomic_store_n(volatile T* ptr, ValT val, int memorder) {
+    (void)memorder;
+    _ReadWriteBarrier();
+    *ptr = static_cast<T>(val);
+    _ReadWriteBarrier();
+}
+
+template <typename T, typename ValT>
+inline T __atomic_fetch_add(volatile T* ptr, ValT val, int memorder) {
+    (void)memorder;
+    if (sizeof(T) == 4) {
+        return static_cast<T>(_InterlockedExchangeAdd(reinterpret_cast<volatile long*>(ptr), static_cast<long>(val)));
+    } else {
+        return static_cast<T>(_InterlockedExchangeAdd64(reinterpret_cast<volatile long long*>(ptr), static_cast<long long>(val)));
+    }
+}
+
+template <typename T, typename ValT>
+inline bool __atomic_compare_exchange_n(volatile T* ptr, T* expected, ValT desired, bool weak, int success_memorder, int failure_memorder) {
+    (void)weak; (void)success_memorder; (void)failure_memorder;
+    if (sizeof(T) == 1) {
+        char old = _InterlockedCompareExchange8(reinterpret_cast<volatile char*>(ptr), static_cast<char>(desired), *reinterpret_cast<char*>(expected));
+        if (old == *reinterpret_cast<char*>(expected)) return true;
+        *expected = static_cast<T>(old);
+        return false;
+    } else if (sizeof(T) == 4) {
+        long old = _InterlockedCompareExchange(reinterpret_cast<volatile long*>(ptr), static_cast<long>(desired), *reinterpret_cast<long*>(expected));
+        if (old == *reinterpret_cast<long*>(expected)) return true;
+        *expected = static_cast<T>(old);
+        return false;
+    } else {
+        long long old = _InterlockedCompareExchange64(reinterpret_cast<volatile long long*>(ptr), static_cast<long long>(desired), *reinterpret_cast<long long*>(expected));
+        if (old == *reinterpret_cast<long long*>(expected)) return true;
+        *expected = static_cast<T>(old);
+        return false;
+    }
+}
 #else
 #define ANA_NORETURN __attribute__((noreturn))
 #endif

@@ -96,6 +96,20 @@ static void* memset_avx2(void* s, int c, size_t n) {
 // restoring move overwrote the value we had just read. The xchg form with an
 // early-clobber output is the idiom glibc uses, and it is also correct under
 // -fPIC where RBX holds the GOT pointer and must be preserved.
+#if defined(_MSC_VER)
+#include <intrin.h>
+static inline void ana_cpuid(uint32_t leaf, uint32_t subleaf, uint32_t out[4]) {
+    int info[4];
+    __cpuidex(info, static_cast<int>(leaf), static_cast<int>(subleaf));
+    out[0] = static_cast<uint32_t>(info[0]);
+    out[1] = static_cast<uint32_t>(info[1]);
+    out[2] = static_cast<uint32_t>(info[2]);
+    out[3] = static_cast<uint32_t>(info[3]);
+}
+static inline uint64_t ana_xgetbv0() {
+    return _xgetbv(0);
+}
+#else
 static inline void ana_cpuid(uint32_t leaf, uint32_t subleaf, uint32_t out[4]) {
     uint32_t a = 0, b = 0, c = 0, d = 0;
     __asm__ __volatile__(
@@ -111,7 +125,6 @@ static inline void ana_cpuid(uint32_t leaf, uint32_t subleaf, uint32_t out[4]) {
     out[3] = d;
 }
 
-// XGETBV, hand-encoded so this file still builds without -mxsave.
 static inline uint64_t ana_xgetbv0() {
     uint32_t lo = 0, hi = 0;
     __asm__ __volatile__(
@@ -121,6 +134,7 @@ static inline uint64_t ana_xgetbv0() {
     );
     return (static_cast<uint64_t>(hi) << 32) | static_cast<uint64_t>(lo);
 }
+#endif
 #endif
 
 memcpy_fn_t g_memcpy_impl = memcpy_scalar;

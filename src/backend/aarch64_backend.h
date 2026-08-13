@@ -71,14 +71,21 @@ private:
     size_t size_;
 };
 
+class AnastasiaJitRuntime;
+
 class AArch64TargetBackend : public AnaTargetBackend {
 public:
     AArch64TargetBackend();
+    explicit AArch64TargetBackend(AnastasiaJitRuntime* runtime);
     virtual ~AArch64TargetBackend();
 
+    void set_runtime(AnastasiaJitRuntime* runtime) { runtime_ = runtime; }
     virtual TargetArch arch() const override { return TargetArch::AARCH64; }
     virtual void* compile_function(frontend::Function* fn, frontend::Program* prog) override;
     virtual bool compile_to_elf(frontend::Program* prog, const char* out_filename) override;
+
+private:
+    AnastasiaJitRuntime* runtime_;
 };
 
 } // namespace backend

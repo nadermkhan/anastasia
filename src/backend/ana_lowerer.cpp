@@ -49,7 +49,7 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
     if (!fn) return nullptr;
 
 #if defined(__aarch64__) || defined(_M_ARM64)
-    AArch64TargetBackend arm_backend;
+    AArch64TargetBackend arm_backend(&runtime_);
     return arm_backend.compile_function(fn, prog);
 #else
 

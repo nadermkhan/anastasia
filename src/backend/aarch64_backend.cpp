@@ -207,7 +207,8 @@ void AArch64Encoder::nop() {
     emit32(0xD503201FUL);
 }
 
-AArch64TargetBackend::AArch64TargetBackend() {}
+AArch64TargetBackend::AArch64TargetBackend() : runtime_(nullptr) {}
+AArch64TargetBackend::AArch64TargetBackend(AnastasiaJitRuntime* runtime) : runtime_(runtime) {}
 AArch64TargetBackend::~AArch64TargetBackend() {}
 
 void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::Program* prog) {
@@ -217,31 +218,174 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
     AArch64Encoder enc;
     enc.push_fp_lr();
     enc.mov_fp_sp();
+    enc.sub_sp_imm32(256); // Alloc space for virtual registers v0..v31
 
-    // Map AAPCS64 parameter registers X0..X7
-    // Lower arithmetic instructions
+    auto param_reg = [](uint32_t idx) -> Arm64Reg {
+        if (idx < 8) return static_cast<Arm64Reg>(static_cast<uint8_t>(Arm64Reg::X0) + idx);
+        return Arm64Reg::X7;
+    };
+
+    auto load_op = [&](const frontend::Operand& op, Arm64Reg scratch) -> Arm64Reg {
+        if (op.kind == frontend::OperandKind::CONST_INT) {
+            enc.mov_reg_imm64(scratch, op.const_val);
+            return scratch;
+        } else if (op.kind == frontend::OperandKind::REGISTER) {
+            if (op.reg.type == frontend::RegisterType::PARAM) {
+                return param_reg(op.reg.index);
+            } else {
+                uint32_t offset = (op.reg.index & 31) * 8;
+                enc.ldr_reg_mem(scratch, Arm64Reg::SP, offset);
+                return scratch;
+            }
+        }
+        return scratch;
+    };
+
+    auto store_reg = [&](const frontend::Register& reg, Arm64Reg src_reg) {
+        if (reg.type == frontend::RegisterType::PARAM) {
+            Arm64Reg p_dst = param_reg(reg.index);
+            if (p_dst != src_reg) enc.mov_reg_reg(p_dst, src_reg);
+        } else {
+            uint32_t offset = (reg.index & 31) * 8;
+            enc.str_reg_mem(src_reg, Arm64Reg::SP, offset);
+        }
+    };
+
     for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
         for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
             switch (insn->op) {
+                case frontend::Opcode::MOVE_CONST: {
+                    enc.mov_reg_imm64(Arm64Reg::X9, insn->src1.const_val);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::MOVE: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    store_reg(insn->dest.reg, r1);
+                    break;
+                }
                 case frontend::Opcode::ADD_I64:
-                case frontend::Opcode::ADD_I32:
-                    enc.add_reg_reg(Arm64Reg::X0, Arm64Reg::X0, Arm64Reg::X1);
+                case frontend::Opcode::ADD_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.add_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
                     break;
+                }
                 case frontend::Opcode::SUB_I64:
-                case frontend::Opcode::SUB_I32:
-                    enc.sub_reg_reg(Arm64Reg::X0, Arm64Reg::X0, Arm64Reg::X1);
+                case frontend::Opcode::SUB_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.sub_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
                     break;
-                case frontend::Opcode::MUL_I32:
-                    enc.mul_reg_reg(Arm64Reg::X0, Arm64Reg::X0, Arm64Reg::X1);
+                }
+                case frontend::Opcode::MUL_I64:
+                case frontend::Opcode::MUL_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.mul_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
                     break;
-                case frontend::Opcode::RETURN_VAL:
+                }
+                case frontend::Opcode::DIV_I64:
+                case frontend::Opcode::DIV_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.sdiv_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::AND_I64:
+                case frontend::Opcode::AND_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.and_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::OR_I64:
+                case frontend::Opcode::OR_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.orr_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::XOR_I64:
+                case frontend::Opcode::XOR_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.eor_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::SHL_I64:
+                case frontend::Opcode::SHL_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.lsl_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::SHR_I64:
+                case frontend::Opcode::SHR_I32:
+                case frontend::Opcode::USHR_I64:
+                case frontend::Opcode::USHR_I32: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.lsr_reg_reg(Arm64Reg::X9, r1, r2);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::LOAD_MEM: {
+                    frontend::Operand base_op = frontend::Operand::make_reg(insn->src1.mem.base.type, insn->src1.mem.base.index);
+                    Arm64Reg base = load_op(base_op, Arm64Reg::X9);
+                    enc.ldr_reg_mem(Arm64Reg::X10, base, insn->src1.mem.offset);
+                    store_reg(insn->dest.reg, Arm64Reg::X10);
+                    break;
+                }
+                case frontend::Opcode::STORE_MEM: {
+                    frontend::Operand base_op = frontend::Operand::make_reg(insn->dest.mem.base.type, insn->dest.mem.base.index);
+                    Arm64Reg base = load_op(base_op, Arm64Reg::X9);
+                    Arm64Reg val = load_op(insn->src1, Arm64Reg::X10);
+                    enc.str_reg_mem(val, base, insn->dest.mem.offset);
+                    break;
+                }
+                case frontend::Opcode::ATOMIC_ADD_I64: {
+                    frontend::Operand base_op = frontend::Operand::make_reg(insn->dest.mem.base.type, insn->dest.mem.base.index);
+                    Arm64Reg base = load_op(base_op, Arm64Reg::X9);
+                    Arm64Reg val = load_op(insn->src1, Arm64Reg::X10);
+                    enc.ldr_reg_mem(Arm64Reg::X11, base, insn->dest.mem.offset);
+                    enc.add_reg_reg(Arm64Reg::X11, Arm64Reg::X11, val);
+                    enc.str_reg_mem(Arm64Reg::X11, base, insn->dest.mem.offset);
+                    break;
+                }
+                case frontend::Opcode::CONST_STRING: {
+                    const char* str_ptr = (runtime_ && insn->string_val) ? runtime_->string_pool().get_or_intern(insn->string_val, insn->string_len, insn->string_hash) : insn->string_val;
+                    enc.mov_reg_imm64(Arm64Reg::X9, reinterpret_cast<uint64_t>(str_ptr));
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::STR_LEN: {
+                    enc.mov_reg_imm64(Arm64Reg::X9, insn->string_len);
+                    store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::RETURN_VAL: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X0);
+                    if (r1 != Arm64Reg::X0) enc.mov_reg_reg(Arm64Reg::X0, r1);
+                    enc.add_sp_imm32(256);
                     enc.pop_fp_lr();
                     enc.ret();
                     break;
-                case frontend::Opcode::RETURN_VOID:
+                }
+                case frontend::Opcode::RETURN_VOID: {
+                    enc.add_sp_imm32(256);
                     enc.pop_fp_lr();
                     enc.ret();
                     break;
+                }
                 default:
                     break;
             }

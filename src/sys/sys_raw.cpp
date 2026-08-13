@@ -458,6 +458,29 @@ int raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(rax_reg);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    if (!fn || !child_stack) return -1;
+    uint64_t* stack = reinterpret_cast<uint64_t*>(reinterpret_cast<uintptr_t>(child_stack) & ~15UL);
+    *(--stack) = reinterpret_cast<uint64_t>(arg);
+    *(--stack) = reinterpret_cast<uint64_t>(fn);
+
+    register int64_t x8_reg __asm__("x8") = 220; // __NR_clone
+    register int64_t x0_reg __asm__("x0") = flags;
+    register void*   x1_reg __asm__("x1") = stack;
+
+    __asm__ __volatile__(
+        "svc #0\n\t"
+        "cbnz x0, 1f\n\t"
+        "ldp x0, x1, [sp], #16\n\t"
+        "blr x1\n\t"
+        "mov x8, #93\n\t"
+        "svc #0\n\t"
+        "1:\n\t"
+        : "+r"(x0_reg)
+        : "r"(x8_reg), "r"(x1_reg)
+        : "memory"
+    );
+    return static_cast<int>(x0_reg);
 #else
     (void)fn; (void)child_stack; (void)flags; (void)arg;
     return -1;

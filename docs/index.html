@@ -426,246 +426,135 @@
       </div>
     </section>
 
-    <!-- Comprehensive Examples Gallery Section (10 Complete Programs) -->
+    <!-- World-Class IDE Code Playground for Examples Section -->
     <section id="examples" class="section">
       <div class="container">
         <div class="section-header">
-          <div class="section-subtitle">Real-World Code Gallery</div>
-          <h2 class="section-title">10 Complete Anastasia Assembly Examples</h2>
-          <p style="color: var(--text-muted);">Executable programs included in the Anastasia repository with instant copy support.</p>
+          <div class="section-subtitle">Code Playground</div>
+          <h2 class="section-title">Anastasia Assembly IDE Showcase</h2>
+          <p style="color: var(--text-muted);">Explore 10 executable Anastasia Assembly (<code style="color:var(--accent-cyan)">.ana</code>) examples with live return output samples.</p>
         </div>
 
-        <div class="examples-grid">
+        <!-- Filter Bar -->
+        <div class="playground-filter-bar">
+          <button class="filter-pill active" data-filter="all">All Examples</button>
+          <button class="filter-pill" data-filter="math">Math & Algorithms</button>
+          <button class="filter-pill" data-filter="memory">OOP & Memory</button>
+          <button class="filter-pill" data-filter="hardware">Hardware & Atomics</button>
+          <button class="filter-pill" data-filter="async">Async & Network</button>
+        </div>
 
-          <!-- Example 1 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
+        <!-- IDE Playground Container -->
+        <div class="ide-playground-container">
+          <!-- Left Sidebar: Example Cards -->
+          <div class="ide-sidebar">
+            <button class="ide-example-btn active" data-ex-key="ex_01" data-category="math">
+              <div class="ide-btn-title">
+                <span>01_math_basics.ana</span>
+                <span class="ide-badge-tag badge-jit">JIT</span>
+              </div>
+              <div class="ide-btn-desc">Basic register arithmetic & subtractions</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_02" data-category="memory">
+              <div class="ide-btn-title">
+                <span>02_vtable_dispatch.ana</span>
+                <span class="ide-badge-tag badge-aot">AOT</span>
+              </div>
+              <div class="ide-btn-desc">Polymorphic virtual method dispatch</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_03" data-category="memory">
+              <div class="ide-btn-title">
+                <span>03_memory_struct.ana</span>
+                <span class="ide-badge-tag badge-jit">JIT</span>
+              </div>
+              <div class="ide-btn-desc">Struct offset field memory store & reload</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_04" data-category="math">
+              <div class="ide-btn-title">
+                <span>04_constant_folding.ana</span>
+                <span class="ide-badge-tag badge-aot">AOT</span>
+              </div>
+              <div class="ide-btn-desc">SSA Constant folding & DCE pass proof</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_05" data-category="math">
+              <div class="ide-btn-title">
+                <span>05_control_flow.ana</span>
+                <span class="ide-badge-tag badge-jit">JIT</span>
+              </div>
+              <div class="ide-btn-desc">Conditional branch loops & accumulation</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_06" data-category="hardware">
+              <div class="ide-btn-title">
+                <span>06_bitwise_ops.ana</span>
+                <span class="ide-badge-tag badge-jit">JIT</span>
+              </div>
+              <div class="ide-btn-desc">Bitwise AND, XOR, OR, & 64-bit shifts</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_07" data-category="hardware">
+              <div class="ide-btn-title">
+                <span>07_hardware_atomics.ana</span>
+                <span class="ide-badge-tag badge-aot">AOT</span>
+              </div>
+              <div class="ide-btn-desc">Lock-free atomic CAS & memory fences</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_08" data-category="memory">
+              <div class="ide-btn-title">
+                <span>08_instantiation.ana</span>
+                <span class="ide-badge-tag badge-jit">JIT</span>
+              </div>
+              <div class="ide-btn-desc">TLAB object creation & field addition</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_09" data-category="math">
+              <div class="ide-btn-title">
+                <span>09_pi_spigot.ana</span>
+                <span class="ide-badge-tag badge-jit">JIT</span>
+              </div>
+              <div class="ide-btn-desc">High-precision Pi Spigot (100 Digits)</div>
+            </button>
+
+            <button class="ide-example-btn" data-ex-key="ex_10" data-category="async">
+              <div class="ide-btn-title">
+                <span>10_io_uring_net.ana</span>
+                <span class="ide-badge-tag badge-aot">AOT</span>
+              </div>
+              <div class="ide-btn-desc">Zero-copy hardware io_uring async recv</div>
+            </button>
+          </div>
+
+          <!-- Right Main Pane: Code Viewer & Output Box -->
+          <div class="ide-viewer">
+            <div class="ide-viewer-header">
+              <div class="ide-filename">
                 <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
-                01_math_basics.ana
-              </span>
-              <button class="copy-btn">Copy</button>
+                <span id="ideFileName">01_math_basics.ana</span>
+              </div>
+              <button class="copy-btn">Copy Code</button>
             </div>
-            <div class="example-body">
-              <p class="example-desc">Basic register arithmetic, constant additions, and subtraction operations.</p>
-              <pre class="example-code"><code>.fn math_example(p0: i64, p1: i64) -> i64
+
+            <!-- Code Pane -->
+            <pre class="ide-code-pane" id="ideCodePane">.fn math_example(p0: i64, p1: i64) -> i64
     .registers 2 local
-    add-int/64 v0, p0, p1
-    sub-int/64 v1, v0, 500
+    add-int/64 v0, p0, p1       ; (1000 + 250) = 1250
+    sub-int/64 v1, v0, 500      ; 1250 - 500 = 750
     return-val v1
-.end_fn</code></pre>
+.end_fn</pre>
+
+            <!-- Output Box -->
+            <div class="ide-output-box">
+              <div class="ide-output-title">Execution Console Output</div>
+              <pre class="ide-output-content" id="ideOutputContent">Input: p0 = 1000, p1 = 250
+Execution Output: (1000 + 250) - 500 = 750
+[SUCCESS] Example 1 passed cleanly!</pre>
             </div>
           </div>
-
-          <!-- Example 2 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-purple)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                02_vtable_dispatch.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Polymorphic virtual method dispatch via Monomorphic Inline Cache (IC).</p>
-              <pre class="example-code"><code>.fn vtable_dispatch(p0: ptr) -> i64
-    .registers 3 local
-    load-mem v0, [p0 + 0]       ; vtable ptr
-    load-mem v1, [v0 + 16]      ; method slot
-    invoke-vmethod v1, [p0]
-    move-result v2
-    return-val v2
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 3 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-green)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                03_memory_struct.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Struct memory field storage at offset <code style="color:var(--accent-cyan)">[p0 + 8]</code> and reloading.</p>
-              <pre class="example-code"><code>.fn struct_memory(p0: ptr, p1: i64) -> i64
-    .registers 2 local
-    store-mem [p0 + 8], p1
-    load-mem v0, [p0 + 8]
-    return-val v0
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 4 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-pink)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                04_constant_folding_dce.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">SSA constant folding & Dead Code Elimination optimization proof.</p>
-              <pre class="example-code"><code>.fn fold_and_dce(p0: i64) -> i64
-    .registers 3 local
-    move-const v0, 100
-    move-const v1, 200
-    add-int/64 v0, v0, v1      ; Folded to 300
-    add-int/64 v2, p0, v0
-    return-val v2
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 5 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-orange)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                05_control_flow_loop.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Conditional branches (<code style="color:var(--accent-cyan)">if-ge</code>), basic block labels, and accumulation loop.</p>
-              <pre class="example-code"><code>.fn loop_sum(p0: i64) -> i64
-    .registers 3 local
-    move-const v0, 0            ; acc = 0
-    move-const v1, 0            ; i = 0
-loop_start:
-    if-ge v1, p0, loop_end
-    add-int/64 v0, v0, v1
-    add-int/64 v1, v1, 1
-    goto loop_start
-loop_end:
-    return-val v0
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 6 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-                06_bitwise_ops.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Bitwise AND, XOR, OR operations and 64-bit integer bit shifts.</p>
-              <pre class="example-code"><code>.fn bitwise_example(p0: i64, p1: i64) -> i64
-    .registers 3 local
-    and-int/64 v0, p0, 255
-    shl-int/64 v1, v0, p1
-    return-val v1
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 7 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-green)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457-.312-2.841-.873-4.084"/></svg>
-                07_hardware_atomics.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Hardware lock-free atomic CAS and full memory barrier ordering fences.</p>
-              <pre class="example-code"><code>.fn lock_free_atomic(p0: ptr, p1: i64) -> i64
-    .registers 1 local
-    atomic-add/64 [p0 + 0], p1
-    fence                       ; Full hardware mfence / sfence
-    load-mem v0, [p0 + 0]
-    return-val v0
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 8 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-purple)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                08_object_instantiation.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Object instantiation (<code style="color:var(--accent-cyan)">new-instance</code>), field storage, and returning offset addition.</p>
-              <pre class="example-code"><code>.fn create_widget(p0: i64) -> i64
-    .registers 3 local
-    new-instance v0, Widget
-    move-const v1, 777
-    store-mem [v0 + 8], v1
-    load-mem v2, [v0 + 8]
-    add-int/64 v2, v2, p0
-    return-val v2
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 9 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
-                09_pi_spigot.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">High-precision Rabinowitz-Wagon Pi Spigot algorithm generating 100 digits of $\pi$.</p>
-              <pre class="example-code"><code>.fn compute_pi_spigot(p0: ptr, p1: i64) -> i64
-    .registers 6 local
-    move-const v0, 0            ; i = 0
-    move-const v1, 10
-spigot_loop:
-    if-ge v0, p1, spigot_end
-    mul-int/64 v2, v0, v1
-    add-int/64 v3, p0, v2
-    store-mem [v3 + 0], v2
-    add-int/64 v0, v0, 1
-    goto spigot_loop
-spigot_end:
-    sink-mem p0
-    return-val p1
-.end_fn</code></pre>
-            </div>
-          </div>
-
-          <!-- Example 10 -->
-          <div class="example-card">
-            <div class="example-header">
-              <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-blue)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
-                10_io_uring_network.ana
-              </span>
-              <button class="copy-btn">Copy</button>
-            </div>
-            <div class="example-body">
-              <p class="example-desc">Hardware zero-copy <code style="color:var(--accent-cyan)">io_uring</code> async network socket submission & polling.</p>
-              <pre class="example-code"><code>.fn async_network_recv(p0: ptr, p1: i64) -> i64
-    .registers 4 local
-    io-submit [p0 + 0], 1       ; IORING_OP_RECV
-poll_loop:
-    io-poll [p0 + 16]
-    move-const v0, 0
-    if-eq v0, 0, poll_loop
-    load-mem v1, [p0 + 32]
-    sink-mem v1
-    move-const v2, 200
-    return-val v2
-.end_fn</code></pre>
-            </div>
-          </div>
-
         </div>
       </div>
     </section>

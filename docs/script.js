@@ -116,6 +116,14 @@ vec_loop:
     goto vec_loop
 vec_end:
     return-void
+.end_fn`,
+
+        atomics: `.fn increment_atomic_counter(p0: ptr, p1: i64) -> i64
+    .registers 1 local
+    atomic-add/64 [p0 + 0], p1
+    fence                       ; Full hardware memory barrier (mfence / sfence)
+    load-mem v0, [p0 + 0]
+    return-val v0
 .end_fn`
     };
 
@@ -137,17 +145,24 @@ vec_end:
     const copyBtns = document.querySelectorAll('.copy-btn');
     copyBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            const textToCopy = btn.dataset.copyTarget ? 
-                document.querySelector(btn.dataset.copyTarget).textContent : 
-                btn.parentElement.querySelector('.command').textContent;
+            let textToCopy = '';
+            if (btn.dataset.copyTarget) {
+                textToCopy = document.querySelector(btn.dataset.copyTarget).textContent;
+            } else if (btn.parentElement.querySelector('.command')) {
+                textToCopy = btn.parentElement.querySelector('.command').textContent;
+            } else if (btn.parentElement.parentElement.querySelector('code')) {
+                textToCopy = btn.parentElement.parentElement.querySelector('code').textContent;
+            }
                 
-            navigator.clipboard.writeText(textToCopy).then(() => {
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '✓ Copied!';
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                }, 2000);
-            });
+            if (textToCopy) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalText = btn.innerHTML;
+                    btn.innerHTML = '✓ Copied!';
+                    setTimeout(() => {
+                        btn.innerHTML = originalText;
+                    }, 2000);
+                });
+            }
         });
     });
 });

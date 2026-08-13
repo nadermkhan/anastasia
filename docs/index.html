@@ -33,12 +33,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 
-  <!-- Three.js Library CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-  <!-- Motion (Framer Motion Engine for Vanilla JS) CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/motion@10.16.4/dist/motion.js"></script>
-
   <!-- Schema.org Structured Data (JSON-LD) -->
   <script type="application/ld+json">
   {
@@ -59,20 +53,13 @@
 </head>
 <body>
 
-  <!-- Three.js Interactive 3D Canvas Background -->
-  <canvas id="threeCanvas"></canvas>
-
-  <!-- Ambient Glow Effects -->
-  <div class="ambient-glow glow-1"></div>
-  <div class="ambient-glow glow-2"></div>
-
   <!-- Header Navigation -->
   <header class="header-nav">
     <div class="container nav-wrapper">
       <a href="#" class="logo-brand">
         <div class="logo-icon">
-          <!-- Heroicon: Bolt / Lightning -->
-          <svg class="heroicon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <!-- Heroicon: CPU Chip Icon -->
+          <svg class="heroicon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
         </div>
         <span>Anastasia<span class="gradient-text">.ana</span></span>
       </a>
@@ -96,20 +83,20 @@
   <main>
     <section class="hero-section">
       <div class="container">
-        <div class="hero-badge motion-element">
-          <!-- Heroicon: Check Badge -->
-          <svg class="heroicon heroicon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+        <div class="hero-badge">
+          <!-- Heroicon: CPU Chip Icon -->
+          <svg class="heroicon heroicon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
           <span>Anastasia v7.1 Released</span> • <span>200/200 Tests Passed (100%)</span>
         </div>
-        <h1 class="hero-title motion-element">
+        <h1 class="hero-title">
           The World's Fastest Embeddable <br>
           <span class="gradient-text">Bare-Metal JIT & AOT Compiler Engine</span>
         </h1>
-        <p class="hero-description motion-element">
+        <p class="hero-description">
           Engineered from the ground up to eliminate dynamic runtime overhead and standard C library dependencies. Compiles Anastasia Assembly (<code style="color:var(--accent-cyan)">.ana</code>) directly into native x86_64 AVX-512 and ARM64 machine code with standalone zero-linker ELF object file generation.
         </p>
 
-        <div class="hero-actions motion-element">
+        <div class="hero-actions">
           <a href="https://github.com/nadermkhan/anastasia" target="_blank" class="btn btn-primary">
             <!-- Heroicon: Rocket -->
             <svg class="heroicon heroicon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15.536a5 5 0 001.414 1.414m2.828-9.9a9 9 0 0112.728 0"/></svg>
@@ -123,7 +110,7 @@
         </div>
 
         <!-- Terminal Quick Start -->
-        <div class="terminal-card motion-element">
+        <div class="terminal-card">
           <div class="terminal-header">
             <div class="terminal-dots">
               <div class="dot dot-red"></div>
@@ -152,14 +139,14 @@
     <!-- Key Architectural Features Grid -->
     <section id="features" class="section">
       <div class="container">
-        <div class="section-header motion-element">
+        <div class="section-header">
           <div class="section-subtitle">Pinnacle Performance</div>
           <h2 class="section-title">Built for Sub-Microsecond Execution</h2>
           <p style="color: var(--text-muted);">Eliminating standard runtime layers to provide raw assembly speed with compiler safety.</p>
         </div>
 
         <div class="grid-3">
-          <div class="feature-card motion-card">
+          <div class="feature-card">
             <div class="feature-icon">
               <!-- Heroicon: Shield Check -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
@@ -168,7 +155,7 @@
             <p class="feature-desc">Compiles strictly under <code style="color:var(--accent-cyan)">-ffreestanding -nostdlib</code>. Operates directly on Linux/Win32 kernel syscall boundaries with zero libc/libstdc++ dependencies.</p>
           </div>
 
-          <div class="feature-card motion-card">
+          <div class="feature-card">
             <div class="feature-icon">
               <!-- Heroicon: Cube Transparent -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
@@ -177,16 +164,16 @@
             <p class="feature-desc">Includes a built-in AOT relocatable ELF (<code style="color:var(--accent-cyan)">ElfEmitter</code>) and PE32+ generator that builds <code style="color:var(--accent-cyan)">.text</code> and <code style="color:var(--accent-cyan)">.rodata</code> sections and patches relative relocations natively.</p>
           </div>
 
-          <div class="feature-card motion-card">
+          <div class="feature-card">
             <div class="feature-icon">
-              <!-- Heroicon: CPU Chip -->
+              <!-- Heroicon: CPU Chip Icon -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
             </div>
             <h3 class="feature-title">SSA AVX-512 Vectorization</h3>
             <p class="feature-desc">Transforms scalar assembly loops into 256-bit AVX2 and 512-bit AVX-512 packed vector instructions, emitting non-temporal stores (<code style="color:var(--accent-cyan)">vmovntdq</code> + <code style="color:var(--accent-cyan)">sfence</code>) to bypass L1/L3 cache pollution.</p>
           </div>
 
-          <div class="feature-card motion-card">
+          <div class="feature-card">
             <div class="feature-icon">
               <!-- Heroicon: Globe Alt -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
@@ -195,7 +182,7 @@
             <p class="feature-desc">Direct <code style="color:var(--accent-cyan)">io-submit</code> and <code style="color:var(--accent-cyan)">io-poll</code> opcode instructions lowering to kernel Submission Queue (SQ) and Completion Queue (CQ) ring buffers.</p>
           </div>
 
-          <div class="feature-card motion-card">
+          <div class="feature-card">
             <div class="feature-icon">
               <!-- Heroicon: Arrow Path / Refresh -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -204,7 +191,7 @@
             <p class="feature-desc">Safe-point OSR tiering captures live CPU registers (<code style="color:var(--accent-cyan)">RAX</code>–<code style="color:var(--accent-cyan)">R15</code>) to transition running Tier-1 JIT loops mid-flight into Tier-3 hyper-unrolled vector loops.</p>
           </div>
 
-          <div class="feature-card motion-card">
+          <div class="feature-card">
             <div class="feature-icon">
               <!-- Heroicon: Check Circle -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -216,16 +203,16 @@
       </div>
     </section>
 
-    <!-- Redesigned Ultra-Sleek Documentation Hub Section -->
+    <!-- Document-Based Technical Specification Hub Section -->
     <section id="docs" class="section" style="background: var(--bg-secondary);">
       <div class="container">
-        <div class="section-header motion-element">
+        <div class="section-header">
           <div class="section-subtitle">Official Reference Manual</div>
           <h2 class="section-title">Documentation & Technical Hub</h2>
           <p style="color: var(--text-muted);">In-depth specification for Anastasia's registers, opcodes, memory layout, and freestanding ABI.</p>
         </div>
 
-        <div class="doc-hub-container motion-card">
+        <div class="doc-hub-container">
           <!-- Sidebar Navigation -->
           <div class="doc-nav-sidebar">
             <button class="doc-nav-btn active" data-doc-target="doc-overview">
@@ -258,7 +245,7 @@
           <div class="doc-content-pane">
             <!-- Article 1: Overview -->
             <article class="doc-article active" id="doc-overview">
-              <div class="doc-badge-pill pill-cyan">Architecture Overview</div>
+              <div class="doc-badge-pill">Architecture Overview</div>
               <h3 class="doc-article-title">1. Overview & Freestanding Principles</h3>
               <p class="doc-article-text">
                 <strong>Anastasia v7.1</strong> is an embeddable, adaptive, bare-metal, zero-CRT compiler ecosystem and execution engine for <strong>Anastasia Assembly</strong> (<code>.ana</code>). Designed for maximum execution throughput, zero runtime overhead, adaptive dynamic tiering, non-temporal data streaming, and zero-copy hardware I/O.
@@ -275,7 +262,7 @@
 
             <!-- Article 2: Opcode Dictionary -->
             <article class="doc-article" id="doc-opcodes">
-              <div class="doc-badge-pill pill-purple">ISA Specification</div>
+              <div class="doc-badge-pill">ISA Specification</div>
               <h3 class="doc-article-title">2. Complete Opcode Reference Dictionary</h3>
               <p class="doc-article-text">Comprehensive catalog of Anastasia Assembly instructions, operand signatures, and hardware lowering specs.</p>
               
@@ -290,49 +277,49 @@
                 </thead>
                 <tbody>
                   <tr>
-                    <td><span class="cat-tag cat-heap">Object</span></td>
+                    <td><span class="cat-tag">Object</span></td>
                     <td><span class="op-badge">new-instance</span></td>
                     <td><code>dest, Class</code></td>
                     <td>Allocate heap object via TLAB or scalar replacement</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-heap">Object</span></td>
+                    <td><span class="cat-tag">Object</span></td>
                     <td><span class="op-badge">sink-mem</span></td>
                     <td><code>src</code></td>
                     <td>Volatile root preventing DCE optimization</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-math">Math</span></td>
+                    <td><span class="cat-tag">Math</span></td>
                     <td><span class="op-badge">add-int/64</span></td>
                     <td><code>dest, s1, s2</code></td>
                     <td>64-bit integer addition (<code>dest = s1 + s2</code>)</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-math">Math</span></td>
+                    <td><span class="cat-tag">Math</span></td>
                     <td><span class="op-badge">mul-int/64</span></td>
                     <td><code>dest, s1, s2</code></td>
                     <td>Signed 64-bit integer multiplication</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-simd">SIMD</span></td>
+                    <td><span class="cat-tag">SIMD</span></td>
                     <td><span class="op-badge">add-vector/i32x16</span></td>
                     <td><code>dest, s1, s2</code></td>
                     <td>512-bit AVX-512 vector addition (<code>vpaddd zmm</code>)</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-io">Async I/O</span></td>
+                    <td><span class="cat-tag">Async I/O</span></td>
                     <td><span class="op-badge">io-submit</span></td>
                     <td><code>op, fd, addr, len</code></td>
                     <td>Submit SQE into <code>io_uring</code> ring buffer</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-ctrl">Control</span></td>
+                    <td><span class="cat-tag">Control</span></td>
                     <td><span class="op-badge">if-ge</span></td>
                     <td><code>s1, s2, target</code></td>
                     <td>Conditional branch (jumps if <code>s1 >= s2</code>)</td>
                   </tr>
                   <tr>
-                    <td><span class="cat-tag cat-math">Atomics</span></td>
+                    <td><span class="cat-tag">Atomics</span></td>
                     <td><span class="op-badge">atomic-cas/64</span></td>
                     <td><code>[ptr], src</code></td>
                     <td>Hardware lock-free compare-and-swap (<code>lock cmpxchg</code>)</td>
@@ -343,7 +330,7 @@
 
             <!-- Article 3: Memory & TLAB -->
             <article class="doc-article" id="doc-memory">
-              <div class="doc-badge-pill pill-green">Memory Subsystem</div>
+              <div class="doc-badge-pill">Memory Subsystem</div>
               <h3 class="doc-article-title">3. Memory Subsystem & TLAB Architecture</h3>
               <p class="doc-article-text">
                 Fast-path Thread-Local Allocation Buffer (<code>tlab_allocate</code>) performing branchless bump pointer allocations. Overruns are guarded by <code>PROT_NONE</code> pages; overruns trigger a freestanding <code>SIGSEGV</code> fault handler to allocate new 64 KB TLAB slabs transparently.
@@ -356,7 +343,7 @@
 
             <!-- Article 4: Register Allocation -->
             <article class="doc-article" id="doc-registers">
-              <div class="doc-badge-pill pill-cyan">Register Spilling</div>
+              <div class="doc-badge-pill">Register Spilling</div>
               <h3 class="doc-article-title">4. Register Model & Stack Spilling Rules</h3>
               <p class="doc-article-text">
                 Anastasia supports <strong>unbounded virtual registers</strong> (<code>v0..vN</code>). Virtual registers are mapped dynamically to System V AMD64 / Win64 / AAPCS64 physical registers or stack spill slots:
@@ -381,7 +368,7 @@
 
             <!-- Article 5: AOT Zero-Linker Emitter -->
             <article class="doc-article" id="doc-emitter">
-              <div class="doc-badge-pill pill-purple">AOT Codegen</div>
+              <div class="doc-badge-pill">AOT Codegen</div>
               <h3 class="doc-article-title">5. Standalone Zero-Linker AOT Emitter</h3>
               <p class="doc-article-text">
                 Dual emission targets via <code>AnaTargetBackend</code>: <code>MemoryTarget</code> (JIT executable pages), <code>ElfEmitter</code> (relocatable 64-bit ELF object files with symbol tables and relocations), and <code>PeEmitter</code> (native 64-bit Windows PE32+ executables).
@@ -393,20 +380,20 @@
 
             <!-- Article 6: CLI & Test Matrix -->
             <article class="doc-article" id="doc-cli">
-              <div class="doc-badge-pill pill-green">Verification Matrix</div>
+              <div class="doc-badge-pill">Verification Matrix</div>
               <h3 class="doc-article-title">6. CLI Usage & 200-Test Suite Metrics</h3>
               
-              <div class="terminal-card" style="margin-bottom: 24px;">
+              <div class="terminal-card" style="margin-bottom: 20px;">
                 <div class="terminal-header">
                   <div class="terminal-title">anastasia-cli — test verification</div>
                   <button class="copy-btn" data-copy-target="#testCmd">Copy</button>
                 </div>
                 <div class="terminal-body" id="testCmd">
                   <div class="terminal-line"><span class="prompt">$</span><span class="command">./build.sh --test</span></div>
-                  <div class="terminal-line" style="color: #38ef7d;">ALL 40 QA MATRIX TESTS SUCCEEDED PERFECTLY!</div>
-                  <div class="terminal-line" style="color: #38ef7d;">ALL 30 LEETCODE PROBLEMS EXECUTED SUCCESSFULLY!</div>
-                  <div class="terminal-line" style="color: #38ef7d;">ALL 30 CODEFORCES 1800+ PROBLEMS PASSED CLEANLY!</div>
-                  <div class="terminal-line" style="color: #38ef7d;">ALL 100 HARDCORE TESTS PASSED CLEANLY!</div>
+                  <div class="terminal-line" style="color: #34d399;">ALL 40 QA MATRIX TESTS SUCCEEDED PERFECTLY!</div>
+                  <div class="terminal-line" style="color: #34d399;">ALL 30 LEETCODE PROBLEMS EXECUTED SUCCESSFULLY!</div>
+                  <div class="terminal-line" style="color: #34d399;">ALL 30 CODEFORCES 1800+ PROBLEMS PASSED CLEANLY!</div>
+                  <div class="terminal-line" style="color: #34d399;">ALL 100 HARDCORE TESTS PASSED CLEANLY!</div>
                 </div>
               </div>
 
@@ -435,17 +422,17 @@
       </div>
     </section>
 
-    <!-- World-Class IDE Code Playground for Examples Section -->
+    <!-- Document-Based Executable Examples Section -->
     <section id="examples" class="section">
       <div class="container">
-        <div class="section-header motion-element">
-          <div class="section-subtitle">Code Playground</div>
-          <h2 class="section-title">Anastasia Assembly IDE Showcase</h2>
+        <div class="section-header">
+          <div class="section-subtitle">Code Gallery</div>
+          <h2 class="section-title">Anastasia Assembly Examples Showcase</h2>
           <p style="color: var(--text-muted);">Explore 10 executable Anastasia Assembly (<code style="color:var(--accent-cyan)">.ana</code>) examples with live return output samples.</p>
         </div>
 
         <!-- Filter Bar -->
-        <div class="playground-filter-bar motion-element">
+        <div class="playground-filter-bar">
           <button class="filter-pill active" data-filter="all">All Examples</button>
           <button class="filter-pill" data-filter="math">Math & Algorithms</button>
           <button class="filter-pill" data-filter="memory">OOP & Memory</button>
@@ -453,14 +440,14 @@
           <button class="filter-pill" data-filter="async">Async & Network</button>
         </div>
 
-        <!-- IDE Playground Container -->
-        <div class="ide-playground-container motion-card">
+        <!-- IDE Container -->
+        <div class="ide-playground-container">
           <!-- Left Sidebar: Example Cards -->
           <div class="ide-sidebar">
             <button class="ide-example-btn active" data-ex-key="ex_01" data-category="math">
               <div class="ide-btn-title">
                 <span>01_math_basics.ana</span>
-                <span class="ide-badge-tag badge-jit">JIT</span>
+                <span class="ide-badge-tag">JIT</span>
               </div>
               <div class="ide-btn-desc">Basic register arithmetic & subtractions</div>
             </button>
@@ -468,7 +455,7 @@
             <button class="ide-example-btn" data-ex-key="ex_02" data-category="memory">
               <div class="ide-btn-title">
                 <span>02_vtable_dispatch.ana</span>
-                <span class="ide-badge-tag badge-aot">AOT</span>
+                <span class="ide-badge-tag">AOT</span>
               </div>
               <div class="ide-btn-desc">Polymorphic virtual method dispatch</div>
             </button>
@@ -476,7 +463,7 @@
             <button class="ide-example-btn" data-ex-key="ex_03" data-category="memory">
               <div class="ide-btn-title">
                 <span>03_memory_struct.ana</span>
-                <span class="ide-badge-tag badge-jit">JIT</span>
+                <span class="ide-badge-tag">JIT</span>
               </div>
               <div class="ide-btn-desc">Struct offset field memory store & reload</div>
             </button>
@@ -484,7 +471,7 @@
             <button class="ide-example-btn" data-ex-key="ex_04" data-category="math">
               <div class="ide-btn-title">
                 <span>04_constant_folding.ana</span>
-                <span class="ide-badge-tag badge-aot">AOT</span>
+                <span class="ide-badge-tag">AOT</span>
               </div>
               <div class="ide-btn-desc">SSA Constant folding & DCE pass proof</div>
             </button>
@@ -492,7 +479,7 @@
             <button class="ide-example-btn" data-ex-key="ex_05" data-category="math">
               <div class="ide-btn-title">
                 <span>05_control_flow.ana</span>
-                <span class="ide-badge-tag badge-jit">JIT</span>
+                <span class="ide-badge-tag">JIT</span>
               </div>
               <div class="ide-btn-desc">Conditional branch loops & accumulation</div>
             </button>
@@ -500,7 +487,7 @@
             <button class="ide-example-btn" data-ex-key="ex_06" data-category="hardware">
               <div class="ide-btn-title">
                 <span>06_bitwise_ops.ana</span>
-                <span class="ide-badge-tag badge-jit">JIT</span>
+                <span class="ide-badge-tag">JIT</span>
               </div>
               <div class="ide-btn-desc">Bitwise AND, XOR, OR, & 64-bit shifts</div>
             </button>
@@ -508,7 +495,7 @@
             <button class="ide-example-btn" data-ex-key="ex_07" data-category="hardware">
               <div class="ide-btn-title">
                 <span>07_hardware_atomics.ana</span>
-                <span class="ide-badge-tag badge-aot">AOT</span>
+                <span class="ide-badge-tag">AOT</span>
               </div>
               <div class="ide-btn-desc">Lock-free atomic CAS & memory fences</div>
             </button>
@@ -516,7 +503,7 @@
             <button class="ide-example-btn" data-ex-key="ex_08" data-category="memory">
               <div class="ide-btn-title">
                 <span>08_instantiation.ana</span>
-                <span class="ide-badge-tag badge-jit">JIT</span>
+                <span class="ide-badge-tag">JIT</span>
               </div>
               <div class="ide-btn-desc">TLAB object creation & field addition</div>
             </button>
@@ -524,7 +511,7 @@
             <button class="ide-example-btn" data-ex-key="ex_09" data-category="math">
               <div class="ide-btn-title">
                 <span>09_pi_spigot.ana</span>
-                <span class="ide-badge-tag badge-jit">JIT</span>
+                <span class="ide-badge-tag">JIT</span>
               </div>
               <div class="ide-btn-desc">High-precision Pi Spigot (100 Digits)</div>
             </button>
@@ -532,7 +519,7 @@
             <button class="ide-example-btn" data-ex-key="ex_10" data-category="async">
               <div class="ide-btn-title">
                 <span>10_io_uring_net.ana</span>
-                <span class="ide-badge-tag badge-aot">AOT</span>
+                <span class="ide-badge-tag">AOT</span>
               </div>
               <div class="ide-btn-desc">Zero-copy hardware io_uring async recv</div>
             </button>
@@ -542,7 +529,8 @@
           <div class="ide-viewer">
             <div class="ide-viewer-header">
               <div class="ide-filename">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                <!-- Heroicon: CPU Chip Icon -->
+                <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
                 <span id="ideFileName">01_math_basics.ana</span>
               </div>
               <button class="copy-btn">Copy Code</button>
@@ -571,12 +559,12 @@ Execution Output: (1000 + 250) - 500 = 750
     <!-- Architecture Comparison Table -->
     <section id="comparison" class="section" style="background: var(--bg-secondary);">
       <div class="container">
-        <div class="section-header motion-element">
+        <div class="section-header">
           <div class="section-subtitle">Architectural Matrix</div>
           <h2 class="section-title">Anastasia vs Traditional Runtimes</h2>
         </div>
 
-        <div class="table-container motion-card">
+        <div class="table-container">
           <table class="compare-table">
             <thead>
               <tr>
@@ -626,20 +614,20 @@ Execution Output: (1000 + 250) - 500 = 750
     <!-- SEO FAQ Section -->
     <section id="faq" class="section" style="background: var(--bg-secondary);">
       <div class="container">
-        <div class="section-header motion-element">
+        <div class="section-header">
           <div class="section-subtitle">Knowledge Base</div>
           <h2 class="section-title">Frequently Asked Questions</h2>
           <p style="color: var(--text-muted);">Everything you need to know about Anastasia Engine, architecture, and deployment.</p>
         </div>
 
         <!-- Live FAQ Search Filter -->
-        <div class="faq-filter motion-element">
+        <div class="faq-filter">
           <input type="text" id="faqSearchInput" class="faq-input" placeholder="🔍 Search FAQ (e.g., Azure, networking, exceptions, LLVM)...">
         </div>
 
         <div class="faq-grid">
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>What is Anastasia Assembly (.ana) and Anastasia Engine?</span>
               <span class="faq-icon">▼</span>
@@ -649,7 +637,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>How does Anastasia achieve 100% Freestanding Zero-CRT execution?</span>
               <span class="faq-icon">▼</span>
@@ -659,7 +647,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>Can Anastasia be used as a backend & linker for a new programming language?</span>
               <span class="faq-icon">▼</span>
@@ -669,7 +657,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>How does Anastasia compare to LLVM, AsmJit, and Traditional Assembly?</span>
               <span class="faq-icon">▼</span>
@@ -679,7 +667,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>Does Anastasia support Exception Handling, Throws, and Panic Recovery?</span>
               <span class="faq-icon">▼</span>
@@ -689,7 +677,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>Does Anastasia support Networking and Async I/O?</span>
               <span class="faq-icon">▼</span>
@@ -699,7 +687,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>Can Anastasia run on cheap cloud hosting like Azure B1 (PHP/Linux)?</span>
               <span class="faq-icon">▼</span>
@@ -709,7 +697,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>What CPU architectures and vector extensions are supported?</span>
               <span class="faq-icon">▼</span>
@@ -719,7 +707,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>How does Anastasia handle Memory Allocation and Garbage Collection?</span>
               <span class="faq-icon">▼</span>
@@ -729,7 +717,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>How many tests pass in the Anastasia ecosystem?</span>
               <span class="faq-icon">▼</span>
@@ -739,7 +727,7 @@ Execution Output: (1000 + 250) - 500 = 750
             </div>
           </div>
 
-          <div class="faq-item motion-card">
+          <div class="faq-item">
             <button class="faq-question">
               <span>Is Anastasia open-source and under what license?</span>
               <span class="faq-icon">▼</span>
@@ -760,7 +748,8 @@ Execution Output: (1000 + 250) - 500 = 750
     <div class="container footer-content">
       <div class="logo-brand">
         <div class="logo-icon">
-          <svg class="heroicon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          <!-- Heroicon: CPU Chip Icon -->
+          <svg class="heroicon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M3 9h2m-2 6h2m14-6h2m-2 6h2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
         </div>
         <span>Anastasia Engine</span>
       </div>

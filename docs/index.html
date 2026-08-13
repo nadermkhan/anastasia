@@ -207,13 +207,13 @@
       </div>
     </section>
 
-    <!-- Interactive Documentation Hub Section -->
+    <!-- Redesigned Ultra-Sleek Documentation Hub Section -->
     <section id="docs" class="section" style="background: var(--bg-secondary);">
       <div class="container">
         <div class="section-header">
-          <div class="section-subtitle">Interactive Manual</div>
+          <div class="section-subtitle">Official Reference Manual</div>
           <h2 class="section-title">Documentation & Technical Hub</h2>
-          <p style="color: var(--text-muted);">Explore the official technical specification from <code style="color:var(--accent-cyan)">doc/doc.md</code>.</p>
+          <p style="color: var(--text-muted);">In-depth specification for Anastasia's registers, opcodes, memory layout, and freestanding ABI.</p>
         </div>
 
         <div class="doc-hub-container">
@@ -249,68 +249,130 @@
           <div class="doc-content-pane">
             <!-- Article 1: Overview -->
             <article class="doc-article active" id="doc-overview">
+              <div class="doc-badge-pill pill-cyan">Architecture Overview</div>
               <h3 class="doc-article-title">1. Overview & Freestanding Principles</h3>
               <p class="doc-article-text">
                 <strong>Anastasia v7.1</strong> is an embeddable, adaptive, bare-metal, zero-CRT compiler ecosystem and execution engine for <strong>Anastasia Assembly</strong> (<code>.ana</code>). Designed for maximum execution throughput, zero runtime overhead, adaptive dynamic tiering, non-temporal data streaming, and zero-copy hardware I/O.
               </p>
+              
+              <div class="doc-callout">
+                <strong>Freestanding Execution Policy:</strong> Operates exclusively under GCC/Clang freestanding flags (<code>-ffreestanding -nostdlib -fno-exceptions -fno-rtti</code>) with direct assembly syscall boundaries (<code>raw_mmap</code>, <code>raw_mprotect</code>, <code>raw_write</code>, <code>raw_clone</code>, <code>raw_futex</code>, <code>raw_io_uring</code>). Completely purges external dependencies like <code>asmjit</code> or <code>libc</code>.
+              </div>
+
               <p class="doc-article-text">
-                Operates exclusively under GCC/Clang freestanding flags (<code>-ffreestanding -nostdlib -fno-exceptions -fno-rtti</code>) with direct assembly syscall boundaries (<code>raw_mmap</code>, <code>raw_mprotect</code>, <code>raw_write</code>, <code>raw_clone</code>, <code>raw_futex</code>, <code>raw_io_uring</code>). Completely purges external dependencies in favor of native freestanding machine code encoders.
+                Features native string literals with parse-time zero-copy length tracking, an AOT relocatable ELF generator (<code>ElfEmitter</code>) that acts as its own linker, and pluggable backends for <strong>x86_64 AVX-512</strong> and <strong>AArch64 ARM64</strong>.
               </p>
             </article>
 
             <!-- Article 2: Opcode Dictionary -->
             <article class="doc-article" id="doc-opcodes">
+              <div class="doc-badge-pill pill-purple">ISA Specification</div>
               <h3 class="doc-article-title">2. Complete Opcode Reference Dictionary</h3>
-              <div class="table-container">
-                <table class="compare-table">
-                  <thead>
-                    <tr>
-                      <th>Opcode</th>
-                      <th>Syntax</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td><code>new-instance</code></td><td><code>dest, Class</code></td><td>Heap allocation via TLAB or scalar replacement</td></tr>
-                    <tr><td><code>sink-mem</code></td><td><code>src</code></td><td>Volatile root preventing DCE optimization</td></tr>
-                    <tr><td><code>const-string</code></td><td><code>dest, "lit"</code></td><td>Load interned string pointer & .rodata relocs</td></tr>
-                    <tr><td><code>add-int/64</code></td><td><code>dest, s1, s2</code></td><td>64-bit integer addition</td></tr>
-                    <tr><td><code>mul-int/64</code></td><td><code>dest, s1, s2</code></td><td>64-bit integer multiplication</td></tr>
-                    <tr><td><code>add-vector/i32x16</code></td><td><code>dest, s1, s2</code></td><td>512-bit AVX-512 vector addition (ZMM)</td></tr>
-                    <tr><td><code>io-submit</code></td><td><code>op, fd, addr, len</code></td><td>Submit SQE into io_uring ring buffer</td></tr>
-                    <tr><td><code>if-ge</code></td><td><code>s1, s2, target</code></td><td>Conditional branch (jump if s1 >= s2)</td></tr>
-                    <tr><td><code>atomic-cas/64</code></td><td><code>[ptr], src</code></td><td>Hardware lock-free compare-and-swap</td></tr>
-                  </tbody>
-                </table>
-              </div>
+              <p class="doc-article-text">Comprehensive catalog of Anastasia Assembly instructions, operand signatures, and hardware lowering specs.</p>
+              
+              <table class="opcode-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Opcode</th>
+                    <th>Operand Syntax</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="cat-tag cat-heap">Object</span></td>
+                    <td><span class="op-badge">new-instance</span></td>
+                    <td><code>dest, Class</code></td>
+                    <td>Allocate heap object via TLAB or scalar replacement</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-heap">Object</span></td>
+                    <td><span class="op-badge">sink-mem</span></td>
+                    <td><code>src</code></td>
+                    <td>Volatile root preventing DCE optimization</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-math">Math</span></td>
+                    <td><span class="op-badge">add-int/64</span></td>
+                    <td><code>dest, s1, s2</code></td>
+                    <td>64-bit integer addition (<code>dest = s1 + s2</code>)</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-math">Math</span></td>
+                    <td><span class="op-badge">mul-int/64</span></td>
+                    <td><code>dest, s1, s2</code></td>
+                    <td>Signed 64-bit integer multiplication</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-simd">SIMD</span></td>
+                    <td><span class="op-badge">add-vector/i32x16</span></td>
+                    <td><code>dest, s1, s2</code></td>
+                    <td>512-bit AVX-512 vector addition (<code>vpaddd zmm</code>)</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-io">Async I/O</span></td>
+                    <td><span class="op-badge">io-submit</span></td>
+                    <td><code>op, fd, addr, len</code></td>
+                    <td>Submit SQE into <code>io_uring</code> ring buffer</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-ctrl">Control</span></td>
+                    <td><span class="op-badge">if-ge</span></td>
+                    <td><code>s1, s2, target</code></td>
+                    <td>Conditional branch (jumps if <code>s1 >= s2</code>)</td>
+                  </tr>
+                  <tr>
+                    <td><span class="cat-tag cat-math">Atomics</span></td>
+                    <td><span class="op-badge">atomic-cas/64</span></td>
+                    <td><code>[ptr], src</code></td>
+                    <td>Hardware lock-free compare-and-swap (<code>lock cmpxchg</code>)</td>
+                  </tr>
+                </tbody>
+              </table>
             </article>
 
             <!-- Article 3: Memory & TLAB -->
             <article class="doc-article" id="doc-memory">
-              <h3 class="doc-article-title">3. Memory Subsystem & TLAB</h3>
+              <div class="doc-badge-pill pill-green">Memory Subsystem</div>
+              <h3 class="doc-article-title">3. Memory Subsystem & TLAB Architecture</h3>
               <p class="doc-article-text">
                 Fast-path Thread-Local Allocation Buffer (<code>tlab_allocate</code>) performing branchless bump pointer allocations. Overruns are guarded by <code>PROT_NONE</code> pages; overruns trigger a freestanding <code>SIGSEGV</code> fault handler to allocate new 64 KB TLAB slabs transparently.
               </p>
-              <p class="doc-article-text">
-                Single-pass SSA escape analysis pass (<code>run_escape_analysis</code>) scalar-replaces short-lived <code>new-instance</code> allocations directly into virtual registers/stack slots, achieving <strong>0 heap allocations</strong> for non-escaping objects.
-              </p>
+              
+              <div class="doc-callout">
+                <strong>Zero Heap Allocations via Escape Analysis:</strong> Single-pass SSA escape analysis pass (<code>run_escape_analysis</code>) scalar-replaces short-lived <code>new-instance</code> allocations directly into virtual registers/stack slots, achieving 0 heap allocations for non-escaping objects.
+              </div>
             </article>
 
             <!-- Article 4: Register Allocation -->
             <article class="doc-article" id="doc-registers">
-              <h3 class="doc-article-title">4. Register Model & Stack Spilling</h3>
+              <div class="doc-badge-pill pill-cyan">Register Spilling</div>
+              <h3 class="doc-article-title">4. Register Model & Stack Spilling Rules</h3>
               <p class="doc-article-text">
                 Anastasia supports <strong>unbounded virtual registers</strong> (<code>v0..vN</code>). Virtual registers are mapped dynamically to System V AMD64 / Win64 / AAPCS64 physical registers or stack spill slots:
               </p>
-              <ul class="doc-list" style="margin-bottom: 20px;">
-                <li class="doc-item"><code>p0</code>..<code>p5</code>: Argument registers (<code>%rdi</code>, <code>%rsi</code>, <code>%rdx</code>, <code>%rcx</code>, <code>%r8</code>, <code>%r9</code>).</li>
-                <li class="doc-item"><code>v0</code>..<code>v4</code>: Physical scratch registers (<code>%rax</code>, <code>%rdx</code>, <code>%r8</code>, <code>%r9</code>, <code>%r10</code>).</li>
-                <li class="doc-item"><code>v5</code>..<code>vN</code>: Spill slots allocated dynamically at <code>[rbp - 8*N]</code>.</li>
-              </ul>
+
+              <table class="opcode-table">
+                <thead>
+                  <tr>
+                    <th>Virtual Register Range</th>
+                    <th>Storage Kind</th>
+                    <th>x86_64 Physical Hardware Location</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>p0</code>..<code>p5</code></td><td>Parameter</td><td><code>%rdi</code>, <code>%rsi</code>, <code>%rdx</code>, <code>%rcx</code>, <code>%r8</code>, <code>%r9</code></td></tr>
+                  <tr><td><code>v0</code>..<code>v4</code></td><td>Scratch Register</td><td><code>%rax</code>, <code>%rdx</code>, <code>%r8</code>, <code>%r9</code>, <code>%r10</code></td></tr>
+                  <tr><td><code>v5</code>..<code>vN</code></td><td>Stack Spill Slot</td><td>Allocated dynamically at <code>[rbp - 8*N]</code></td></tr>
+                  <tr><td><code>ymm0</code>..<code>zmm31</code></td><td>SIMD Vector</td><td>256-bit YMM and 512-bit ZMM vector files</td></tr>
+                </tbody>
+              </table>
             </article>
 
             <!-- Article 5: AOT Zero-Linker Emitter -->
             <article class="doc-article" id="doc-emitter">
+              <div class="doc-badge-pill pill-purple">AOT Codegen</div>
               <h3 class="doc-article-title">5. Standalone Zero-Linker AOT Emitter</h3>
               <p class="doc-article-text">
                 Dual emission targets via <code>AnaTargetBackend</code>: <code>MemoryTarget</code> (JIT executable pages), <code>ElfEmitter</code> (relocatable 64-bit ELF object files with symbol tables and relocations), and <code>PeEmitter</code> (native 64-bit Windows PE32+ executables).
@@ -322,18 +384,41 @@
 
             <!-- Article 6: CLI & Test Matrix -->
             <article class="doc-article" id="doc-cli">
-              <h3 class="doc-article-title">6. CLI Usage & 200-Test Matrix</h3>
-              <pre class="example-code" style="margin-bottom: 20px;"><code># 1. Execute Anastasia Assembly program in JIT Mode
-./build/anastasia_engine program.ana
+              <div class="doc-badge-pill pill-green">Verification Matrix</div>
+              <h3 class="doc-article-title">6. CLI Usage & 200-Test Suite Metrics</h3>
+              
+              <div class="terminal-card" style="margin-bottom: 24px;">
+                <div class="terminal-header">
+                  <div class="terminal-title">anastasia-cli — test verification</div>
+                  <button class="copy-btn" data-copy-target="#testCmd">Copy</button>
+                </div>
+                <div class="terminal-body" id="testCmd">
+                  <div class="terminal-line"><span class="prompt">$</span><span class="command">./build.sh --test</span></div>
+                  <div class="terminal-line" style="color: #38ef7d;">ALL 40 QA MATRIX TESTS SUCCEEDED PERFECTLY!</div>
+                  <div class="terminal-line" style="color: #38ef7d;">ALL 30 LEETCODE PROBLEMS EXECUTED SUCCESSFULLY!</div>
+                  <div class="terminal-line" style="color: #38ef7d;">ALL 30 CODEFORCES 1800+ PROBLEMS PASSED CLEANLY!</div>
+                  <div class="terminal-line" style="color: #38ef7d;">ALL 100 HARDCORE TESTS PASSED CLEANLY!</div>
+                </div>
+              </div>
 
-# 2. Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
-./build/anastasia_engine --aot input.ana output.o
-
-# 3. Run full QA matrix test suite (200 / 200 Tests)
-./build/anastasia_engine</code></pre>
-              <p class="doc-article-text">
-                Anastasia passes a <strong>200/200 test verification matrix</strong> with a 100% pass rate: 40 Core QA Tests, 30 LeetCode Problems, 30 Codeforces 1800+ Problems, and 100 Hardcore Algorithm & Stress Tests (HLD, Centroid, Dinic Flow, FFT/NTT, AES, SHA256, RSA).
-              </p>
+              <div class="metric-grid">
+                <div class="metric-card">
+                  <div class="metric-val">40</div>
+                  <div class="metric-lbl">Core QA Tests</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-val">30</div>
+                  <div class="metric-lbl">LeetCode Suite</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-val">30</div>
+                  <div class="metric-lbl">Codeforces 1800+</div>
+                </div>
+                <div class="metric-card">
+                  <div class="metric-val">100</div>
+                  <div class="metric-lbl">Hardcore Stress</div>
+                </div>
+              </div>
             </article>
 
           </div>
@@ -530,7 +615,7 @@ loop_end:
           <div class="example-card">
             <div class="example-header">
               <span class="example-title">
-                <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                <svg class="heroicon heroicon-sm" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
                 09_pi_spigot.ana
               </span>
               <button class="copy-btn">Copy</button>

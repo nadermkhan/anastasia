@@ -6,8 +6,8 @@
   --bg-primary: #0a0c10;
   --bg-secondary: #12161f;
   --bg-tertiary: #1a202c;
-  --glass-bg: rgba(18, 22, 31, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(18, 22, 31, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.08);
   --glass-hover-border: rgba(0, 242, 254, 0.4);
   
   --accent-cyan: #00f2fe;
@@ -455,28 +455,34 @@ h1, h2, h3, h4 {
   font-size: 0.95rem;
 }
 
-/* Documentation Hub Layout */
+/* ==========================================================================
+   Documentation Hub Sleek Styling (Stripe / Vercel Docs Aesthetic)
+   ========================================================================== */
 .doc-hub-container {
-  background: var(--glass-bg);
+  background: #0f131a;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
   display: grid;
-  grid-template-columns: 280px 1fr;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  grid-template-columns: 290px 1fr;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.6);
 }
 
 .doc-nav-sidebar {
-  background: #141923;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 24px 0;
+  background: #141822;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .doc-nav-btn {
   width: 100%;
-  padding: 16px 24px;
+  padding: 14px 18px;
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
   color: var(--text-muted);
   text-align: left;
   font-weight: 500;
@@ -490,19 +496,21 @@ h1, h2, h3, h4 {
 
 .doc-nav-btn:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .doc-nav-btn.active {
   color: var(--accent-cyan);
   background: rgba(0, 242, 254, 0.08);
-  border-left: 3px solid var(--accent-cyan);
+  border-color: rgba(0, 242, 254, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.15);
 }
 
 .doc-content-pane {
-  padding: 36px;
+  padding: 44px;
   overflow-y: auto;
-  max-height: 800px;
+  max-height: 850px;
+  background: #0d1017;
 }
 
 .doc-article {
@@ -513,33 +521,130 @@ h1, h2, h3, h4 {
   animation: fadeIn 0.3s ease-in;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+.doc-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 16px;
 }
+.pill-cyan { background: rgba(0, 242, 254, 0.12); color: var(--accent-cyan); border: 1px solid rgba(0, 242, 254, 0.3); }
+.pill-purple { background: rgba(127, 0, 255, 0.15); color: #c084fc; border: 1px solid rgba(127, 0, 255, 0.3); }
+.pill-green { background: rgba(0, 230, 118, 0.12); color: var(--accent-green); border: 1px solid rgba(0, 230, 118, 0.3); }
 
 .doc-article-title {
-  font-size: 1.8rem;
+  font-size: 2.2rem;
   margin-bottom: 16px;
   color: #fff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 12px;
+  letter-spacing: -0.01em;
 }
 
 .doc-article-text {
   color: var(--text-muted);
-  font-size: 1rem;
+  font-size: 1.05rem;
   line-height: 1.8;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
-.doc-article-text code {
+.doc-article-text code, .doc-card code {
   color: var(--accent-cyan);
   background: rgba(0, 242, 254, 0.08);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
   font-family: var(--font-mono);
   font-size: 0.88rem;
+  border: 1px solid rgba(0, 242, 254, 0.15);
+}
+
+.doc-callout {
+  background: rgba(0, 242, 254, 0.04);
+  border-left: 4px solid var(--accent-cyan);
+  border-radius: var(--radius-sm);
+  padding: 18px 22px;
+  margin-bottom: 28px;
+  color: #e2e8f0;
+  font-size: 0.95rem;
+}
+
+/* Opcode Table Styling */
+.opcode-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+  font-size: 0.9rem;
+}
+
+.opcode-table th, .opcode-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.opcode-table th {
+  background: #141923;
+  color: #fff;
+  font-family: var(--font-heading);
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+.opcode-table tr:hover td {
+  background: rgba(0, 242, 254, 0.02);
+}
+
+.op-badge {
+  font-family: var(--font-mono);
+  color: var(--accent-cyan);
+  background: rgba(0, 242, 254, 0.08);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  border: 1px solid rgba(0, 242, 254, 0.2);
+}
+
+.cat-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.cat-heap { background: rgba(127, 0, 255, 0.2); color: #c084fc; }
+.cat-math { background: rgba(0, 242, 254, 0.15); color: var(--accent-cyan); }
+.cat-simd { background: rgba(255, 145, 0, 0.15); color: var(--accent-orange); }
+.cat-io { background: rgba(0, 230, 118, 0.15); color: var(--accent-green); }
+.cat-ctrl { background: rgba(225, 0, 255, 0.15); color: var(--accent-pink); }
+
+/* Grid of Metrics for CLI Tab */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.metric-card {
+  background: #141923;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  text-align: center;
+}
+
+.metric-val {
+  font-size: 2.2rem;
+  font-weight: 800;
+  font-family: var(--font-heading);
+  color: var(--accent-cyan);
+}
+
+.metric-lbl {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-top: 6px;
 }
 
 /* Examples Gallery Grid */
@@ -815,7 +920,7 @@ h1, h2, h3, h4 {
   .hero-title { font-size: 2.8rem; }
   .code-explorer { grid-template-columns: 1fr; }
   .doc-hub-container { grid-template-columns: 1fr; }
-  .doc-nav-sidebar { display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+  .doc-nav-sidebar { display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 16px; }
   .doc-nav-btn.active { border-left: none; border-bottom: 3px solid var(--accent-cyan); }
   .code-tabs { display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
   .code-tab-btn.active { border-left: none; border-bottom: 3px solid var(--accent-cyan); }

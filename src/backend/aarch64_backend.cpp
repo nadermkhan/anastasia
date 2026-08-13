@@ -1,5 +1,6 @@
 #include "aarch64_backend.h"
 #include "elf_emitter.h"
+#include "../sys/object_heap.h"
 
 namespace ana {
 namespace backend {
@@ -197,6 +198,27 @@ void AArch64Encoder::add_imm12(Arm64Reg rd, Arm64Reg rn, uint16_t imm12) {
     emit32(code);
 }
 
+void AArch64Encoder::blr(Arm64Reg rn) {
+    uint32_t code = 0xD63F0000UL | (static_cast<uint32_t>(arm64_u8(rn)) << 5);
+    emit32(code);
+}
+
+void AArch64Encoder::cmp_reg_reg(Arm64Reg rn, Arm64Reg rm) {
+    uint32_t code = 0xEB00001FUL | (static_cast<uint32_t>(arm64_u8(rm)) << 16)
+                                 | (static_cast<uint32_t>(arm64_u8(rn)) << 5);
+    emit32(code);
+}
+
+void AArch64Encoder::b_cond(uint8_t cond, int32_t imm19_words) {
+    uint32_t code = 0x54000000UL | ((static_cast<uint32_t>(imm19_words) & 0x7FFFFUL) << 5) | (cond & 0xF);
+    emit32(code);
+}
+
+void AArch64Encoder::b_uncond(int32_t imm26_words) {
+    uint32_t code = 0x14000000UL | (static_cast<uint32_t>(imm26_words) & 0x3FFFFFFUL);
+    emit32(code);
+}
+
 void AArch64Encoder::ret() {
     // RET (X30)
     emit32(0xD65F03C0UL);
@@ -205,6 +227,18 @@ void AArch64Encoder::ret() {
 void AArch64Encoder::nop() {
     // NOP: 0xD503201F
     emit32(0xD503201FUL);
+}
+
+static bool streq_impl(const char* s1, const char* s2) {
+    if (!s1 || !s2) return false;
+    while (*s1 && *s2) {
+        if (*s1++ != *s2++) return false;
+    }
+    return *s1 == *s2;
+}
+
+static void* alloc_obj_helper(uint32_t size, void* vtable, uint32_t class_id) {
+    return sys::ObjectHeap::instance().allocate_object(size, vtable, class_id);
 }
 
 AArch64TargetBackend::AArch64TargetBackend() : runtime_(nullptr) {}
@@ -361,10 +395,52 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
                     enc.str_reg_mem(Arm64Reg::X11, base, insn->dest.mem.offset);
                     break;
                 }
+                case frontend::Opcode::NEW_INSTANCE: {
+                    uint32_t inst_size = 16;
+                    void* vtable_ptr = nullptr;
+                    uint32_t class_id = 1;
+
+                    if (prog && insn->target_label) {
+                        for (frontend::ClassDecl* c = prog->classes; c != nullptr; c = c->next) {
+                            if (c->name && streq_impl(c->name, insn->target_label)) {
+                                inst_size = c->size > 0 ? c->size : 16;
+                                vtable_ptr = c->vtable_array;
+                                break;
+                            }
+                        }
+                    }
+
+                    enc.mov_reg_imm64(Arm64Reg::X0, static_cast<uint64_t>(inst_size));
+                    enc.mov_reg_imm64(Arm64Reg::X1, reinterpret_cast<uint64_t>(vtable_ptr));
+                    enc.mov_reg_imm64(Arm64Reg::X2, static_cast<uint64_t>(class_id));
+                    enc.mov_reg_imm64(Arm64Reg::X16, reinterpret_cast<uint64_t>(&alloc_obj_helper));
+                    enc.blr(Arm64Reg::X16);
+
+                    store_reg(insn->dest.reg, Arm64Reg::X0);
+                    break;
+                }
                 case frontend::Opcode::CONST_STRING: {
                     const char* str_ptr = (runtime_ && insn->string_val) ? runtime_->string_pool().get_or_intern(insn->string_val, insn->string_len, insn->string_hash) : insn->string_val;
                     enc.mov_reg_imm64(Arm64Reg::X9, reinterpret_cast<uint64_t>(str_ptr));
                     store_reg(insn->dest.reg, Arm64Reg::X9);
+                    break;
+                }
+                case frontend::Opcode::IF_GE:
+                case frontend::Opcode::IF_LT:
+                case frontend::Opcode::IF_EQ:
+                case frontend::Opcode::IF_NE: {
+                    Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                    Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                    enc.cmp_reg_reg(r1, r2);
+                    uint8_t cond = 0xA; // GE
+                    if (insn->op == frontend::Opcode::IF_LT) cond = 0xB;
+                    else if (insn->op == frontend::Opcode::IF_EQ) cond = 0x0;
+                    else if (insn->op == frontend::Opcode::IF_NE) cond = 0x1;
+                    enc.b_cond(cond, 2);
+                    break;
+                }
+                case frontend::Opcode::GOTO: {
+                    enc.b_uncond(-5);
                     break;
                 }
                 case frontend::Opcode::STR_LEN: {

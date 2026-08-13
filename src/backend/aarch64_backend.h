@@ -58,6 +58,10 @@ public:
     void add_sp_imm32(uint32_t imm);
     void adrp(Arm64Reg rd, int32_t imm21_pages);
     void add_imm12(Arm64Reg rd, Arm64Reg rn, uint16_t imm12);
+    void blr(Arm64Reg rn);
+    void cmp_reg_reg(Arm64Reg rn, Arm64Reg rm);
+    void b_cond(uint8_t cond, int32_t imm19_words);
+    void b_uncond(int32_t imm26_words);
     void ret();
     void nop();
 

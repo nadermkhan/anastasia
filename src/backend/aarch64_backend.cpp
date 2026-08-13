@@ -315,12 +315,13 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
     auto emit_code = [&](AArch64Encoder& e, bool is_pass2) {
         e.push_fp_lr();
         e.mov_fp_sp();
-        e.sub_sp_imm32(256); // Alloc space for virtual registers v0..v31
+        e.sub_sp_imm32(320); // 256 bytes for v0..v31 + 64 bytes for p0..p7
 
-        auto param_reg = [](uint32_t idx) -> Arm64Reg {
-            if (idx < 8) return static_cast<Arm64Reg>(static_cast<uint8_t>(Arm64Reg::X0) + idx);
-            return Arm64Reg::X7;
-        };
+        // Save parameter registers X0..X7 to stack spill slots
+        for (uint32_t i = 0; i < 8; ++i) {
+            Arm64Reg preg = static_cast<Arm64Reg>(static_cast<uint8_t>(Arm64Reg::X0) + i);
+            e.str_reg_mem(preg, Arm64Reg::SP, 256 + i * 8);
+        }
 
         auto load_op = [&](const frontend::Operand& op, Arm64Reg scratch) -> Arm64Reg {
             if (op.kind == frontend::OperandKind::CONST_INT) {
@@ -328,7 +329,9 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
                 return scratch;
             } else if (op.kind == frontend::OperandKind::REGISTER) {
                 if (op.reg.type == frontend::RegisterType::PARAM) {
-                    return param_reg(op.reg.index);
+                    uint32_t offset = 256 + (op.reg.index & 7) * 8;
+                    e.ldr_reg_mem(scratch, Arm64Reg::SP, offset);
+                    return scratch;
                 } else {
                     uint32_t offset = (op.reg.index & 31) * 8;
                     e.ldr_reg_mem(scratch, Arm64Reg::SP, offset);
@@ -340,8 +343,8 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
 
         auto store_reg = [&](const frontend::Register& reg, Arm64Reg src_reg) {
             if (reg.type == frontend::RegisterType::PARAM) {
-                Arm64Reg p_dst = param_reg(reg.index);
-                if (p_dst != src_reg) e.mov_reg_reg(p_dst, src_reg);
+                uint32_t offset = 256 + (reg.index & 7) * 8;
+                e.str_reg_mem(src_reg, Arm64Reg::SP, offset);
             } else {
                 uint32_t offset = (reg.index & 31) * 8;
                 e.str_reg_mem(src_reg, Arm64Reg::SP, offset);
@@ -576,13 +579,13 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
                     case frontend::Opcode::RETURN_VAL: {
                         Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X0);
                         if (r1 != Arm64Reg::X0) e.mov_reg_reg(Arm64Reg::X0, r1);
-                        e.add_sp_imm32(256);
+                        e.add_sp_imm32(320);
                         e.pop_fp_lr();
                         e.ret();
                         break;
                     }
                     case frontend::Opcode::RETURN_VOID: {
-                        e.add_sp_imm32(256);
+                        e.add_sp_imm32(320);
                         e.pop_fp_lr();
                         e.ret();
                         break;

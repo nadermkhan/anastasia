@@ -74,15 +74,6 @@ extern "C" void* handle_mic_miss(void* obj_ptr, int32_t vtable_slot, uint8_t* pa
         // Atomic 64-bit store of VTable pointer
         __atomic_store_n(reinterpret_cast<void**>(patch_addr), vtable_ptr, __ATOMIC_RELEASE);
 
-        // Execute CLFLUSH to invalidate CPU instruction prefetch cache line
-        __asm__ __volatile__(
-            "clflush (%0)\n\t"
-            "mfence"
-            :
-            : "r"(patch_addr)
-            : "memory"
-        );
-
         // Flush CPU instruction cache
         ana::sys::clear_icache(patch_addr, sizeof(void*));
 

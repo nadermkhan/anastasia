@@ -231,10 +231,15 @@ void AArch64Encoder::nop() {
 
 static bool streq_impl(const char* s1, const char* s2) {
     if (!s1 || !s2) return false;
-    while (*s1 && *s2) {
-        if (*s1++ != *s2++) return false;
+    if (s1[0] == '.') s1++;
+    if (s2[0] == '.') s2++;
+    while (*s1 && *s2 && *s1 != ':' && *s2 != ':') {
+        if (*s1 != *s2) return false;
+        s1++; s2++;
     }
-    return *s1 == *s2;
+    char c1 = (*s1 == ':') ? '\0' : *s1;
+    char c2 = (*s2 == ':') ? '\0' : *s2;
+    return c1 == c2;
 }
 
 static void* alloc_obj_helper(uint32_t size, void* vtable, uint32_t class_id) {

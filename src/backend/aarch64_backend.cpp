@@ -139,21 +139,49 @@ void AArch64Encoder::mov_reg_reg(Arm64Reg rd, Arm64Reg rm) {
 }
 
 void AArch64Encoder::str_reg_mem(Arm64Reg rt, Arm64Reg rn, uint32_t offset_bytes) {
-    // STR Xt, [Xn, #imm12]: 0xF9000000 | ((imm12 / 8) << 10) | (Rn << 5) | Rt
-    uint32_t imm12 = (offset_bytes / 8) & 0xFFF;
-    uint32_t code = 0xF9000000UL | (imm12 << 10)
-                                 | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
-                                 | static_cast<uint32_t>(arm64_u8(rt));
-    emit32(code);
+    if (offset_bytes % 8 == 0 && offset_bytes <= 32760) {
+        uint32_t imm12 = (offset_bytes / 8) & 0xFFF;
+        uint32_t code = 0xF9000000UL | (imm12 << 10)
+                                     | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
+                                     | static_cast<uint32_t>(arm64_u8(rt));
+        emit32(code);
+    } else if (offset_bytes < 256) {
+        // STUR Xt, [Xn, #simm9]: 0xF8000000 | ((simm9 & 0x1FF) << 12) | (Rn << 5) | Rt
+        uint32_t imm9 = offset_bytes & 0x1FF;
+        uint32_t code = 0xF8000000UL | (imm9 << 12)
+                                     | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
+                                     | static_cast<uint32_t>(arm64_u8(rt));
+        emit32(code);
+    } else {
+        mov_reg_imm64(Arm64Reg::X16, offset_bytes);
+        add_reg_reg(Arm64Reg::X16, rn, Arm64Reg::X16);
+        uint32_t code = 0xF9000000UL | (static_cast<uint32_t>(arm64_u8(Arm64Reg::X16)) << 5)
+                                     | static_cast<uint32_t>(arm64_u8(rt));
+        emit32(code);
+    }
 }
 
 void AArch64Encoder::ldr_reg_mem(Arm64Reg rt, Arm64Reg rn, uint32_t offset_bytes) {
-    // LDR Xt, [Xn, #imm12]: 0xF9400000 | ((imm12 / 8) << 10) | (Rn << 5) | Rt
-    uint32_t imm12 = (offset_bytes / 8) & 0xFFF;
-    uint32_t code = 0xF9400000UL | (imm12 << 10)
-                                 | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
-                                 | static_cast<uint32_t>(arm64_u8(rt));
-    emit32(code);
+    if (offset_bytes % 8 == 0 && offset_bytes <= 32760) {
+        uint32_t imm12 = (offset_bytes / 8) & 0xFFF;
+        uint32_t code = 0xF9400000UL | (imm12 << 10)
+                                     | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
+                                     | static_cast<uint32_t>(arm64_u8(rt));
+        emit32(code);
+    } else if (offset_bytes < 256) {
+        // LDUR Xt, [Xn, #simm9]: 0xF8400000 | ((simm9 & 0x1FF) << 12) | (Rn << 5) | Rt
+        uint32_t imm9 = offset_bytes & 0x1FF;
+        uint32_t code = 0xF8400000UL | (imm9 << 12)
+                                     | (static_cast<uint32_t>(arm64_u8(rn)) << 5)
+                                     | static_cast<uint32_t>(arm64_u8(rt));
+        emit32(code);
+    } else {
+        mov_reg_imm64(Arm64Reg::X16, offset_bytes);
+        add_reg_reg(Arm64Reg::X16, rn, Arm64Reg::X16);
+        uint32_t code = 0xF9400000UL | (static_cast<uint32_t>(arm64_u8(Arm64Reg::X16)) << 5)
+                                     | static_cast<uint32_t>(arm64_u8(rt));
+        emit32(code);
+    }
 }
 
 void AArch64Encoder::push_fp_lr() {
@@ -433,15 +461,61 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
                         e.str_reg_mem(Arm64Reg::X11, base, insn->dest.mem.offset);
                         break;
                     }
+                    case frontend::Opcode::POPCOUNT_I64: {
+                        Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X0);
+                        if (r1 != Arm64Reg::X0) e.mov_reg_reg(Arm64Reg::X0, r1);
+
+                        auto popcnt_fn = [](uint64_t v) -> uint64_t {
+                            uint64_t c = 0;
+                            while (v) { c += (v & 1); v >>= 1; }
+                            return c;
+                        };
+                        e.mov_reg_imm64(Arm64Reg::X16, reinterpret_cast<uint64_t>(+popcnt_fn));
+                        e.blr(Arm64Reg::X16);
+                        store_reg(insn->dest.reg, Arm64Reg::X0);
+                        break;
+                    }
+                    case frontend::Opcode::BTS_I64: {
+                        Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                        Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                        e.mov_reg_imm64(Arm64Reg::X11, 1ULL);
+                        e.lsl_reg_reg(Arm64Reg::X11, Arm64Reg::X11, r2);
+                        e.orr_reg_reg(Arm64Reg::X9, r1, Arm64Reg::X11);
+                        store_reg(insn->dest.reg, Arm64Reg::X9);
+                        break;
+                    }
+                    case frontend::Opcode::BTR_I64: {
+                        Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                        Arm64Reg r2 = load_op(insn->src2, Arm64Reg::X10);
+                        e.mov_reg_imm64(Arm64Reg::X11, 1ULL);
+                        e.lsl_reg_reg(Arm64Reg::X11, Arm64Reg::X11, r2);
+                        e.eor_reg_reg(Arm64Reg::X9, r1, Arm64Reg::X11);
+                        store_reg(insn->dest.reg, Arm64Reg::X9);
+                        break;
+                    }
+                    case frontend::Opcode::CALL_VIRT:
+                    case frontend::Opcode::CALL_VIRT_FAST: {
+                        Arm64Reg obj = load_op(insn->src1, Arm64Reg::X0);
+                        if (obj != Arm64Reg::X0) e.mov_reg_reg(Arm64Reg::X0, obj);
+
+                        e.ldr_reg_mem(Arm64Reg::X9, Arm64Reg::X0, 0); // vtable ptr
+                        e.ldr_reg_mem(Arm64Reg::X10, Arm64Reg::X9, insn->vtable_slot * 8); // fn ptr
+                        e.blr(Arm64Reg::X10);
+
+                        if (insn->dest.kind == frontend::OperandKind::REGISTER) {
+                            store_reg(insn->dest.reg, Arm64Reg::X0);
+                        }
+                        break;
+                    }
                     case frontend::Opcode::NEW_INSTANCE: {
-                        uint32_t inst_size = 16;
+                        uint32_t inst_size = 32;
                         void* vtable_ptr = nullptr;
                         uint32_t class_id = 1;
 
                         if (prog && insn->target_label) {
                             for (frontend::ClassDecl* c = prog->classes; c != nullptr; c = c->next) {
                                 if (c->name && streq_impl(c->name, insn->target_label)) {
-                                    inst_size = c->size > 0 ? c->size : 16;
+                                    inst_size = c->size > 0 ? c->size + 16 : 32;
                                     vtable_ptr = c->vtable_array;
                                     break;
                                 }

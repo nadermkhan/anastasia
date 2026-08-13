@@ -28,7 +28,11 @@ private:
     uint32_t table_count_;
 };
 
+#if defined(_MSC_VER)
+extern "C" __declspec(noreturn) void sys_throw_exception(void* exception_obj, uint32_t type_id);
+#else
 extern "C" void sys_throw_exception(void* exception_obj, uint32_t type_id) __attribute__((noreturn));
+#endif
 
 } // namespace backend
 } // namespace ana

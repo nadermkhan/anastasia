@@ -29,7 +29,11 @@ struct jit_descriptor {
 // Global GDB JIT interface symbol queried by GDB/LLDB
 extern "C" {
     extern struct jit_descriptor __jit_debug_descriptor;
+#if defined(_MSC_VER)
+    __declspec(noinline) void __jit_debug_register_code();
+#else
     void __attribute__((noinline)) __jit_debug_register_code();
+#endif
 }
 
 // Helper to construct an in-memory ELF symbol header and register with GDB JIT runtime

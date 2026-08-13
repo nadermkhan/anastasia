@@ -1,6 +1,7 @@
 #include "sys_raw.h"
 #include "cpu_features.h"
 
+#ifndef _WIN32
 extern "C" {
 void* malloc(size_t size) {
     if (size == 0) size = 1;
@@ -47,6 +48,7 @@ size_t strlen(const char* s) {
     return ana::sys::freestanding_strlen(s);
 }
 }
+#endif
 
 namespace ana {
 namespace sys {
@@ -91,7 +93,9 @@ size_t freestanding_strlen(const char* s) {
 }
 
 void clear_icache(void* addr, size_t size) {
-#if defined(__x86_64__) || defined(_M_X64)
+#if defined(_MSC_VER)
+    (void)addr; (void)size;
+#elif defined(__x86_64__) || defined(_M_X64)
     uintptr_t start = reinterpret_cast<uintptr_t>(addr);
     uintptr_t end = start + size;
     for (uintptr_t p = start & ~63UL; p < end; p += 64) {

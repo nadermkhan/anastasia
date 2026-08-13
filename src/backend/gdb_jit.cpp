@@ -7,9 +7,13 @@ namespace backend {
 extern "C" {
     struct jit_descriptor __jit_debug_descriptor = { 1, JIT_NOACTION, nullptr, nullptr };
 
+#if defined(_MSC_VER)
+    __declspec(noinline) void __jit_debug_register_code() {}
+#else
     void __attribute__((noinline)) __jit_debug_register_code() {
         __asm__ __volatile__("" ::: "memory");
     }
+#endif
 }
 
 jit_code_entry* register_jit_code(const void* code_ptr, size_t code_size, const char* fn_name) {

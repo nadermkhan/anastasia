@@ -30,8 +30,14 @@ static void* memset_scalar(void* s, int c, size_t n) {
     return s;
 }
 
+#if defined(_MSC_VER)
+#define ANA_TARGET_AVX2
+#else
+#define ANA_TARGET_AVX2 __attribute__((target("avx2")))
+#endif
+
 #if defined(__x86_64__) || defined(_M_X64)
-__attribute__((target("avx2")))
+ANA_TARGET_AVX2
 static void* memcpy_avx2(void* dest, const void* src, size_t n) {
     char* d = static_cast<char*>(dest);
     const char* s = static_cast<const char*>(src);
@@ -59,7 +65,7 @@ static void* memcpy_avx2(void* dest, const void* src, size_t n) {
     return dest;
 }
 
-__attribute__((target("avx2")))
+ANA_TARGET_AVX2
 static void* memset_avx2(void* s, int c, size_t n) {
     unsigned char* p = static_cast<unsigned char*>(s);
     size_t i = 0;

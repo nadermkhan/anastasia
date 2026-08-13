@@ -19,6 +19,12 @@
 #define ANA_CLONE_THREAD   0x00001000
 #define ANA_CLONE_SETTLS   0x00080000
 
+#if defined(_MSC_VER)
+#define ANA_NORETURN __declspec(noreturn)
+#else
+#define ANA_NORETURN __attribute__((noreturn))
+#endif
+
 #define ANA_FUTEX_WAIT         0
 #define ANA_FUTEX_WAKE         1
 #define ANA_FUTEX_PRIVATE_FLAG 128
@@ -40,7 +46,7 @@ int   raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg);
 int   raw_futex(int* uaddr, int futex_op, int val, const void* timeout = nullptr);
 int   raw_sched_setaffinity(int pid, size_t cpusetsize, const void* mask);
 int   raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned long maxnode, unsigned flags);
-void  raw_exit(int code) __attribute__((noreturn));
+ANA_NORETURN void raw_exit(int code);
 void  clear_icache(void* addr, size_t size);
 void  spinlock_yield();
 
@@ -54,6 +60,7 @@ size_t freestanding_strlen(const char* s);
 } // namespace sys
 } // namespace ana
 
+#ifndef _WIN32
 #include <pthread.h>
 #include <stdarg.h>
 #include <sys/types.h>
@@ -104,5 +111,10 @@ extern "C" {
     long  strtol(const char* nptr, char** endptr, int base);
     long  __isoc23_strtol(const char* nptr, char** endptr, int base);
 }
+#else
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#endif
 
 #endif // ANA_SYS_RAW_H

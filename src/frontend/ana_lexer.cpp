@@ -231,10 +231,12 @@ Token Lexer::next_token() {
         switch (hash) {
             case fnv1a_hash("add-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_I32; return tok;
             case fnv1a_hash("sub-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_I32; return tok;
+            case fnv1a_hash("neg-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::NEG_I32; return tok;
             case fnv1a_hash("mul-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MUL_I32; return tok;
             case fnv1a_hash("div-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::DIV_I32; return tok;
             case fnv1a_hash("add-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::ADD_I64; return tok;
             case fnv1a_hash("sub-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SUB_I64; return tok;
+            case fnv1a_hash("neg-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::NEG_I64; return tok;
             case fnv1a_hash("mul-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MUL_I64; return tok;
             case fnv1a_hash("div-int/64", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::DIV_I64; return tok;
             case fnv1a_hash("and-int/32", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::AND_I32; return tok;

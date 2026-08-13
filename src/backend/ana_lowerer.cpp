@@ -186,6 +186,18 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
                     store_operand(insn->dest.reg, dst_reg);
                     break;
                 }
+                case frontend::Opcode::NEG_I32:
+                case frontend::Opcode::NEG_I64: {
+                    X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                    X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                     ? regalloc->get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                    enc->mov_reg_imm64(X86Reg::R11, 0);
+                    enc->sub_reg_reg(X86Reg::R11, s1);
+                    enc->mov_reg_reg(dst_reg, X86Reg::R11);
+                    if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
+                    store_operand(insn->dest.reg, dst_reg);
+                    break;
+                }
                 case frontend::Opcode::CONST_STRING: {
                     const char* str_ptr = runtime_.string_pool().get_or_intern(insn->string_val, insn->string_len, insn->string_hash);
                     X86Reg dst_reg = (regalloc->get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)

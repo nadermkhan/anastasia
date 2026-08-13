@@ -334,6 +334,8 @@ Instruction* Parser::parse_instruction() {
             }
             break;
         }
+        case Opcode::NEG_I32:
+        case Opcode::NEG_I64:
         case Opcode::POPCOUNT_I64:
         case Opcode::LZCNT_I64: {
             if (current_tok_.type == TokenType::TOKEN_REGISTER) {

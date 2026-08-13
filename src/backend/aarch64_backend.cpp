@@ -383,6 +383,13 @@ void* AArch64TargetBackend::compile_function(frontend::Function* fn, frontend::P
                         store_reg(insn->dest.reg, Arm64Reg::X9);
                         break;
                     }
+                    case frontend::Opcode::NEG_I64:
+                    case frontend::Opcode::NEG_I32: {
+                        Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);
+                        e.sub_reg_reg(Arm64Reg::X9, Arm64Reg::XZR, r1);
+                        store_reg(insn->dest.reg, Arm64Reg::X9);
+                        break;
+                    }
                     case frontend::Opcode::MUL_I64:
                     case frontend::Opcode::MUL_I32: {
                         Arm64Reg r1 = load_op(insn->src1, Arm64Reg::X9);

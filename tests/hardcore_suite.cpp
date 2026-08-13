@@ -551,7 +551,7 @@ static bool test_hc_34() {
         "add-int/64 v0, v0, p1\n"
         "return-val v0\n"
         ".end_fn\n";
-    return run_single_hc_test(34, "2D Fenwick Tree Point Update Indexing", code, 12, 96, 0, 96);
+    return run_single_hc_test(34, "2D Fenwick Tree Point Update Indexing", code, 12, 96, 0, 100);
 }
 
 // HC 35: Wavelet Tree Bit Vector Partitioning

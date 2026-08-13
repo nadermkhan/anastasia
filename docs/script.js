@@ -1,97 +1,125 @@
 // ==========================================================================
-// Anastasia Engine v7.1 — Three.js 3D Engine & Framer Motion Scroll Engine
+// Anastasia Engine v7.1 — Three.js 3D Silicon CPU Core & Instruction Pipeline
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
     // ----------------------------------------------------------------------
-    // 1. Three.js Interactive 3D Cyberpunk Quantum Compiler Scene
+    // 1. Three.js Interactive 3D Silicon CPU Core & Assembly Pipeline
     // ----------------------------------------------------------------------
     const canvas = document.getElementById('threeCanvas');
     if (canvas && typeof THREE !== 'undefined') {
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x0a0c10, 0.015);
+        scene.fog = new THREE.FogExp2(0x0a0c10, 0.012);
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.z = 30;
+        const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 12, 28);
+        camera.lookAt(0, 0, 0);
 
         const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-        // 3D Geometry 1: Glowing Torus Knot (Quantum Core)
-        const torusGeometry = new THREE.TorusKnotGeometry(8, 2.2, 120, 16);
-        const torusMaterial = new THREE.MeshBasicMaterial({
+        // Create a 3D CPU Microprocessor Die (Grid Base)
+        const cpuGroup = new THREE.Group();
+
+        // 1. Main CPU Silicon Substrate Board
+        const boardGeo = new THREE.BoxGeometry(22, 0.8, 22);
+        const boardMat = new THREE.MeshBasicMaterial({
+            color: 0x0f1622,
+            wireframe: false
+        });
+        const board = new THREE.Mesh(boardGeo, boardMat);
+        cpuGroup.add(board);
+
+        // 2. CPU Silicon Die Center Core (Glowing Register Block)
+        const dieGeo = new THREE.BoxGeometry(10, 1.2, 10);
+        const dieMat = new THREE.MeshBasicMaterial({
             color: 0x00f2fe,
             wireframe: true,
             transparent: true,
-            opacity: 0.25
+            opacity: 0.5
         });
-        const torusKnot = new THREE.Mesh(torusGeometry, torusMaterial);
-        scene.add(torusKnot);
+        const cpuDie = new THREE.Mesh(dieGeo, dieMat);
+        cpuGroup.add(cpuDie);
 
-        // 3D Geometry 2: Floating Assembly Particle Field
-        const particleCount = 600;
-        const particleGeometry = new THREE.BufferGeometry();
+        // 3. Circuit Bus Grid Lines (Microchip Traces)
+        const gridGeo = new THREE.GridHelper(30, 24, 0x00f2fe, 0x1e293b);
+        gridGeo.position.y = -0.4;
+        cpuGroup.add(gridGeo);
+
+        // 4. Floating 3D Assembly Instruction Nodes (AVX-512 / Syscall Packets)
+        const particleCount = 450;
+        const particleGeo = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
 
         const colorCyan = new THREE.Color(0x00f2fe);
-        const colorPurple = new THREE.Color(0x7f00ff);
+        const colorGreen = new THREE.Color(0x38ef7d);
 
         for (let i = 0; i < particleCount * 3; i += 3) {
-            positions[i] = (Math.random() - 0.5) * 120;
-            positions[i + 1] = (Math.random() - 0.5) * 120;
-            positions[i + 2] = (Math.random() - 0.5) * 120;
+            positions[i] = (Math.random() - 0.5) * 80;
+            positions[i + 1] = Math.random() * 40 - 5;
+            positions[i + 2] = (Math.random() - 0.5) * 80;
 
-            const mixedColor = colorCyan.clone().lerp(colorPurple, Math.random());
-            colors[i] = mixedColor.r;
-            colors[i + 1] = mixedColor.g;
-            colors[i + 2] = mixedColor.b;
+            const c = colorCyan.clone().lerp(colorGreen, Math.random());
+            colors[i] = c.r;
+            colors[i + 1] = c.g;
+            colors[i + 2] = c.b;
         }
 
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 0.6,
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.5,
             vertexColors: true,
             transparent: true,
-            opacity: 0.7
+            opacity: 0.85
         });
 
-        const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+        const particleSystem = new THREE.Points(particleGeo, particleMat);
         scene.add(particleSystem);
 
-        // Mouse Parallax & Interaction Tracking
+        scene.add(cpuGroup);
+
+        // Mouse Tilt Interaction Dynamics
         let mouseX = 0;
         let mouseY = 0;
         let targetX = 0;
         let targetY = 0;
 
         window.addEventListener('mousemove', (e) => {
-            mouseX = (e.clientX - window.innerWidth / 2) * 0.0005;
-            mouseY = (e.clientY - window.innerHeight / 2) * 0.0005;
+            mouseX = (e.clientX - window.innerWidth / 2) * 0.0004;
+            mouseY = (e.clientY - window.innerHeight / 2) * 0.0004;
         });
 
-        // 60 FPS Render Loop
+        // Render Animation Loop
         function animateThree() {
             requestAnimationFrame(animateThree);
 
             targetX += (mouseX - targetX) * 0.05;
             targetY += (mouseY - targetY) * 0.05;
 
-            torusKnot.rotation.x += 0.004;
-            torusKnot.rotation.y += 0.006;
-            torusKnot.rotation.z += targetX * 0.5;
+            // Slow CPU die rotation + cursor responsive tilt
+            cpuGroup.rotation.y += 0.003;
+            cpuGroup.rotation.x = Math.sin(Date.now() * 0.001) * 0.1 + targetY * 0.5;
+            cpuGroup.rotation.z = targetX * 0.5;
 
-            particleSystem.rotation.y += 0.001;
-            particleSystem.rotation.x += targetY * 0.2;
+            // Stream instruction particles upward
+            const posArray = particleGeo.attributes.position.array;
+            for (let i = 1; i < particleCount * 3; i += 3) {
+                posArray[i] += 0.08;
+                if (posArray[i] > 35) {
+                    posArray[i] = -5;
+                }
+            }
+            particleGeo.attributes.position.needsUpdate = true;
 
             renderer.render(scene, camera);
         }
         animateThree();
 
-        // Responsive Resize Handler
+        // Window Resize Handler
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -100,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ----------------------------------------------------------------------
-    // 2. Framer Motion Scroll-Linked Entrance Animations (IntersectionObserver)
+    // 2. Framer Motion Scroll Entrance Animations
     // ----------------------------------------------------------------------
     const motionTargets = document.querySelectorAll('.motion-element, .motion-card');
     if (motionTargets.length > 0) {

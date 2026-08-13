@@ -1,9 +1,29 @@
 // ==========================================================================
-// Anastasia Engine v7.1 - Interactive Web Engine & Dynamic UI Logic
+// Anastasia Engine v7.1 - Dynamic Web UI & Documentation Hub Logic
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. FAQ Search Filter Logic
+    // 1. Documentation Hub Tab Switcher
+    const docNavBtns = document.querySelectorAll('.doc-nav-btn');
+    const docArticles = document.querySelectorAll('.doc-article');
+
+    if (docNavBtns && docArticles) {
+        docNavBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                docNavBtns.forEach(b => b.classList.remove('active'));
+                docArticles.forEach(a => a.classList.remove('active'));
+
+                btn.classList.add('active');
+                const targetArticleId = btn.dataset.docTarget;
+                const targetArticle = document.getElementById(targetArticleId);
+                if (targetArticle) {
+                    targetArticle.classList.add('active');
+                }
+            });
+        });
+    }
+
+    // 2. FAQ Search Filter Logic
     const faqSearchInput = document.getElementById('faqSearchInput');
     const faqItems = document.querySelectorAll('.faq-item');
 
@@ -23,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. FAQ Accordion Toggle
+    // 3. FAQ Accordion Toggle
     faqItems.forEach(item => {
         const questionBtn = item.querySelector('.faq-question');
         questionBtn.addEventListener('click', () => {
@@ -39,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 3. Code Explorer Tab Switcher
+    // 4. Code Explorer Tab Switcher
     const codeTabBtns = document.querySelectorAll('.code-tab-btn');
     const codeDisplay = document.getElementById('codeDisplay');
 
@@ -141,7 +161,7 @@ vec_end:
         });
     }
 
-    // 4. Copy-to-Clipboard Helper
+    // 5. Copy-to-Clipboard Helper
     const copyBtns = document.querySelectorAll('.copy-btn');
     copyBtns.forEach(btn => {
         btn.addEventListener('click', () => {

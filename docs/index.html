@@ -7,7 +7,7 @@
   <!-- Primary SEO Meta Tags -->
   <title>Anastasia Engine v7.1 | Bare-Metal JIT & AOT Compiler Engine for Anastasia Assembly (.ana)</title>
   <meta name="title" content="Anastasia Engine v7.1 | Bare-Metal JIT & AOT Compiler Engine for Anastasia Assembly (.ana)">
-  <meta name="description" content="The World's Fastest Embeddable, Bare-Metal, Zero-CRT JIT & AOT Compiler Engine for Anastasia Assembly (.ana). Compiles directly to x86_64 AVX-512 and ARM64 machine code with native ELF relocation linking.">
+  <meta name="description" content="The World's Fastest Embeddable, Bare-Metal, Zero-CRT JIT & AOT Compiler Engine for Anastasia Assembly (.ana). Compiles directly to x86_64 AVX-512 and ARM64 machine code with native ELF relocation linking. 200/200 Verified Tests Passed (100%).">
   <meta name="keywords" content="anastasia assembly, compiler engine, JIT compiler, AOT compiler, freestanding cpp, zero crt, AVX-512, io_uring, ELF emitter, programming language backend, systems programming">
   <meta name="author" content="Nader Mahbub Khan">
   <meta name="robots" content="index, follow">
@@ -17,14 +17,14 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://nadermkhan.github.io/anastasia/">
   <meta property="og:title" content="Anastasia Engine v7.1 — Bare-Metal JIT & AOT Compiler Engine">
-  <meta property="og:description" content="Zero-CRT, 100% Freestanding JIT & AOT Compiler Engine for Anastasia Assembly (.ana). Featuring AVX-512 autovectorization, standalone ELF relocation linking, and zero-copy io_uring async I/O.">
+  <meta property="og:description" content="Zero-CRT, 100% Freestanding JIT & AOT Compiler Engine for Anastasia Assembly (.ana). Featuring AVX-512 autovectorization, standalone ELF relocation linking, and zero-copy io_uring async I/O. 200/200 Verified Engine Tests Passed (100%).">
   <meta property="og:image" content="https://nadermkhan.github.io/anastasia/assets/og-preview.png">
 
   <!-- Twitter Card SEO -->
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="https://nadermkhan.github.io/anastasia/">
   <meta property="twitter:title" content="Anastasia Engine v7.1 — Bare-Metal JIT & AOT Compiler Engine">
-  <meta property="twitter:description" content="Zero-CRT, 100% Freestanding JIT & AOT Compiler Engine for Anastasia Assembly (.ana). 199/199 Verified Engine Tests Passed.">
+  <meta property="twitter:description" content="Zero-CRT, 100% Freestanding JIT & AOT Compiler Engine for Anastasia Assembly (.ana). 200/200 Verified Engine Tests Passed (100%).">
   <meta property="twitter:image" content="https://nadermkhan.github.io/anastasia/assets/og-preview.png">
 
   <!-- Fonts & Styles -->
@@ -90,7 +90,7 @@
         <div class="hero-badge">
           <!-- Heroicon: Check Badge -->
           <svg class="heroicon heroicon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-          <span>Anastasia v7.1 Released</span> • <span>199/199 Tests Passed (100%)</span>
+          <span>Anastasia v7.1 Released</span> • <span>200/200 Tests Passed (100%)</span>
         </div>
         <h1 class="hero-title">
           The World's Fastest Embeddable <br>
@@ -133,7 +133,7 @@
           <div class="terminal-body" id="cmdLine">
             <div class="terminal-line"><span class="prompt">$</span><span class="command">git clone https://github.com/nadermkhan/anastasia.git</span></div>
             <div class="terminal-line"><span class="prompt">$</span><span class="command">cd anastasia && ./build.sh --test</span></div>
-            <div class="terminal-line" style="color: #94a3b8;">[+] Anastasia Engine built cleanly! 199/199 Verification Tests Passed (100%)</div>
+            <div class="terminal-line" style="color: #94a3b8;">[+] Anastasia Engine built cleanly! 200/200 Verification Tests Passed (100%)</div>
             <div class="terminal-line"><span class="prompt">$</span><span class="command">./build/anastasia_engine program.ana</span></div>
           </div>
         </div>
@@ -200,58 +200,172 @@
               <!-- Heroicon: Check Circle -->
               <svg class="heroicon heroicon-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             </div>
-            <h3 class="feature-title">199 Verified Engine Tests</h3>
+            <h3 class="feature-title">200 Verified Engine Tests</h3>
             <p class="feature-desc">100% verification rate across 40 Core Engine QA Tests, 30 LeetCode Algorithms, 30 Codeforces 1800+ Problems, and 100 Hardcore Algorithm & Stress Tests.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Dedicated Documentation Section -->
+    <!-- Dedicated Documentation & Technical Spec Section (from doc/doc.md) -->
     <section id="docs" class="section" style="background: var(--bg-secondary);">
       <div class="container">
         <div class="section-header">
-          <div class="section-subtitle">Technical Reference</div>
-          <h2 class="section-title">Engine Documentation & Architecture</h2>
-          <p style="color: var(--text-muted);">In-depth technical breakdown of Anastasia's registers, ABI, and codegen pipeline.</p>
+          <div class="section-subtitle">Official Reference Manual</div>
+          <h2 class="section-title">Technical Specification & Ecosystem Reference</h2>
+          <p style="color: var(--text-muted);">Complete architecture documentation directly from <code style="color:var(--accent-cyan)">doc/doc.md</code>.</p>
         </div>
 
-        <div class="doc-grid">
+        <div class="doc-grid" style="margin-bottom: 50px;">
+          <!-- Doc Card 1: Overview & Principles -->
           <div class="doc-card">
             <div class="doc-card-header">
               <svg class="heroicon heroicon-lg" style="color:var(--accent-cyan)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              <h3 class="doc-card-title">Register & Type Model</h3>
+              <h3 class="doc-card-title">1. Overview & Freestanding Principles</h3>
             </div>
             <ul class="doc-list">
-              <li class="doc-item"><strong>Virtual Registers:</strong> Unbounded register set <code>v0</code>..<code>vN</code> managed by linear-scan allocator (<code>AnaRegAlloc</code>).</li>
-              <li class="doc-item"><strong>Type Tagging:</strong> Native primitive types: <code>i32</code>, <code>i64</code>, <code>f32</code>, <code>f64</code>, <code>ptr</code>, <code>v128</code>, <code>v256</code>, <code>v512</code>, <code>string</code>.</li>
-              <li class="doc-item"><strong>Spilling Strategy:</strong> Automatic spill code generation (<code>mov [rsp+N], reg</code>) when live range pressure exceeds physical CPU registers.</li>
+              <li class="doc-item"><strong>Freestanding Bare-Metal:</strong> Compiled with <code>-ffreestanding -nostdlib -fno-exceptions -fno-rtti</code>. Operates via direct raw assembly syscalls (<code>raw_mmap</code>, <code>raw_write</code>, <code>raw_clone</code>, <code>raw_futex</code>).</li>
+              <li class="doc-item"><strong>Native Strings & .rodata Relocations:</strong> <code>const-string</code> literals with zero-copy parse-time length tracking. <code>ElfEmitter</code> patches <code>R_X86_64_PC32</code> relocations natively.</li>
+              <li class="doc-item"><strong>Multi-Arch Target Router:</strong> Pluggable architecture supporting x86_64 AVX2/AVX-512 (<code>AnaEncoder</code>) and AArch64 ARM64 (<code>AArch64Encoder</code>).</li>
             </ul>
           </div>
 
+          <!-- Doc Card 2: Memory Subsystem -->
           <div class="doc-card">
             <div class="doc-card-header">
               <svg class="heroicon heroicon-lg" style="color:var(--accent-purple)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-              <h3 class="doc-card-title">Memory & TLAB Allocator</h3>
+              <h3 class="doc-card-title">2. Memory Subsystem & TLAB</h3>
             </div>
             <ul class="doc-list">
-              <li class="doc-item"><strong>Bump Pointer TLAB:</strong> Branchless 64 KB Thread-Local Allocation Buffer (<code>tlab_allocate</code>).</li>
-              <li class="doc-item"><strong>VM Guard Pages:</strong> Buffer overruns trigger transparent signal handler guard pages (<code>PROT_NONE</code>) with 0 crash.</li>
-              <li class="doc-item"><strong>Escape Analysis:</strong> Temporary short-lived objects are scalar-replaced directly into virtual registers (0 heap allocs).</li>
+              <li class="doc-item"><strong>Branchless TLAB Arena:</strong> Fast-path bump-pointer allocation (<code>tlab_allocate</code>) guarded by <code>PROT_NONE</code> VM pages.</li>
+              <li class="doc-item"><strong>Escape Analysis:</strong> Short-lived objects are scalar-replaced directly into virtual registers (0 heap allocations).</li>
+              <li class="doc-item"><strong>Precise Remset GC:</strong> Virtual memory write barriers track Old-Gen pointer stores via page fault remembered sets.</li>
             </ul>
           </div>
 
+          <!-- Doc Card 3: Register Model & Spilling -->
           <div class="doc-card">
             <div class="doc-card-header">
               <svg class="heroicon heroicon-lg" style="color:var(--accent-green)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-              <h3 class="doc-card-title">AOT Zero-Linker Emitter</h3>
+              <h3 class="doc-card-title">3. Register Model & Stack Spilling</h3>
             </div>
             <ul class="doc-list">
-              <li class="doc-item"><strong>Standalone ELF Emitter:</strong> <code>ElfEmitter</code> builds <code>.text</code>, <code>.rodata</code>, <code>.symtab</code>, and <code>.rela.text</code> sections directly in C++.</li>
-              <li class="doc-item"><strong>RIP Relocations:</strong> Natively patches <code>R_X86_64_PC32</code> and <code>R_AARCH64_ADR_PREL_PG_HI21</code> without external linkers (<code>ld</code>).</li>
-              <li class="doc-item"><strong>PE32+ Generator:</strong> Native Windows 64-bit executable (<code>.exe</code>) emission module.</li>
+              <li class="doc-item"><strong>Unbounded Registers:</strong> Virtual registers <code>v0</code>..<code>vN</code> mapped to System V AMD64 / AAPCS64 registers or stack slots.</li>
+              <li class="doc-item"><strong>Parameter Registers:</strong> <code>p0</code>..<code>p5</code> mapped to physical argument registers (<code>%rdi</code>, <code>%rsi</code>, <code>%rdx</code>, <code>%rcx</code>, <code>%r8</code>, <code>%r9</code>).</li>
+              <li class="doc-item"><strong>Spill Allocation:</strong> <code>v5</code>..<code>vN</code> spill slots dynamically allocated at <code>[rbp - 8*N]</code>.</li>
             </ul>
           </div>
+        </div>
+
+        <!-- Comprehensive Opcode Reference Table from doc/doc.md Section 4 -->
+        <div class="section-header" style="margin-top: 60px; margin-bottom: 30px;">
+          <h3 style="font-size: 1.8rem; color: #fff;">Complete Opcode Reference Dictionary</h3>
+          <p style="color: var(--text-muted);">Detailed operand syntax and behavior for all Anastasia Assembly instructions.</p>
+        </div>
+
+        <div class="table-container">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Instruction Opcode</th>
+                <th>Operand Syntax</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Object & Heap</strong></td>
+                <td><code style="color:var(--accent-cyan)">new-instance</code></td>
+                <td><code style="color:#fff">dest, ClassName</code></td>
+                <td>Allocate heap object via TLAB or scalar replacement</td>
+              </tr>
+              <tr>
+                <td><strong>Object & Heap</strong></td>
+                <td><code style="color:var(--accent-cyan)">sink-mem</code></td>
+                <td><code style="color:#fff">src</code></td>
+                <td>Volatile sink instruction forcing value evaluation (prohibits DCE)</td>
+              </tr>
+              <tr>
+                <td><strong>Strings & Data</strong></td>
+                <td><code style="color:var(--accent-cyan)">const-string</code></td>
+                <td><code style="color:#fff">dest, "literal"</code></td>
+                <td>Load interned string pointer with parse-time length tracking & .rodata AOT relocations</td>
+              </tr>
+              <tr>
+                <td><strong>Integer Math</strong></td>
+                <td><code style="color:var(--accent-cyan)">add-int/64</code></td>
+                <td><code style="color:#fff">dest, src1, src2</code></td>
+                <td>64-bit integer addition (<code style="color:var(--accent-cyan)">dest = src1 + src2</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Integer Math</strong></td>
+                <td><code style="color:var(--accent-cyan)">sub-int/64</code></td>
+                <td><code style="color:#fff">dest, src1, src2</code></td>
+                <td>64-bit integer subtraction (<code style="color:var(--accent-cyan)">dest = src1 - src2</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Integer Math</strong></td>
+                <td><code style="color:var(--accent-cyan)">mul-int/64</code></td>
+                <td><code style="color:#fff">dest, src1, src2</code></td>
+                <td>Signed 64-bit integer multiplication</td>
+              </tr>
+              <tr>
+                <td><strong>Integer Math</strong></td>
+                <td><code style="color:var(--accent-cyan)">div-int/64</code></td>
+                <td><code style="color:#fff">dest, src1, src2</code></td>
+                <td>Signed 64-bit integer division (<code style="color:var(--accent-cyan)">idiv</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>SIMD Vector</strong></td>
+                <td><code style="color:var(--accent-cyan)">add-vector/i32x8</code></td>
+                <td><code style="color:#fff">dest, src1, src2</code></td>
+                <td>256-bit packed 32-bit integer AVX2 SIMD addition (<code style="color:var(--accent-cyan)">vpaddd ymm</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>SIMD Vector</strong></td>
+                <td><code style="color:var(--accent-cyan)">add-vector/i32x16</code></td>
+                <td><code style="color:#fff">dest, src1, src2</code></td>
+                <td>512-bit packed 32-bit integer AVX-512 SIMD addition (<code style="color:var(--accent-cyan)">vpaddd zmm</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Async I/O</strong></td>
+                <td><code style="color:var(--accent-cyan)">io-submit</code></td>
+                <td><code style="color:#fff">op, fd, addr, len, user</code></td>
+                <td>Write SQE into <code style="color:var(--accent-cyan)">io_uring</code> ring and execute kernel syscall</td>
+              </tr>
+              <tr>
+                <td><strong>Async I/O</strong></td>
+                <td><code style="color:var(--accent-cyan)">io-poll</code></td>
+                <td><code style="color:#fff">user_data_out, res_out</code></td>
+                <td>Poll CQE completion from <code style="color:var(--accent-cyan)">io_uring</code> ring buffer</td>
+              </tr>
+              <tr>
+                <td><strong>Control Flow</strong></td>
+                <td><code style="color:var(--accent-cyan)">if-ge</code></td>
+                <td><code style="color:#fff">src1, src2, target</code></td>
+                <td>Conditional branch (jumps to target if <code style="color:var(--accent-cyan)">src1 &gt;= src2</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Control Flow</strong></td>
+                <td><code style="color:var(--accent-cyan)">return-val</code></td>
+                <td><code style="color:#fff">src</code></td>
+                <td>Return integer/pointer value in <code style="color:var(--accent-cyan)">%rax</code> / <code style="color:var(--accent-cyan)">x0</code> and execute <code style="color:var(--accent-cyan)">ret</code></td>
+              </tr>
+              <tr>
+                <td><strong>Atomics</strong></td>
+                <td><code style="color:var(--accent-cyan)">atomic-cas/64</code></td>
+                <td><code style="color:#fff">[base + off], src</code></td>
+                <td>Hardware atomic compare-and-swap (<code style="color:var(--accent-cyan)">lock cmpxchg</code>)</td>
+              </tr>
+              <tr>
+                <td><strong>Atomics</strong></td>
+                <td><code style="color:var(--accent-cyan)">fence</code></td>
+                <td><code style="color:#fff">(none)</code></td>
+                <td>Full hardware memory barrier (<code style="color:var(--accent-cyan)">mfence</code> / <code style="color:var(--accent-cyan)">sfence</code>)</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -400,7 +514,7 @@
         <div class="code-explorer">
           <div class="code-tabs">
             <button class="code-tab-btn active" data-snippet="pi_spigot">
-              <svg class="heroicon heroicon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+              <svg class="heroicon heroicon-sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
               Pi Spigot Algorithm
             </button>
             <button class="code-tab-btn" data-snippet="io_uring">
@@ -553,7 +667,7 @@ spigot_end:
               <span class="faq-icon">▼</span>
             </button>
             <div class="faq-answer">
-              Anastasia has a <strong>100% pass rate across 199 verified tests</strong>: 40 Core Engine QA Tests, 30 LeetCode Algorithm Solutions, 30 Codeforces 1800+ Problems, and 100 Hardcore Algorithm & Stress Tests (HLD, Centroid, Dinic Flow, FFT/NTT, AES, SHA256, RSA).
+              Anastasia has a <strong>100% pass rate across 200 verified tests</strong>: 40 Core Engine QA Tests, 30 LeetCode Algorithm Solutions, 30 Codeforces 1800+ Problems, and 100 Hardcore Algorithm & Stress Tests (HLD, Centroid, Dinic Flow, FFT/NTT, AES, SHA256, RSA).
             </div>
           </div>
 

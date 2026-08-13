@@ -142,7 +142,7 @@ Anastasia supports **unbounded virtual registers** (`v0..vN`). Virtual registers
 # 2. Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
 ./build/anastasia_engine --aot input.ana output.o
 
-# 3. Run full QA matrix test suite (199 / 199 Tests)
+# 3. Run full QA matrix test suite (200 / 200 Tests)
 ./build/anastasia_engine
 
 # 4. Run high-precision performance benchmarking suite

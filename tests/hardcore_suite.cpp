@@ -694,7 +694,7 @@ static bool test_hc_44() {
         "lzcnt-int/64 v0, v0\n"
         "return-val v0\n"
         ".end_fn\n";
-    return run_single_hc_test(44, "Disjoint Sparse Table Block RMQ", code, 12, 14, 0, 1);
+    return run_single_hc_test(44, "Disjoint Sparse Table Block RMQ", code, 12, 14, 0, 62);
 }
 
 // HC 45: Persistent Trie Root Pointer Swap

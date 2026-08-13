@@ -60,19 +60,30 @@ namespace ana {
 namespace sys {
 
 void* freestanding_memcpy(void* dest, const void* src, size_t n) {
+#if defined(_WIN32)
+    return ::memcpy(dest, src, n);
+#else
     unsigned char* d = static_cast<unsigned char*>(dest);
     const unsigned char* s = static_cast<const unsigned char*>(src);
     for (size_t i = 0; i < n; ++i) d[i] = s[i];
     return dest;
+#endif
 }
 
 void* freestanding_memset(void* s, int c, size_t n) {
+#if defined(_WIN32)
+    return ::memset(s, c, n);
+#else
     unsigned char* p = static_cast<unsigned char*>(s);
     for (size_t i = 0; i < n; ++i) p[i] = static_cast<unsigned char>(c);
     return s;
+#endif
 }
 
 void* freestanding_memmove(void* dest, const void* src, size_t n) {
+#if defined(_WIN32)
+    return ::memmove(dest, src, n);
+#else
     unsigned char* d = static_cast<unsigned char*>(dest);
     const unsigned char* s = static_cast<const unsigned char*>(src);
     if (d < s) {
@@ -81,6 +92,7 @@ void* freestanding_memmove(void* dest, const void* src, size_t n) {
         for (size_t i = n; i > 0; --i) d[i - 1] = s[i - 1];
     }
     return dest;
+#endif
 }
 
 int freestanding_memcmp(const void* s1, const void* s2, size_t n) {

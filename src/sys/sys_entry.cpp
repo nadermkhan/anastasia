@@ -127,11 +127,9 @@ __asm__(
 #endif
 
 #elif defined(_WIN32)
-int mainCRTStartup() {
+int main(int argc, char** argv) {
     ana::sys::detect_cpu_features();
-    int result = ana_main(0, nullptr);
-    ana::sys::raw_exit(result);
-    return result;
+    return ana_main(argc, argv);
 }
 #endif
 

@@ -1,0 +1,184 @@
+.fn calculate_pi_digits(p0: ptr, p1: i64, p2: ptr) -> i64
+    .registers 15 local
+
+    ; p0 = state array memory pointer (buffer for Spigot algorithm, size (N*10)/3 + 2 elements)
+    ; p1 = number of digits N to calculate
+    ; p2 = output buffer pointer to store calculated N digits
+    ; Returns count of written digits
+
+    ; v0 = len = (p1 * 10) / 3 + 1
+    move-const v0, 10
+    mul-int/64 v0, p1, v0
+    move-const v1, 3
+    div-int/64 v0, v0, v1
+    add-int/64 v0, v0, 1
+
+    ; Initialize array a[0] = 0, a[i] = 2 for i = 1..len-1
+    move-const v1, 0
+    move-const v2, 0
+    store-mem [p0 + 0], v2
+
+    move-const v1, 1
+init_loop:
+    if-ge v1, v0, init_end
+    move-const v2, 2
+    move-const v3, 8
+    mul-int/64 v3, v1, v3
+    add-int/64 v4, p0, v3
+    store-mem [v4 + 0], v2
+    add-int/64 v1, v1, 1
+    goto init_loop
+init_end:
+
+    move-const v5, 0      ; v5 = digit_step (0..p1-1)
+    move-const v6, 0      ; v6 = predigit = 0
+    move-const v7, 0      ; v7 = nines = 0
+    move-const v14, 0     ; v14 = written_count = 0
+
+digit_loop:
+    if-ge v5, p1, flush_predigits
+
+    move-const v8, 0      ; v8 = q (carry)
+    sub-int/64 v1, v0, 1  ; v1 = i (starting at len - 1)
+
+inner_loop:
+    move-const v2, 0
+    if-lt v1, v2, inner_end
+
+    ; load a[i]
+    move-const v3, 8
+    mul-int/64 v3, v1, v3
+    add-int/64 v4, p0, v3
+    load-mem v10, [v4 + 0] ; v10 = a[i]
+
+    ; x = 10 * a[i]
+    move-const v11, 10
+    mul-int/64 v10, v10, v11
+
+    move-const v2, 0
+    if-eq v1, v2, i_zero
+
+    ; x += q * i
+    mul-int/64 v12, v8, v1
+    add-int/64 v10, v10, v12
+
+    ; denom = 2 * i - 1
+    move-const v11, 2
+    mul-int/64 v11, v1, v11
+    sub-int/64 v11, v11, 1
+    goto i_done
+
+i_zero:
+    ; x += q
+    add-int/64 v10, v10, v8
+    move-const v11, 10
+
+i_done:
+    ; q = x / denom
+    div-int/64 v8, v10, v11
+
+    ; a[i] = x % denom = x - q * denom
+    mul-int/64 v12, v8, v11
+    sub-int/64 v10, v10, v12
+    store-mem [v4 + 0], v10
+
+    sub-int/64 v1, v1, 1
+    goto inner_loop
+
+inner_end:
+    ; v8 is calculated q_digit
+    move-const v2, 9
+    if-eq v8, v2, is_nine
+    move-const v2, 10
+    if-eq v8, v2, is_ten
+
+    ; Case: q_digit < 9
+    move-const v2, 0
+    if-eq v5, v2, set_first_predigit
+
+    ; write predigit to p2[v14]
+    if-ge v14, p1, write_nines_nine
+    move-const v3, 8
+    mul-int/64 v3, v14, v3
+    add-int/64 v4, p2, v3
+    store-mem [v4 + 0], v6
+    add-int/64 v14, v14, 1
+
+write_nines_nine:
+    move-const v2, 1
+    if-lt v7, v2, set_predigit
+    if-ge v14, p1, set_predigit
+    move-const v3, 8
+    mul-int/64 v3, v14, v3
+    add-int/64 v4, p2, v3
+    move-const v10, 9
+    store-mem [v4 + 0], v10
+    add-int/64 v14, v14, 1
+    sub-int/64 v7, v7, 1
+    goto write_nines_nine
+
+set_first_predigit:
+set_predigit:
+    move v6, v8
+    move-const v7, 0
+    goto next_digit
+
+is_nine:
+    add-int/64 v7, v7, 1
+    goto next_digit
+
+is_ten:
+    ; write predigit + 1
+    add-int/64 v10, v6, 1
+    if-ge v14, p1, write_nines_zero
+    move-const v3, 8
+    mul-int/64 v3, v14, v3
+    add-int/64 v4, p2, v3
+    store-mem [v4 + 0], v10
+    add-int/64 v14, v14, 1
+
+write_nines_zero:
+    move-const v2, 1
+    if-lt v7, v2, set_ten_predigit
+    if-ge v14, p1, set_ten_predigit
+    move-const v3, 8
+    mul-int/64 v3, v14, v3
+    add-int/64 v4, p2, v3
+    move-const v10, 0
+    store-mem [v4 + 0], v10
+    add-int/64 v14, v14, 1
+    sub-int/64 v7, v7, 1
+    goto write_nines_zero
+
+set_ten_predigit:
+    move-const v6, 0
+    move-const v7, 0
+
+next_digit:
+    add-int/64 v5, v5, 1
+    goto digit_loop
+
+flush_predigits:
+    if-ge v14, p1, done
+    move-const v3, 8
+    mul-int/64 v3, v14, v3
+    add-int/64 v4, p2, v3
+    store-mem [v4 + 0], v6
+    add-int/64 v14, v14, 1
+
+flush_nines:
+    move-const v2, 1
+    if-lt v7, v2, done
+    if-ge v14, p1, done
+    move-const v3, 8
+    mul-int/64 v3, v14, v3
+    add-int/64 v4, p2, v3
+    move-const v10, 9
+    store-mem [v4 + 0], v10
+    add-int/64 v14, v14, 1
+    sub-int/64 v7, v7, 1
+    goto flush_nines
+
+done:
+    return-val v14
+.end_fn

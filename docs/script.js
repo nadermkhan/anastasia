@@ -1,9 +1,129 @@
 // ==========================================================================
-// Anastasia Engine v7.1 - Dynamic Web UI & Interactive IDE Playground
+// Anastasia Engine v7.1 — Three.js 3D Engine & Framer Motion Scroll Engine
 // ==========================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Documentation Hub Tab Switcher
+    // ----------------------------------------------------------------------
+    // 1. Three.js Interactive 3D Cyberpunk Quantum Compiler Scene
+    // ----------------------------------------------------------------------
+    const canvas = document.getElementById('threeCanvas');
+    if (canvas && typeof THREE !== 'undefined') {
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a0c10, 0.015);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // 3D Geometry 1: Glowing Torus Knot (Quantum Core)
+        const torusGeometry = new THREE.TorusKnotGeometry(8, 2.2, 120, 16);
+        const torusMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00f2fe,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.25
+        });
+        const torusKnot = new THREE.Mesh(torusGeometry, torusMaterial);
+        scene.add(torusKnot);
+
+        // 3D Geometry 2: Floating Assembly Particle Field
+        const particleCount = 600;
+        const particleGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+
+        const colorCyan = new THREE.Color(0x00f2fe);
+        const colorPurple = new THREE.Color(0x7f00ff);
+
+        for (let i = 0; i < particleCount * 3; i += 3) {
+            positions[i] = (Math.random() - 0.5) * 120;
+            positions[i + 1] = (Math.random() - 0.5) * 120;
+            positions[i + 2] = (Math.random() - 0.5) * 120;
+
+            const mixedColor = colorCyan.clone().lerp(colorPurple, Math.random());
+            colors[i] = mixedColor.r;
+            colors[i + 1] = mixedColor.g;
+            colors[i + 2] = mixedColor.b;
+        }
+
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const particleMaterial = new THREE.PointsMaterial({
+            size: 0.6,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.7
+        });
+
+        const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particleSystem);
+
+        // Mouse Parallax & Interaction Tracking
+        let mouseX = 0;
+        let mouseY = 0;
+        let targetX = 0;
+        let targetY = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX - window.innerWidth / 2) * 0.0005;
+            mouseY = (e.clientY - window.innerHeight / 2) * 0.0005;
+        });
+
+        // 60 FPS Render Loop
+        function animateThree() {
+            requestAnimationFrame(animateThree);
+
+            targetX += (mouseX - targetX) * 0.05;
+            targetY += (mouseY - targetY) * 0.05;
+
+            torusKnot.rotation.x += 0.004;
+            torusKnot.rotation.y += 0.006;
+            torusKnot.rotation.z += targetX * 0.5;
+
+            particleSystem.rotation.y += 0.001;
+            particleSystem.rotation.x += targetY * 0.2;
+
+            renderer.render(scene, camera);
+        }
+        animateThree();
+
+        // Responsive Resize Handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    }
+
+    // ----------------------------------------------------------------------
+    // 2. Framer Motion Scroll-Linked Entrance Animations (IntersectionObserver)
+    // ----------------------------------------------------------------------
+    const motionTargets = document.querySelectorAll('.motion-element, .motion-card');
+    if (motionTargets.length > 0) {
+        const observerOptions = {
+            threshold: 0.15,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('in-view');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        motionTargets.forEach(target => observer.observe(target));
+    }
+
+    // ----------------------------------------------------------------------
+    // 3. Documentation Hub Tab Switcher
+    // ----------------------------------------------------------------------
     const docNavBtns = document.querySelectorAll('.doc-nav-btn');
     const docArticles = document.querySelectorAll('.doc-article');
 
@@ -23,7 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. FAQ Search Filter Logic
+    // ----------------------------------------------------------------------
+    // 4. FAQ Search Filter Logic
+    // ----------------------------------------------------------------------
     const faqSearchInput = document.getElementById('faqSearchInput');
     const faqItems = document.querySelectorAll('.faq-item');
 
@@ -43,7 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 3. FAQ Accordion Toggle
+    // ----------------------------------------------------------------------
+    // 5. FAQ Accordion Toggle
+    // ----------------------------------------------------------------------
     faqItems.forEach(item => {
         const questionBtn = item.querySelector('.faq-question');
         questionBtn.addEventListener('click', () => {
@@ -57,7 +181,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 4. Interactive IDE Playground Logic (10 Examples + Output Box)
+    // ----------------------------------------------------------------------
+    // 6. Interactive IDE Playground Logic (10 Examples + Output Console)
+    // ----------------------------------------------------------------------
     const ideExampleBtns = document.querySelectorAll('.ide-example-btn');
     const ideFileName = document.getElementById('ideFileName');
     const ideCodePane = document.getElementById('ideCodePane');
@@ -212,7 +338,6 @@ poll_loop:
         }
     };
 
-    // Example button click handler
     if (ideExampleBtns && ideCodePane && ideOutputContent) {
         ideExampleBtns.forEach(btn => {
             btn.addEventListener('click', () => {
@@ -230,7 +355,6 @@ poll_loop:
         });
     }
 
-    // Category Filter Pills Handler
     if (filterPills) {
         filterPills.forEach(pill => {
             pill.addEventListener('click', () => {
@@ -250,7 +374,9 @@ poll_loop:
         });
     }
 
-    // Copy-to-Clipboard Helper
+    // ----------------------------------------------------------------------
+    // 7. Copy-to-Clipboard Helper
+    // ----------------------------------------------------------------------
     const copyBtns = document.querySelectorAll('.copy-btn');
     copyBtns.forEach(btn => {
         btn.addEventListener('click', () => {

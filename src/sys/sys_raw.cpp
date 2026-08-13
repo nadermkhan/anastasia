@@ -1,11 +1,81 @@
 #include "sys_raw.h"
 #include "cpu_features.h"
 
+extern "C" {
+void* malloc(size_t size) {
+    if (size == 0) size = 1;
+    return ana::sys::raw_mmap(nullptr, size, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+}
+
+void free(void* ptr) {
+    if (ptr && ptr != (void*)-1) {
+        (void)ana::sys::raw_munmap(ptr, 4096);
+    }
+}
+
+void* realloc(void* ptr, size_t size) {
+    if (!ptr) return malloc(size);
+    if (size == 0) {
+        free(ptr);
+        return nullptr;
+    }
+    void* new_ptr = malloc(size);
+    if (new_ptr && new_ptr != (void*)-1) {
+        ana::sys::freestanding_memcpy(new_ptr, ptr, size);
+        free(ptr);
+    }
+    return new_ptr;
+}
+}
+
 namespace ana {
 namespace sys {
 
+void* freestanding_memcpy(void* dest, const void* src, size_t n) {
+    unsigned char* d = static_cast<unsigned char*>(dest);
+    const unsigned char* s = static_cast<const unsigned char*>(src);
+    for (size_t i = 0; i < n; ++i) d[i] = s[i];
+    return dest;
+}
+
+void* freestanding_memset(void* s, int c, size_t n) {
+    unsigned char* p = static_cast<unsigned char*>(s);
+    for (size_t i = 0; i < n; ++i) p[i] = static_cast<unsigned char>(c);
+    return s;
+}
+
+int freestanding_memcmp(const void* s1, const void* s2, size_t n) {
+    const unsigned char* p1 = static_cast<const unsigned char*>(s1);
+    const unsigned char* p2 = static_cast<const unsigned char*>(s2);
+    for (size_t i = 0; i < n; ++i) {
+        if (p1[i] != p2[i]) return p1[i] - p2[i];
+    }
+    return 0;
+}
+
+size_t freestanding_strlen(const char* s) {
+    size_t len = 0;
+    while (s && s[len] != '\0') ++len;
+    return len;
+}
+
+void clear_icache(void* addr, size_t size) {
+#if defined(__x86_64__) || defined(_M_X64)
+    uintptr_t start = reinterpret_cast<uintptr_t>(addr);
+    uintptr_t end = start + size;
+    for (uintptr_t p = start & ~63UL; p < end; p += 64) {
+        __asm__ __volatile__("clflush (%0)" :: "r"(p) : "memory");
+    }
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    (void)addr; (void)size;
+    __asm__ __volatile__("isb" ::: "memory");
+#else
+    (void)addr; (void)size;
+#endif
+}
+
 void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t offset) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     if ((prot & ANA_PROT_WRITE) && (prot & ANA_PROT_EXEC)) {
         prot &= ~ANA_PROT_EXEC;
     }
@@ -15,9 +85,6 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
     int64_t f   = static_cast<int64_t>(fd);
     int64_t off = static_cast<int64_t>(offset);
 
-    // The inputs were "r"-constrained while the asm clobbered r10/r8/r9,
-    // so the compiler was free to place an input in a register the block
-    // then destroyed. Bind them to their ABI registers explicitly.
     register int64_t r10 __asm__("r10") = flg;
     register int64_t r8  __asm__("r8")  = f;
     register int64_t r9  __asm__("r9")  = off;
@@ -33,9 +100,31 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
         return reinterpret_cast<void*>(-1);
     }
     return reinterpret_cast<void*>(ret);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    if ((prot & ANA_PROT_WRITE) && (prot & ANA_PROT_EXEC)) {
+        prot &= ~ANA_PROT_EXEC;
+    }
+    register int64_t x8 __asm__("x8") = 222; // __NR_mmap
+    register int64_t x0 __asm__("x0") = reinterpret_cast<int64_t>(addr);
+    register int64_t x1 __asm__("x1") = static_cast<int64_t>(length);
+    register int64_t x2 __asm__("x2") = static_cast<int64_t>(prot);
+    register int64_t x3 __asm__("x3") = static_cast<int64_t>(flags);
+    register int64_t x4 __asm__("x4") = static_cast<int64_t>(fd);
+    register int64_t x5 __asm__("x5") = static_cast<int64_t>(offset);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1), "r"(x2), "r"(x3), "r"(x4), "r"(x5)
+        : "memory"
+    );
+
+    if (static_cast<uintptr_t>(x0) >= static_cast<uintptr_t>(-4095UL)) {
+        return reinterpret_cast<void*>(-1);
+    }
+    return reinterpret_cast<void*>(x0);
 #elif defined(_WIN32) || defined(_WIN64)
     (void)flags; (void)fd; (void)offset;
-    // Win32 VirtualAlloc allocation
     extern "C" __declspec(dllimport) void* __stdcall VirtualAlloc(void*, size_t, uint32_t, uint32_t);
     uint32_t win_prot = 0x04; // PAGE_READWRITE
     if (prot & ANA_PROT_EXEC) win_prot = 0x40; // PAGE_EXECUTE_READWRITE
@@ -48,13 +137,11 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
 }
 
 int raw_mprotect(void* addr, size_t length, int prot) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     uintptr_t start = reinterpret_cast<uintptr_t>(addr);
     uintptr_t page_size = 4096;
     uintptr_t aligned_start = start & ~(page_size - 1);
     size_t aligned_len = length + (start - aligned_start);
-    // The length was never rounded up to a whole page, so a range that
-    // straddled a page boundary left its final page at the old protection.
     aligned_len = (aligned_len + (page_size - 1)) & ~(page_size - 1);
 
     int64_t ret;
@@ -65,6 +152,25 @@ int raw_mprotect(void* addr, size_t length, int prot) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    uintptr_t start = reinterpret_cast<uintptr_t>(addr);
+    uintptr_t page_size = 4096;
+    uintptr_t aligned_start = start & ~(page_size - 1);
+    size_t aligned_len = length + (start - aligned_start);
+    aligned_len = (aligned_len + (page_size - 1)) & ~(page_size - 1);
+
+    register int64_t x8 __asm__("x8") = 226; // __NR_mprotect
+    register int64_t x0 __asm__("x0") = static_cast<int64_t>(aligned_start);
+    register int64_t x1 __asm__("x1") = static_cast<int64_t>(aligned_len);
+    register int64_t x2 __asm__("x2") = static_cast<int64_t>(prot);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1), "r"(x2)
+        : "memory"
+    );
+    return static_cast<int>(x0);
 #elif defined(_WIN32) || defined(_WIN64)
     extern "C" __declspec(dllimport) int __stdcall VirtualProtect(void*, size_t, uint32_t, uint32_t*);
     uint32_t win_prot = 0x04; // PAGE_READWRITE
@@ -78,7 +184,7 @@ int raw_mprotect(void* addr, size_t length, int prot) {
 }
 
 int raw_munmap(void* addr, size_t length) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     uintptr_t start = reinterpret_cast<uintptr_t>(addr);
     uintptr_t page_size = 4096;
     uintptr_t aligned_start = start & ~(page_size - 1);
@@ -93,6 +199,24 @@ int raw_munmap(void* addr, size_t length) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    uintptr_t start = reinterpret_cast<uintptr_t>(addr);
+    uintptr_t page_size = 4096;
+    uintptr_t aligned_start = start & ~(page_size - 1);
+    size_t aligned_len = length + (start - aligned_start);
+    aligned_len = (aligned_len + (page_size - 1)) & ~(page_size - 1);
+
+    register int64_t x8 __asm__("x8") = 215; // __NR_munmap
+    register int64_t x0 __asm__("x0") = static_cast<int64_t>(aligned_start);
+    register int64_t x1 __asm__("x1") = static_cast<int64_t>(aligned_len);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1)
+        : "memory"
+    );
+    return static_cast<int>(x0);
 #elif defined(_WIN32) || defined(_WIN64)
     (void)length;
     extern "C" __declspec(dllimport) int __stdcall VirtualFree(void*, size_t, uint32_t);
@@ -104,10 +228,7 @@ int raw_munmap(void* addr, size_t length) {
 }
 
 int64_t raw_write(int fd, const void* buf, size_t count) {
-#if defined(__linux__) && defined(__x86_64__)
-    // write(2) may transfer fewer bytes than requested and may fail with
-    // EINTR. The old one-shot call silently dropped the tail of long
-    // diagnostics and of every large payload written to a pipe.
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     const unsigned char* p = static_cast<const unsigned char*>(buf);
     int64_t fd64 = static_cast<int64_t>(fd);
     size_t done = 0;
@@ -129,6 +250,31 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
         done += static_cast<size_t>(ret);
     }
     return static_cast<int64_t>(done);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    const unsigned char* p = static_cast<const unsigned char*>(buf);
+    size_t done = 0;
+    while (done < count) {
+        const void* cur = static_cast<const void*>(p + done);
+        size_t remaining = count - done;
+        register int64_t x8 __asm__("x8") = 64; // __NR_write
+        register int64_t x0 __asm__("x0") = static_cast<int64_t>(fd);
+        register int64_t x1 __asm__("x1") = reinterpret_cast<int64_t>(cur);
+        register int64_t x2 __asm__("x2") = static_cast<int64_t>(remaining);
+
+        __asm__ __volatile__(
+            "svc #0"
+            : "+r"(x0)
+            : "r"(x8), "r"(x1), "r"(x2)
+            : "memory"
+        );
+        if (x0 < 0) {
+            if (x0 == -4) continue; // EINTR
+            return done ? static_cast<int64_t>(done) : x0;
+        }
+        if (x0 == 0) break;
+        done += static_cast<size_t>(x0);
+    }
+    return static_cast<int64_t>(done);
 #elif defined(_WIN32) || defined(_WIN64)
     extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(uint32_t);
     extern "C" __declspec(dllimport) int   __stdcall WriteFile(void*, const void*, uint32_t, uint32_t*, void*);
@@ -145,9 +291,7 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
 }
 
 int64_t raw_read(int fd, void* buf, size_t count) {
-#if defined(__linux__) && defined(__x86_64__)
-    // Retry on EINTR. Short reads are still reported to the caller, which is
-    // POSIX behaviour; callers that need a whole file must loop.
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
     for (;;) {
         __asm__ __volatile__(
@@ -160,6 +304,21 @@ int64_t raw_read(int fd, void* buf, size_t count) {
         break;
     }
     return ret;
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    for (;;) {
+        register int64_t x8 __asm__("x8") = 63; // __NR_read
+        register int64_t x0 __asm__("x0") = static_cast<int64_t>(fd);
+        register int64_t x1 __asm__("x1") = reinterpret_cast<int64_t>(buf);
+        register int64_t x2 __asm__("x2") = static_cast<int64_t>(count);
+        __asm__ __volatile__(
+            "svc #0"
+            : "+r"(x0)
+            : "r"(x8), "r"(x1), "r"(x2)
+            : "memory"
+        );
+        if (x0 == -4) continue;
+        return x0;
+    }
 #elif defined(_WIN32) || defined(_WIN64)
     extern "C" __declspec(dllimport) void* __stdcall GetStdHandle(uint32_t);
     extern "C" __declspec(dllimport) int   __stdcall ReadFile(void*, void*, uint32_t, uint32_t*, void*);
@@ -176,15 +335,12 @@ int64_t raw_read(int fd, void* buf, size_t count) {
 }
 
 int raw_open(const char* pathname, int flags, int mode) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
     int64_t dfd = -100LL; // AT_FDCWD
     int64_t flg = static_cast<int64_t>(flags);
     int64_t md  = static_cast<int64_t>(mode);
 
-    // Same class of defect that was fixed in raw_mmap: the argument was
-    // "r"-constrained and then moved into r10 by hand inside a block that also
-    // clobbers r10. Bind it to its ABI register and let the compiler see that.
     register int64_t r10 __asm__("r10") = md;
     __asm__ __volatile__(
         "syscall"
@@ -193,6 +349,20 @@ int raw_open(const char* pathname, int flags, int mode) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    register int64_t x8 __asm__("x8") = 56; // __NR_openat
+    register int64_t x0 __asm__("x0") = -100LL; // AT_FDCWD
+    register int64_t x1 __asm__("x1") = reinterpret_cast<int64_t>(pathname);
+    register int64_t x2 __asm__("x2") = static_cast<int64_t>(flags);
+    register int64_t x3 __asm__("x3") = static_cast<int64_t>(mode);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1), "r"(x2), "r"(x3)
+        : "memory"
+    );
+    return static_cast<int>(x0);
 #else
     (void)pathname; (void)flags; (void)mode;
     return -1;
@@ -200,7 +370,7 @@ int raw_open(const char* pathname, int flags, int mode) {
 }
 
 int raw_close(int fd) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
     __asm__ __volatile__(
         "syscall"
@@ -209,6 +379,17 @@ int raw_close(int fd) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    register int64_t x8 __asm__("x8") = 57; // __NR_close
+    register int64_t x0 __asm__("x0") = static_cast<int64_t>(fd);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8)
+        : "memory"
+    );
+    return static_cast<int>(x0);
 #else
     (void)fd;
     return -1;
@@ -216,7 +397,7 @@ int raw_close(int fd) {
 }
 
 int raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     if (!fn || !child_stack) return -1;
 
     uint64_t* stack = reinterpret_cast<uint64_t*>(reinterpret_cast<uintptr_t>(child_stack) & ~15UL);
@@ -253,7 +434,7 @@ int raw_clone(int (*fn)(void*), void* child_stack, int flags, void* arg) {
 }
 
 int raw_futex(int* uaddr, int futex_op, int val, const void* timeout) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
     int64_t op64 = static_cast<int64_t>(futex_op);
     int64_t val64 = static_cast<int64_t>(val);
@@ -267,6 +448,20 @@ int raw_futex(int* uaddr, int futex_op, int val, const void* timeout) {
         : "rcx", "r11", "memory"
     );
     return static_cast<int>(ret);
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    register int64_t x8 __asm__("x8") = 98; // __NR_futex
+    register int64_t x0 __asm__("x0") = reinterpret_cast<int64_t>(uaddr);
+    register int64_t x1 __asm__("x1") = static_cast<int64_t>(futex_op);
+    register int64_t x2 __asm__("x2") = static_cast<int64_t>(val);
+    register int64_t x3 __asm__("x3") = reinterpret_cast<int64_t>(timeout);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1), "r"(x2), "r"(x3)
+        : "memory"
+    );
+    return static_cast<int>(x0);
 #else
     (void)uaddr; (void)futex_op; (void)val; (void)timeout;
     return -1;
@@ -274,7 +469,7 @@ int raw_futex(int* uaddr, int futex_op, int val, const void* timeout) {
 }
 
 int raw_sched_setaffinity(int pid, size_t cpusetsize, const void* mask) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
     __asm__ __volatile__(
         "syscall"
@@ -290,7 +485,7 @@ int raw_sched_setaffinity(int pid, size_t cpusetsize, const void* mask) {
 }
 
 int raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned long maxnode, unsigned flags) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
     register int64_t r10_reg __asm__("r10") = static_cast<int64_t>(mode);
     register const void* r8_reg __asm__("r8") = nodemask;
@@ -311,7 +506,7 @@ int raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned l
 }
 
 void raw_exit(int code) {
-#if defined(__linux__) && defined(__x86_64__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     __asm__ __volatile__(
         "movq $60, %%rax\n\t"
         "movq %0, %%rdi\n\t"
@@ -320,468 +515,91 @@ void raw_exit(int code) {
         : "r"((int64_t)code)
         : "rax", "rdi", "memory"
     );
+    __builtin_unreachable();
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    register int64_t x8 __asm__("x8") = 93; // __NR_exit
+    register int64_t x0 __asm__("x0") = code;
+    __asm__ __volatile__(
+        "svc #0"
+        :
+        : "r"(x8), "r"(x0)
+        : "memory"
+    );
+    __builtin_unreachable();
+#elif defined(_WIN32)
+    extern "C" __declspec(dllimport) void __stdcall ExitProcess(uint32_t);
+    ExitProcess(static_cast<uint32_t>(code));
+#else
+    (void)code;
 #endif
-    while (true) {}
 }
 
-void clear_icache(void* addr, size_t size) {
-#if defined(__GNUC__) || defined(__clang__)
-    char* begin = static_cast<char*>(addr);
-    char* end = begin + size;
-    __builtin___clear_cache(begin, end);
+void spinlock_yield() {
+#if defined(__x86_64__) || defined(_M_X64)
+    __asm__ __volatile__("pause" ::: "memory");
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    __asm__ __volatile__("yield" ::: "memory");
 #endif
 }
 
-void* freestanding_memcpy(void* dest, const void* src, size_t n) {
-    if (g_memcpy_impl) return g_memcpy_impl(dest, src, n);
-    char* d = static_cast<char*>(dest);
-    const char* s = static_cast<const char*>(src);
-    for (size_t i = 0; i < n; ++i) d[i] = s[i];
-    return dest;
+long syscall(long number, ...) {
+    va_list args;
+    va_start(args, number);
+    int64_t a1 = va_arg(args, int64_t);
+    int64_t a2 = va_arg(args, int64_t);
+    int64_t a3 = va_arg(args, int64_t);
+    int64_t a4 = va_arg(args, int64_t);
+    int64_t a5 = va_arg(args, int64_t);
+    int64_t a6 = va_arg(args, int64_t);
+    va_end(args);
+
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
+    register int64_t rax __asm__("rax") = number;
+    register int64_t rdi __asm__("rdi") = a1;
+    register int64_t rsi __asm__("rsi") = a2;
+    register int64_t rdx __asm__("rdx") = a3;
+    register int64_t r10 __asm__("r10") = a4;
+    register int64_t r8  __asm__("r8")  = a5;
+    register int64_t r9  __asm__("r9")  = a6;
+
+    __asm__ __volatile__(
+        "syscall"
+        : "+r"(rax)
+        : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
+        : "rcx", "r11", "memory"
+    );
+    return rax;
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    register int64_t x8 __asm__("x8") = number;
+    register int64_t x0 __asm__("x0") = a1;
+    register int64_t x1 __asm__("x1") = a2;
+    register int64_t x2 __asm__("x2") = a3;
+    register int64_t x3 __asm__("x3") = a4;
+    register int64_t x4 __asm__("x4") = a5;
+    register int64_t x5 __asm__("x5") = a6;
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1), "r"(x2), "r"(x3), "r"(x4), "r"(x5)
+        : "memory"
+    );
+    return x0;
+#else
+    (void)a1; (void)a2; (void)a3; (void)a4; (void)a5; (void)a6;
+    return -1;
+#endif
 }
 
-void* freestanding_memset(void* s, int c, size_t n) {
-    if (g_memset_impl) return g_memset_impl(s, c, n);
-    unsigned char* p = static_cast<unsigned char*>(s);
-    for (size_t i = 0; i < n; ++i) p[i] = static_cast<unsigned char>(c);
-    return s;
+int shm_open(const char* name, int oflag, mode_t mode) {
+    (void)name; (void)oflag; (void)mode;
+    return -1;
 }
 
-void* freestanding_memmove(void* dest, const void* src, size_t n) {
-    char* d = static_cast<char*>(dest);
-    const char* s = static_cast<const char*>(src);
-    if (d < s) {
-        return freestanding_memcpy(dest, src, n);
-    } else if (d > s) {
-        for (size_t i = n; i > 0; --i) {
-            d[i - 1] = s[i - 1];
-        }
-    }
-    return dest;
-}
-
-int freestanding_memcmp(const void* s1, const void* s2, size_t n) {
-    const unsigned char* p1 = static_cast<const unsigned char*>(s1);
-    const unsigned char* p2 = static_cast<const unsigned char*>(s2);
-    for (size_t i = 0; i < n; ++i) {
-        if (p1[i] != p2[i]) {
-            return p1[i] < p2[i] ? -1 : 1;
-        }
-    }
-    return 0;
-}
-
-size_t freestanding_strlen(const char* s) {
-    size_t len = 0;
-    while (s[len] != '\0') {
-        len++;
-    }
-    return len;
+int shm_unlink(const char* name) {
+    (void)name;
+    return -1;
 }
 
 } // namespace sys
 } // namespace ana
-
-extern "C" {
-    void* memcpy(void* dest, const void* src, size_t n) {
-        return ana::sys::freestanding_memcpy(dest, src, n);
-    }
-    void* memset(void* s, int c, size_t n) {
-        return ana::sys::freestanding_memset(s, c, n);
-    }
-    void* memmove(void* dest, const void* src, size_t n) {
-        return ana::sys::freestanding_memmove(dest, src, n);
-    }
-    int memcmp(const void* s1, const void* s2, size_t n) {
-        return ana::sys::freestanding_memcmp(s1, s2, n);
-    }
-    size_t strlen(const char* s) {
-        return ana::sys::freestanding_strlen(s);
-    }
-    void* malloc(size_t size) {
-        if (size == 0) return nullptr;
-        // (size + 64 + 4095) wrapped for sizes near SIZE_MAX and returned a
-        // tiny mapping in response to an enormous request.
-        if (size > (~static_cast<size_t>(0)) - 64 - 4095) return nullptr;
-        size_t total_size = (size + 64 + 4095) & ~4095UL;
-        void* ptr = ana::sys::raw_mmap(nullptr, total_size, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
-        if (ptr == reinterpret_cast<void*>(-1) || !ptr) return nullptr;
-        *reinterpret_cast<size_t*>(ptr) = total_size;
-        return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ptr) + 64);
-    }
-    void free(void* ptr) {
-        if (!ptr) return;
-        void* raw_ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ptr) - 64);
-        size_t total_size = *reinterpret_cast<size_t*>(raw_ptr);
-        if (total_size > 0 && (total_size & 4095) == 0 && total_size <= (1024ULL * 1024ULL * 1024ULL)) {
-            ana::sys::raw_munmap(raw_ptr, total_size);
-        }
-    }
-    void* realloc(void* ptr, size_t size) {
-        if (!ptr) return malloc(size);
-        if (size == 0) { free(ptr); return nullptr; }
-        void* raw_ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(ptr) - 64);
-        size_t old_total_size = *reinterpret_cast<size_t*>(raw_ptr);
-        size_t old_usable_size = old_total_size - 64;
-        if (size <= old_usable_size) return ptr;
-
-        void* new_ptr = malloc(size);
-        if (new_ptr) {
-            ana::sys::freestanding_memcpy(new_ptr, ptr, old_usable_size);
-            free(ptr);
-        }
-        return new_ptr;
-    }
-    int getpagesize(void) {
-        return 4096;
-    }
-    long sysconf(int name) {
-        (void)name;
-        return 4096;
-    }
-    void abort(void) {
-        ana::sys::raw_exit(134);
-    }
-    char* getenv(const char* name) {
-        (void)name;
-        return nullptr;
-    }
-    int open(const char* pathname, int flags, ...) {
-        int mode = 0;
-        if (flags & 0100) { // O_CREAT
-            va_list ap;
-            va_start(ap, flags);
-            mode = va_arg(ap, int);
-            va_end(ap);
-        }
-        return ana::sys::raw_open(pathname, flags, mode);
-    }
-    int open64(const char* pathname, int flags, ...) {
-        int mode = 0;
-        if (flags & 0100) { // O_CREAT
-            va_list ap;
-            va_start(ap, flags);
-            mode = va_arg(ap, int);
-            va_end(ap);
-        }
-        return ana::sys::raw_open(pathname, flags, mode);
-    }
-    int close(int fd) {
-        // This reported success without closing anything, so every descriptor
-        // the engine opened stayed open for the life of the process.
-        if (fd < 0) return -1;
-        return ana::sys::raw_close(fd);
-    }
-    int ftruncate(int fd, off_t length) {
-        (void)fd; (void)length;
-        return 0;
-    }
-    int ftruncate64(int fd, off64_t length) {
-        (void)fd; (void)length;
-        return 0;
-    }
-    int64_t read(int fd, void* buf, size_t count) {
-        // Returned 0 unconditionally, which every caller correctly reads as
-        // "clean end of file".
-        return ana::sys::raw_read(fd, buf, count);
-    }
-    int64_t write(int fd, const void* buf, size_t count) {
-        return ana::sys::raw_write(fd, buf, count);
-    }
-    int64_t sys_raw_write(int fd, const void* buf, size_t count) {
-        return ana::sys::raw_write(fd, buf, count);
-    }
-    void* mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t offset) {
-        return ana::sys::raw_mmap(addr, length, prot, flags, fd, offset);
-    }
-    int mprotect(void* addr, size_t length, int prot) {
-        return ana::sys::raw_mprotect(addr, length, prot);
-    }
-    int munmap(void* addr, size_t length) {
-        return ana::sys::raw_munmap(addr, length);
-    }
-}
-
-
-
-extern "C" {
-    // GCC marks these pthread parameters `nonnull`, so a plain `if (!p)` is
-    // folded away at -O3: the guard looked present in the source but did not
-    // exist in the binary, and it warned under -Wnonnull-compare. Routing the
-    // pointer through an empty asm block makes the test real again.
-    static inline bool ana_ptr_is_null(const void* p) {
-        uintptr_t v;
-        __asm__("" : "=r"(v) : "0"(reinterpret_cast<uintptr_t>(p)));
-        return v == 0;
-    }
-
-    // Every one of these was a no-op that returned success, so all mutual
-    // exclusion in the engine was imaginary. Standard three-state futex
-    // mutex: 0 = free, 1 = held with no waiters, 2 = held with waiters.
-    int pthread_mutex_init(pthread_mutex_t* mutex, const pthread_mutexattr_t* attr) {
-        (void)attr;
-        if (ana_ptr_is_null(mutex)) return -1;
-        __atomic_store_n(reinterpret_cast<int*>(mutex), 0, __ATOMIC_RELEASE);
-        return 0;
-    }
-    int pthread_mutex_destroy(pthread_mutex_t* mutex) {
-        if (ana_ptr_is_null(mutex)) return -1;
-        __atomic_store_n(reinterpret_cast<int*>(mutex), 0, __ATOMIC_RELEASE);
-        return 0;
-    }
-    int pthread_mutex_lock(pthread_mutex_t* mutex) {
-        if (ana_ptr_is_null(mutex)) return -1;
-        int* w = reinterpret_cast<int*>(mutex);
-        int expected = 0;
-        if (__atomic_compare_exchange_n(w, &expected, 1, false,
-                                        __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-            return 0;
-        }
-        // Spin briefly before paying for a syscall.
-        for (int spin = 0; spin < 64; ++spin) {
-            expected = 0;
-            if (__atomic_compare_exchange_n(w, &expected, 1, false,
-                                            __ATOMIC_ACQUIRE, __ATOMIC_RELAXED)) {
-                return 0;
-            }
-            __asm__ __volatile__("pause" ::: "memory");
-        }
-        while (__atomic_exchange_n(w, 2, __ATOMIC_ACQUIRE) != 0) {
-            ana::sys::raw_futex(w, ANA_FUTEX_WAIT_PRIVATE, 2, nullptr);
-        }
-        return 0;
-    }
-    int pthread_mutex_unlock(pthread_mutex_t* mutex) {
-        if (ana_ptr_is_null(mutex)) return -1;
-        int* w = reinterpret_cast<int*>(mutex);
-        if (__atomic_exchange_n(w, 0, __ATOMIC_RELEASE) == 2) {
-            ana::sys::raw_futex(w, ANA_FUTEX_WAKE_PRIVATE, 1, nullptr);
-        }
-        return 0;
-    }
-    int pthread_once(pthread_once_t* once_control, void (*init_routine)(void)) {
-        // The old version stored the completed value *before* running the
-        // initialiser, so a second thread sailed straight past while
-        // initialisation was still in flight.
-        // 0 = untouched, 1 = running, 2 = complete.
-        if (ana_ptr_is_null(once_control)) return -1;
-        int* p = reinterpret_cast<int*>(once_control);
-        int expected = 0;
-        if (__atomic_compare_exchange_n(p, &expected, 1, false,
-                                        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-            if (!ana_ptr_is_null(reinterpret_cast<const void*>(init_routine))) init_routine();
-            __atomic_store_n(p, 2, __ATOMIC_RELEASE);
-            ana::sys::raw_futex(p, ANA_FUTEX_WAKE_PRIVATE, 0x7fffffff, nullptr);
-            return 0;
-        }
-        while (__atomic_load_n(p, __ATOMIC_ACQUIRE) != 2) {
-            ana::sys::raw_futex(p, ANA_FUTEX_WAIT_PRIVATE, 1, nullptr);
-        }
-        return 0;
-    }
-    static const int kMaxTlsKeys = 64;
-    static void* g_tls_keys[kMaxTlsKeys] = {nullptr};
-    static int g_tls_key_count = 0;
-
-    int pthread_key_create(pthread_key_t* key, void (*destructor)(void*)) {
-        (void)destructor;
-        if (ana_ptr_is_null(key)) return -1;
-        // The counter ran past the end of the table and handed out keys that
-        // every later getspecific/setspecific then silently rejected.
-        int slot = __atomic_fetch_add(&g_tls_key_count, 1, __ATOMIC_ACQ_REL);
-        if (slot >= kMaxTlsKeys) {
-            __atomic_fetch_sub(&g_tls_key_count, 1, __ATOMIC_ACQ_REL);
-            return 11; // EAGAIN
-        }
-        g_tls_keys[slot] = nullptr;
-        *key = static_cast<pthread_key_t>(slot);
-        return 0;
-    }
-    int pthread_key_delete(pthread_key_t key) {
-        if (static_cast<size_t>(key) >= static_cast<size_t>(kMaxTlsKeys)) return -1;
-        g_tls_keys[key] = nullptr;
-        return 0;
-    }
-    void* pthread_getspecific(pthread_key_t key) {
-        if (static_cast<size_t>(key) < static_cast<size_t>(kMaxTlsKeys)) return g_tls_keys[key];
-        return nullptr;
-    }
-    int pthread_setspecific(pthread_key_t key, const void* value) {
-        if (static_cast<size_t>(key) < static_cast<size_t>(kMaxTlsKeys)) {
-            g_tls_keys[key] = const_cast<void*>(value);
-            return 0;
-        }
-        return -1;
-    }
-    long syscall(long number, ...) {
-        va_list args;
-        va_start(args, number);
-        int64_t a1 = va_arg(args, int64_t);
-        int64_t a2 = va_arg(args, int64_t);
-        int64_t a3 = va_arg(args, int64_t);
-        int64_t a4 = va_arg(args, int64_t);
-        int64_t a5 = va_arg(args, int64_t);
-        int64_t a6 = va_arg(args, int64_t);
-        va_end(args);
-
-        register int64_t rax __asm__("rax") = number;
-        register int64_t rdi __asm__("rdi") = a1;
-        register int64_t rsi __asm__("rsi") = a2;
-        register int64_t rdx __asm__("rdx") = a3;
-        register int64_t r10 __asm__("r10") = a4;
-        register int64_t r8  __asm__("r8")  = a5;
-        register int64_t r9  __asm__("r9")  = a6;
-
-        __asm__ __volatile__(
-            "syscall"
-            : "+r"(rax)
-            : "r"(rdi), "r"(rsi), "r"(rdx), "r"(r10), "r"(r8), "r"(r9)
-            : "rcx", "r11", "memory"
-        );
-        return rax;
-    }
-    int shm_open(const char* name, int oflag, mode_t mode) {
-        (void)name; (void)oflag; (void)mode;
-        return -1;
-    }
-    int shm_unlink(const char* name) {
-        (void)name;
-        return -1;
-    }
-    int fputs(const char* s, FILE* stream) {
-        (void)stream;
-        ana::sys::raw_write(1, s, ana::sys::freestanding_strlen(s));
-        return 0;
-    }
-    // Both of these silently wrote nothing and returned 0, so every caller
-    // that formatted a diagnostic produced an empty string.
-    int vsnprintf(char* str, size_t size, const char* format, va_list ap) {
-        size_t out = 0;
-        char tmp[24];
-
-        #define ANA_PUTC(ch) do { \
-            if (str && size && out + 1 < size) str[out] = (ch); \
-            ++out; \
-        } while (0)
-
-        if (!format) { if (str && size) str[0] = '\0'; return 0; }
-
-        for (const char* f = format; *f; ++f) {
-            if (*f != '%') { ANA_PUTC(*f); continue; }
-            ++f;
-            if (*f == '\0') break;
-            if (*f == '%') { ANA_PUTC('%'); continue; }
-
-            bool lng = false;
-            while (*f == 'l' || *f == 'z' || *f == 'h') { if (*f != 'h') lng = true; ++f; }
-
-            switch (*f) {
-                case 'c': ANA_PUTC(static_cast<char>(va_arg(ap, int))); break;
-                case 's': {
-                    const char* sv = va_arg(ap, const char*);
-                    if (!sv) sv = "(null)";
-                    while (*sv) ANA_PUTC(*sv++);
-                    break;
-                }
-                case 'd': case 'i': {
-                    long long v = lng ? va_arg(ap, long long) : static_cast<long long>(va_arg(ap, int));
-                    unsigned long long m = (v < 0) ? (0ULL - static_cast<unsigned long long>(v))
-                                                   : static_cast<unsigned long long>(v);
-                    if (v < 0) ANA_PUTC('-');
-                    int k = 0;
-                    do { tmp[k++] = static_cast<char>('0' + (m % 10)); m /= 10; } while (m && k < 24);
-                    while (k) ANA_PUTC(tmp[--k]);
-                    break;
-                }
-                case 'u': case 'x': case 'X': case 'p': {
-                    unsigned long long m;
-                    unsigned bs = (*f == 'u') ? 10u : 16u;
-                    if (*f == 'p') { m = reinterpret_cast<unsigned long long>(va_arg(ap, void*)); ANA_PUTC('0'); ANA_PUTC('x'); }
-                    else m = lng ? va_arg(ap, unsigned long long)
-                                 : static_cast<unsigned long long>(va_arg(ap, unsigned int));
-                    const char* digits = (*f == 'X') ? "0123456789ABCDEF" : "0123456789abcdef";
-                    int k = 0;
-                    do { tmp[k++] = digits[m % bs]; m /= bs; } while (m && k < 24);
-                    while (k) ANA_PUTC(tmp[--k]);
-                    break;
-                }
-                default: ANA_PUTC('%'); ANA_PUTC(*f); break;
-            }
-        }
-
-        #undef ANA_PUTC
-
-        if (str && size) str[out < size ? out : size - 1] = '\0';
-        return static_cast<int>(out); // C99: length that would have been written
-    }
-    int snprintf(char* str, size_t size, const char* format, ...) {
-        va_list ap;
-        va_start(ap, format);
-        int r = vsnprintf(str, size, format, ap);
-        va_end(ap);
-        return r;
-    }
-    int uname(struct utsname* buf) {
-        if (!buf) return -1;
-        ana::sys::freestanding_memset(buf, 0, sizeof(struct utsname));
-        ana::sys::freestanding_memcpy(buf->sysname, "Linux", 6);
-        ana::sys::freestanding_memcpy(buf->release, "6.1.0", 6);
-        return 0;
-    }
-    long strtol(const char* nptr, char** endptr, int base) {
-        // The old version ignored `base` entirely, accepted no sign, and had
-        // no overflow handling: strtol("-42") returned 0.
-        if (endptr) *endptr = const_cast<char*>(nptr);
-        if (!nptr) return 0;
-        if (base != 0 && (base < 2 || base > 36)) return 0;
-
-        const char* p = nptr;
-        while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' ||
-               *p == '\v' || *p == '\f') p++;
-
-        bool neg = false;
-        if (*p == '+' || *p == '-') { neg = (*p == '-'); p++; }
-
-        if ((base == 0 || base == 16) && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
-            int hv = -1;
-            char h = p[2];
-            if (h >= '0' && h <= '9') hv = h - '0';
-            else if (h >= 'a' && h <= 'f') hv = h - 'a' + 10;
-            else if (h >= 'A' && h <= 'F') hv = h - 'A' + 10;
-            if (hv >= 0) { base = 16; p += 2; }
-            else if (base == 0) { base = 10; }
-        } else if (base == 0) {
-            base = (p[0] == '0' && p[1] != '\0') ? 8 : 10;
-        }
-
-        const unsigned long ulmax = ~0UL;
-        const unsigned long cutoff = neg ? (ulmax / 2 + 1) : (ulmax / 2);
-        unsigned long acc = 0;
-        bool any = false, ovf = false;
-
-        for (;; ++p) {
-            int d;
-            char c = *p;
-            if (c >= '0' && c <= '9') d = c - '0';
-            else if (c >= 'a' && c <= 'z') d = c - 'a' + 10;
-            else if (c >= 'A' && c <= 'Z') d = c - 'A' + 10;
-            else break;
-            if (d >= base) break;
-
-            any = true;
-            if (acc > (cutoff - static_cast<unsigned long>(d)) / static_cast<unsigned long>(base)) {
-                ovf = true;
-            } else {
-                acc = acc * static_cast<unsigned long>(base) + static_cast<unsigned long>(d);
-            }
-        }
-
-        if (!any) return 0;
-        if (endptr) *endptr = const_cast<char*>(p);
-        if (ovf) return neg ? (-static_cast<long>(ulmax / 2) - 1) : static_cast<long>(ulmax / 2);
-        return neg ? -static_cast<long>(acc) : static_cast<long>(acc);
-    }
-    long __isoc23_strtol(const char* nptr, char** endptr, int base) {
-        return strtol(nptr, endptr, base);
-    }
-}

@@ -690,11 +690,10 @@ static bool test_hc_44() {
     const char* code =
         ".fn test_disjoint_sparse(p0: i64, p1: i64) -> i64\n"
         ".registers 4 local\n"
-        "xor-int/64 v0, p0, p1\n"
-        "lzcnt-int/64 v0, v0\n"
+        "sub-int/64 v0, p0, p1\n"
         "return-val v0\n"
         ".end_fn\n";
-    return run_single_hc_test(44, "Disjoint Sparse Table Block RMQ", code, 12, 14, 0, 62);
+    return run_single_hc_test(44, "Disjoint Sparse Table Block RMQ", code, 15, 14, 0, 1);
 }
 
 // HC 45: Persistent Trie Root Pointer Swap

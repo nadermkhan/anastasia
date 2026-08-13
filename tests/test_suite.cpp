@@ -668,6 +668,8 @@ static bool test_aot_elf_compilation() {
     uint16_t e_machine = *reinterpret_cast<uint16_t*>(&header[18]);
 #if defined(__aarch64__) || defined(_M_ARM64)
     uint16_t expected_mach = 183;
+#elif defined(__arm__) || defined(_M_ARM) || defined(__armv7__)
+    uint16_t expected_mach = 40;
 #else
     uint16_t expected_mach = 62;
 #endif

@@ -44,6 +44,7 @@ set(SOURCES
     src/backend/host_interop.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
+    src/backend/armv7_backend.cpp
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
     src/optimizer/pgo_profiler.cpp
@@ -80,6 +81,7 @@ set(BENCH_SOURCES
     src/backend/host_interop.cpp
     src/backend/x86_64_backend.cpp
     src/backend/aarch64_backend.cpp
+    src/backend/armv7_backend.cpp
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
     src/optimizer/pgo_profiler.cpp

@@ -17,6 +17,20 @@ Designed for ultra-low latency system software, high-frequency data pipelines, r
 
 ---
 
+## Download Latest Pre-Built Binaries
+
+Pre-compiled zero-CRT standalone binaries are automatically built and released for Linux and Windows:
+
+| Platform | Architecture | Binary Package | Download Link |
+|---|---|---|---|
+| **Linux** | x86_64 (AVX2 / AVX-512) | `anastasia-v7.1-linux-x86_64.tar.gz` | **[Download Linux x86_64](https://github.com/nadermkhan/anastasia/releases/latest/download/anastasia-v7.1-linux-x86_64.tar.gz)** |
+| **Linux** | ARM64 / AArch64 | `anastasia-v7.1-linux-arm64.tar.gz` | **[Download Linux ARM64](https://github.com/nadermkhan/anastasia/releases/latest/download/anastasia-v7.1-linux-arm64.tar.gz)** |
+| **Windows** | x86_64 (MSVC / PE32+) | `anastasia-v7.1-windows-x86_64.zip` | **[Download Windows x86_64](https://github.com/nadermkhan/anastasia/releases/latest/download/anastasia-v7.1-windows-x86_64.zip)** |
+
+Or browse all released versions on the **[GitHub Releases Page](https://github.com/nadermkhan/anastasia/releases)**.
+
+---
+
 ## Key Architectural Highlights
 
 * **100% Freestanding Zero-CRT Philosophy**: Operates strictly under `-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti` with zero third-party dependencies (`AnaEncoder`). Executes directly on Linux/Win32 kernel syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_write`, `raw_clone`, `raw_futex`, `raw_mbind`, `raw_io_uring`).

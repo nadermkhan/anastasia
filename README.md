@@ -17,24 +17,86 @@ Designed for ultra-low latency system software, high-frequency data pipelines, r
 
 ---
 
-## ⚡ Key Architectural Highlights
+## Key Architectural Highlights
 
-* 🛡️ **100% Freestanding Zero-CRT Philosophy**: Operates strictly under `-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti` with zero third-party dependencies (`AnaEncoder`). Executes directly on Linux/Win32 kernel syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_write`, `raw_clone`, `raw_futex`, `raw_mbind`, `raw_io_uring`).
-* 🔤 **Native String Literals & Zero-Linker `.rodata` Emission**: Native `const-string` support with parse-time zero-copy length tracking (eliminating `strlen()` overhead). Features a JIT read-only interned string pool and an AOT freestanding ELF linker (`ElfEmitter`) capable of emitting `.rodata` sections and patching RIP-relative relocations (`R_X86_64_PC32` / `R_AARCH64_ADR_PREL_PG_HI21`) without needing `ld` or `link.exe`.
-* 🚀 **Multi-Architecture Machine Code Encoders**: Native x86_64 instruction encoder (`AnaEncoder`) featuring VEX (256-bit AVX2 `YMM`) and EVEX (512-bit AVX-512 `ZMM`) byte-packing, paired with a fixed 32-bit AArch64 (ARM64) machine code backend (`AArch64Encoder`).
-* 🧮 **SSA Optimization & Autovectorization Suite**:
+* **100% Freestanding Zero-CRT Philosophy**: Operates strictly under `-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti` with zero third-party dependencies (`AnaEncoder`). Executes directly on Linux/Win32 kernel syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_write`, `raw_clone`, `raw_futex`, `raw_mbind`, `raw_io_uring`).
+* **Native String Literals & Zero-Linker `.rodata` Emission**: Native `const-string` support with parse-time zero-copy length tracking (eliminating `strlen()` overhead). Features a JIT read-only interned string pool and an AOT freestanding ELF linker (`ElfEmitter`) capable of emitting `.rodata` sections and patching RIP-relative relocations (`R_X86_64_PC32` / `R_AARCH64_ADR_PREL_PG_HI21`) without needing `ld` or `link.exe`.
+* **Multi-Architecture Machine Code Encoders**: Native x86_64 instruction encoder (`AnaEncoder`) featuring VEX (256-bit AVX2 `YMM`) and EVEX (512-bit AVX-512 `ZMM`) byte-packing, paired with a fixed 32-bit AArch64 (ARM64) machine code backend (`AArch64Encoder`).
+* **SSA Optimization & Autovectorization Suite**:
   * **SSA Counted-Loop Autovectorizer**: Transforms scalar loops into 256-bit or 512-bit packed SIMD vector operations.
   * **Non-Temporal Store Streaming**: Detects sequential writes (>128 elements), emitting non-temporal stores (`vmovntdq` + `sfence`) to bypass L1/L2/L3 cache pollution.
   * **Adaptive D-Cache Software Prefetching**: Dynamically injects `prefetcht0` instructions ahead of memory load pointers.
   * **Escape Analysis & Scalar Replacement**: Allocates non-escaping objects directly to virtual registers and stack slots (**0 heap allocations**).
   * **Speculative Inlining & On-Stack Replacement (OSR)**: Monomorphic call site inlining and loop safe-point OSR tiering (`RAX`–`R15` register capture).
-* 🌐 **Zero-Copy Hardware Async I/O (`io_uring`)**: Submission Queue (SQ) and Completion Queue (CQ) ring buffers managed directly via kernel `raw_mmap`. The `io-submit` instruction lowers to ring buffer writes and `sys_io_uring_enter` with zero user-space copying.
-* 📦 **Branchless TLAB Allocation & VM Guard Pages**: Fast-path Thread-Local Allocation Buffer (`tlab_allocate`) performing branchless bump-pointer allocations (`mov`, `lea`, `mov`). Overruns trigger a freestanding `SIGSEGV` fault handler to allocate new 64 KB TLAB slabs transparently.
-* 💯 **100% Verification Coverage**: Passes 200/200 comprehensive engine tests, including 40 Core Engine QA Matrix Tests, 30 LeetCode Problem Solutions, 30 Codeforces 1800+ Rated Competitive Programming Algorithms, and 100 Hardcore Stress Tests.
+* **Zero-Copy Hardware Async I/O (`io_uring`)**: Submission Queue (SQ) and Completion Queue (CQ) ring buffers managed directly via kernel `raw_mmap`. The `io-submit` instruction lowers to ring buffer writes and `sys_io_uring_enter` with zero user-space copying.
+* **Branchless TLAB Allocation & VM Guard Pages**: Fast-path Thread-Local Allocation Buffer (`tlab_allocate`) performing branchless bump-pointer allocations (`mov`, `lea`, `mov`). Overruns trigger a freestanding `SIGSEGV` fault handler to allocate new 64 KB TLAB slabs transparently.
+* **100% Verification Coverage**: Passes 200/200 comprehensive engine tests, including 40 Core Engine QA Matrix Tests, 30 LeetCode Problem Solutions, 30 Codeforces 1800+ Rated Competitive Programming Algorithms, and 100 Hardcore Stress Tests.
 
 ---
 
-## 🏛️ System Architecture
+## Anastasia Assembly (.ana) Basics & Fundamentals
+
+Anastasia Assembly is a strongly-typed, RISC-like intermediate assembly language designed for direct machine code generation and sub-nanosecond JIT compilation.
+
+### 1. Function Definition & Declaration Syntax
+Functions are defined using `.fn` and closed with `.end_fn`. Register storage must be explicitly declared at the top of the function:
+```smali
+.fn add_numbers(p0: i64, p1: i64) -> i64
+    .registers 1 local
+    add-int/64 v0, p0, p1
+    return-val v0
+.end_fn
+```
+
+### 2. Register & Type Model
+* **Parameter Registers (`p0` .. `p5`)**: Input parameters passed in hardware ABI registers (`%rdi`, `%rsi`, `%rdx`, `%rcx`, `%r8`, `%r9` on x86_64).
+* **Virtual Local Registers (`v0` .. `vN`)**: Unbounded SSA virtual registers mapped dynamically to physical CPU scratch registers (`%rax`, `%rdx`, `%r8`–`%r10`) or stack spill slots (`[rbp - 8*N]`).
+* **Primitive Types**: `i32` (32-bit integer), `i64` (64-bit integer), `ptr` (64-bit memory pointer), `float` (32-bit IEEE 754), `double` (64-bit IEEE 754), `void` (no return).
+
+### 3. Core Arithmetic & Bitwise Operations
+| Opcode | Operand Format | Description |
+|---|---|---|
+| `move-const` | `v0, 100` | Load immediate integer constant into register `v0` |
+| `add-int/64` | `dest, src1, src2` | 64-bit integer addition (`dest = src1 + src2`) |
+| `sub-int/64` | `dest, src1, src2` | 64-bit integer subtraction (`dest = src1 - src2`) |
+| `mul-int/64` | `dest, src1, src2` | Signed 64-bit integer multiplication |
+| `div-int/64` | `dest, src1, src2` | Signed 64-bit integer division (`idiv`) |
+| `and-int/64` | `dest, src1, src2` | Bitwise AND operation |
+| `or-int/64`  | `dest, src1, src2` | Bitwise OR operation |
+| `xor-int/64` | `dest, src1, src2` | Bitwise XOR operation |
+| `shl-int/64` | `dest, src1, src2` | Bitwise left shift operation |
+| `shr-int/64` | `dest, src1, src2` | Bitwise logical right shift operation |
+
+### 4. Control Flow & Branching
+Branches perform conditional jumps to target labels:
+```smali
+.fn max_value(p0: i64, p1: i64) -> i64
+    .registers 1 local
+    if-ge p0, p1, label_p0_greater
+    return-val p1
+
+label_p0_greater:
+    return-val p0
+.end_fn
+```
+* **Branch Instructions**: `if-eq` (jump if equal), `if-ne` (jump if not equal), `if-lt` (jump if less than), `if-ge` (jump if greater/equal), `goto` (unconditional jump).
+
+### 5. Memory Access & Heap Allocations
+```smali
+.fn memory_operations(p0: ptr, p1: i64) -> i64
+    .registers 2 local
+    store-mem [p0 + 8], p1      ; Store 64-bit value p1 into memory at [p0 + 8]
+    load-mem v0, [p0 + 8]       ; Load 64-bit value from memory [p0 + 8] into v0
+    
+    new-instance v1, Object     ; Allocate heap object via TLAB
+    sink-mem v1                 ; Force root sink evaluation
+    return-val v0
+.end_fn
+```
+
+---
+
+## System Architecture
 
 ```
  ┌───────────────────────────────────────────────────────────────────────────┐
@@ -70,7 +132,7 @@ Designed for ultra-low latency system software, high-frequency data pipelines, r
 
 ---
 
-## 🛠️ Quick Start & Build System
+## Quick Start & Build System
 
 Anastasia comes equipped with an automated build system for building, testing, and benchmarking across Linux and Windows environments.
 
@@ -87,7 +149,7 @@ cd anastasia
 # 2. Build the project using the build script
 ./build.sh
 
-# 3. Run the full 99-test QA suite
+# 3. Run the full 200-test QA suite
 ./build.sh --test
 
 # 4. Run the high-precision benchmark suite
@@ -108,7 +170,7 @@ cd anastasia
 
 ---
 
-## 📜 Anastasia Assembly (`.ana`) Code Examples
+## Anastasia Assembly (`.ana`) Code Examples
 
 ### 1. High-Performance Loop with Branch Hints & Volatile Sink
 ```smali
@@ -151,7 +213,7 @@ loop_end:
 
 ---
 
-## 🔬 Benchmark & Test Matrix
+## Benchmark & Test Matrix
 
 Anastasia includes a comprehensive **200-test verification matrix** covering bare-metal engine subsystems, LeetCode algorithms, Codeforces 1800+ competitive programming solutions, and hardcore algorithm & stress tests:
 
@@ -165,7 +227,7 @@ Anastasia includes a comprehensive **200-test verification matrix** covering bar
 
 ---
 
-## 📑 Technical Documentation & Guides
+## Technical Documentation & Guides
 
 For deep architectural specifications, language grammar, and LLM AI prompt integration, refer to the project documentation:
 
@@ -174,7 +236,7 @@ For deep architectural specifications, language grammar, and LLM AI prompt integ
 
 ---
 
-## 📄 License
+## License
 
 This project is open-source software licensed under the **MIT License**.
 

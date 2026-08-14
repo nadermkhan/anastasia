@@ -38,7 +38,17 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 | **100M Iteration Loop** | 341 ms | **92 ms** | **3.67x Faster** (Direct machine code loop vs unoptimized C) |
 | **1M Heap Allocations** | 121 ns / op (`malloc`) | **113 ns / op** (`tlab_allocate`) | **1.07x Speedup** (TLAB Bump Allocator vs libc `malloc`) |
 
-*All benchmarks are reproducible by running `./build/anastasia_benchmark` on standard Linux/Windows x86_64 host hardware.*
+### 3. 1 Million "Hello, World!" Head-to-Head Speed Benchmark
+
+| Language / Engine | Execution Time (ms) | Throughput (prints/sec) | Relative Speed vs Anastasia |
+|---|---|---|---|
+| **Anastasia Engine (64 KiB Stream Buffer)** | **12.92 ms** | **77,376,738 prints/sec** | **1.00x (Fastest)** |
+| **C (`gcc -O3` / `fwrite`)** | **31.18 ms** | **32,076,863 prints/sec** | **2.41x slower** |
+| **Python 3 (`v3.13.5`)** | **131.28 ms** | **7,617,450 prints/sec** | **10.16x slower** |
+| **Anastasia Engine (Raw Unbuffered Syscalls)** | **781.16 ms** | **1,280,149 prints/sec** | **60.44x slower** |
+| **Node.js (`v20.19.2`)** | **3,124.91 ms** | **320,009 prints/sec** | **241.80x slower** |
+
+*All benchmarks are reproducible by running `./build/anastasia_benchmark` and scripts in [`benchmark/1m_hello_bench/`](benchmark/1m_hello_bench/).*
 
 ---
 

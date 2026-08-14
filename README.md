@@ -1,10 +1,9 @@
-# 👑 Anastasia Engine v7.1
+# Anastasia Engine v7.1
 
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Anastasia%20Assembly%20%7C%20C%2B%2B20-blue.svg" alt="Language">
   <img src="https://img.shields.io/badge/Dependencies-Zero%20%28100%25%20Freestanding%20Zero--CRT%29-brightgreen.svg" alt="Dependencies">
   <img src="https://img.shields.io/badge/Architecture-x86__64%20%7C%20AArch64%20%7C%20ARMv7%20%7C%20RISC--V-orange.svg" alt="Architecture">
-  <img src="https://img.shields.io/badge/AI--Assisted-Built%20with%20Google%20Antigravity%20AI-purple.svg" alt="AI Assisted">
   <img src="https://img.shields.io/badge/Tests-200%2F200%20Passed%20%28100%25%20Matrix%29-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </p>
@@ -13,11 +12,9 @@
 
 **Anastasia** is an open-source, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets **x86_64**, **AArch64 (ARM64)**, **ARMv7 (32-bit ARM)**, and **RISC-V (RV64)** at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
 
-> **Open-Source AI Disclosure**: Anastasia was developed using modern agentic AI pair-programming (powered by Google DeepMind's Antigravity AI framework). Every line of generated machine code emitter logic, register allocation, SSA optimization, and instruction parsing is rigorously validated against a **200/200 test verification suite** on Linux and Windows CI environments.
-
 ---
 
-## ⚡ Key Architectural Highlights
+## Key Architectural Highlights
 
 * **100% Freestanding Zero-CRT Philosophy**: Operates strictly under `-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti` with zero third-party dependencies (`AnaEncoder`). Executes directly on Linux/Win32 kernel syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_write`, `raw_clone`, `raw_futex`, `raw_mbind`, `raw_io_uring`).
 * **Multi-Architecture Machine Code Encoders**: Native x86_64 instruction encoder (`AnaEncoder`) featuring VEX (256-bit AVX2 `YMM`) and EVEX (512-bit AVX-512 `ZMM`) byte-packing, paired with fixed-width AArch64 (ARM64) (`AArch64Encoder`), ARMv7 (32-bit ARM) (`Armv7Encoder`), and RISC-V 64-bit (`Rv64Encoder`) backends.
@@ -33,7 +30,7 @@
 
 ---
 
-## 🏆 Head-to-Head Benchmarks & Measured Performance
+## Head-to-Head Benchmarks & Measured Performance
 
 Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_benchmark` and `benchmark/`) measuring JIT compilation latency, machine code loop execution, SIMD throughput, and TLAB allocation speeds:
 
@@ -61,25 +58,25 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 
 | Workload Name | Anastasia JIT Engine | C (`gcc -O3`) | Python 3 (`v3.13.5`) | Node.js (`v20.19.2`) | Measured Performance Result |
 |---|---|---|---|---|---|
-| **100M Iteration Math Loop** | **1.08 ms** | 342.17 ms | 19,901.71 ms | 498.67 ms | 🏆 **Anastasia is 316.8x FASTER than C (`gcc -O3`)**! |
-| **Recursive Fibonacci ($N=40$)** | **1.14 ms** | 43.38 ms | 2,996.80 ms | 510.28 ms | 🏆 **Anastasia is 38.0x FASTER than C (`gcc -O3`)**! |
-| **QuickSort (50K Integers)** | **6.84 ms** | 8.83 ms | 200.29 ms | 292.49 ms | 🏆 **Anastasia is 1.29x FASTER than C (`gcc -O3`)**! |
-| **Prime Sieve (10M Limit)** | **104.84 ms** | 106.08 ms | 1,742.49 ms | 424.18 ms | 🏆 **Anastasia is 1.01x FASTER than C (`gcc -O3`)**! |
+| **100M Iteration Math Loop** | **1.08 ms** | 342.17 ms | 19,901.71 ms | 498.67 ms | **Anastasia is 316.8x FASTER than C (`gcc -O3`)** |
+| **Recursive Fibonacci ($N=40$)** | **1.14 ms** | 43.38 ms | 2,996.80 ms | 510.28 ms | **Anastasia is 38.0x FASTER than C (`gcc -O3`)** |
+| **QuickSort (50K Integers)** | **6.84 ms** | 8.83 ms | 200.29 ms | 292.49 ms | **Anastasia is 1.29x FASTER than C (`gcc -O3`)** |
+| **Prime Sieve (10M Limit)** | **104.84 ms** | 106.08 ms | 1,742.49 ms | 424.18 ms | **Anastasia is 1.01x FASTER than C (`gcc -O3`)** |
 
 ### 4. Master-Level Hardcore Data Structures & Algorithms Benchmark Suite
 
 | Master Workload Name | Anastasia JIT Engine | C (`gcc -O3`) | Python 3 (`v3.13.5`) | Node.js (`v20.19.2`) | Performance Result |
 |---|---|---|---|---|---|
-| **KMP String Search (20M Chars)** | **49.39 ms** | 63.28 ms | 76.04 ms (1.54x slower) | 481.88 ms (9.76x slower) | 🏆 **Anastasia is 1.28x FASTER than C (`gcc -O3`)**! |
-| **Red-Black Tree (100K Ops)** | **1.98 ms** | 2.26 ms | 54.42 ms (27.5x slower) | 263.60 ms (133x slower) | 🏆 **Anastasia is 1.14x FASTER than C (`gcc -O3`)**! |
-| **Fast Fourier Transform (FFT 256K)** | **3.65 ms** | 3.59 ms | 141.43 ms (38.7x slower) | 286.87 ms (78.5x slower) | ⚡ **Matches C within 0.06 ms** |
-| **Dijkstra Graph Shortest Path** | **1.79 ms** | 1.32 ms | 36.68 ms (20.5x slower) | 268.28 ms (150x slower) | ⚡ **Matches C within 0.47 ms** |
+| **KMP String Search (20M Chars)** | **49.39 ms** | 63.28 ms | 76.04 ms (1.54x slower) | 481.88 ms (9.76x slower) | **Anastasia is 1.28x FASTER than C (`gcc -O3`)** |
+| **Red-Black Tree (100K Ops)** | **1.98 ms** | 2.26 ms | 54.42 ms (27.5x slower) | 263.60 ms (133x slower) | **Anastasia is 1.14x FASTER than C (`gcc -O3`)** |
+| **Fast Fourier Transform (FFT 256K)** | **3.65 ms** | 3.59 ms | 141.43 ms (38.7x slower) | 286.87 ms (78.5x slower) | **Matches C within 0.06 ms** |
+| **Dijkstra Graph Shortest Path** | **1.79 ms** | 1.32 ms | 36.68 ms (20.5x slower) | 268.28 ms (150x slower) | **Matches C within 0.47 ms** |
 
 *All benchmarks are reproducible by running `./build/anastasia_benchmark` and scripts in [`benchmark/1m_hello_bench/`](benchmark/1m_hello_bench/), [`benchmark/algos_bench/`](benchmark/algos_bench/), and [`benchmark/master_stress_bench/`](benchmark/master_stress_bench/).*
 
 ---
 
-## 📦 Downloads & Pre-Built Standalone Binaries
+## Downloads & Pre-Built Standalone Binaries
 
 Pre-compiled zero-CRT standalone binaries are automatically built and released for Linux and Windows:
 
@@ -93,7 +90,7 @@ Or browse all released versions on the **[GitHub Releases Page](https://github.c
 
 ---
 
-## ⚙️ Quick Start & Build System
+## Quick Start & Build System
 
 Anastasia comes equipped with an automated build system for building, testing, and benchmarking across Linux and Windows environments.
 
@@ -134,7 +131,7 @@ cd anastasia
 
 ---
 
-## 📖 Anastasia Assembly (`.ana`) Basics & Specification
+## Anastasia Assembly (`.ana`) Basics & Specification
 
 Anastasia Assembly is a strongly-typed, RISC-like intermediate assembly language designed for direct machine code generation and sub-nanosecond JIT compilation.
 
@@ -196,7 +193,7 @@ label_p0_greater:
 
 ---
 
-## 🛠️ Advanced Engine Subsystems
+## Advanced Engine Subsystems
 
 ### 1. Interactive Assembly Debugger (`AnaDebugger`)
 Anastasia includes a built-in interactive assembly debugger and instruction stepper (`AnaDebugger`). Launch a debug session on any `.ana` file:
@@ -266,7 +263,7 @@ Kernel Signal Dispatcher (syscall 13: raw_rt_sigaction)
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ```
  ┌───────────────────────────────────────────────────────────────────────────┐
@@ -302,7 +299,7 @@ Kernel Signal Dispatcher (syscall 13: raw_rt_sigaction)
 
 ---
 
-## 🧪 Benchmark & Test Matrix
+## Benchmark & Test Matrix
 
 Anastasia includes a comprehensive **200-test verification matrix** covering bare-metal engine subsystems, LeetCode algorithms, Codeforces 1800+ competitive programming solutions, and hardcore algorithm & stress tests:
 
@@ -316,7 +313,7 @@ Anastasia includes a comprehensive **200-test verification matrix** covering bar
 
 ---
 
-## 📚 Technical Documentation & Guides
+## Technical Documentation & Guides
 
 For deep architectural specifications, language grammar, and LLM AI prompt integration, refer to the project documentation:
 
@@ -325,22 +322,13 @@ For deep architectural specifications, language grammar, and LLM AI prompt integ
 
 ---
 
-## 👑 Credits & Author Attribution
-
-Anastasia is designed, created, and maintained by:
+## Author & Maintainer
 
 * **Nader Mahbub Khan** — Author, Creator, and Lead Systems Architect ([GitHub @nadermkhan](https://github.com/nadermkhan))
 
-### AI Frameworks & Frontier Model Credits
-Special thanks and full credit to the frontier AI models and agent frameworks utilized during pair-programming, code generation, architecture design, and comprehensive test suite creation:
-
-* **Gemini Flash 3.6 (High)** — High-speed code generation, instruction parsing, and synthesis.
-* **Claude Opus 5** — Deep architectural reasoning, compiler optimization design, and register allocation logic.
-* **Google DeepMind Antigravity** — Autonomous AI agent system & environment orchestrator.
-
 ---
 
-## 📜 License
+## License
 
 This project is open-source software licensed under the **MIT License**.
 

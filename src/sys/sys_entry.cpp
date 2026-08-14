@@ -63,6 +63,10 @@ extern "C" {
     int __cxa_atexit(void (*)(void*), void*, void*) {
         return 0;
     }
+    int __aeabi_atexit(void* arg, void (*func)(void*), void* dso) {
+        (void)arg; (void)func; (void)dso;
+        return 0;
+    }
     int __cxa_guard_acquire(int64_t* guard) {
         volatile char* g = reinterpret_cast<volatile char*>(guard);
         char* in_progress = reinterpret_cast<char*>(guard) + 1;

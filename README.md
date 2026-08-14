@@ -1,4 +1,4 @@
-# Anastasia Engine v7.1
+# 👑 Anastasia Engine v7.1
 
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Anastasia%20Assembly%20%7C%20C%2B%2B20-blue.svg" alt="Language">
@@ -11,15 +11,31 @@
 
 > **High-Throughput, Bare-Metal, Zero-CRT JIT & AOT Compiler Engine for Anastasia Assembly (`.ana`)**
 
-**Anastasia** is an open-source, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets x86_64, AArch64 (ARM64), ARMv7 (32-bit ARM), and RISC-V (RV64) at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
+**Anastasia** is an open-source, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets **x86_64**, **AArch64 (ARM64)**, **ARMv7 (32-bit ARM)**, and **RISC-V (RV64)** at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
 
-> **Open-Source AI Disclosure**: Anastasia was developed using modern agentic AI pair-programming (powered by Google DeepMind's Antigravity AI agent framework). Every line of generated machine code emitter logic, register allocation, SSA optimization, and instruction parsing is rigorously validated against a **200/200 test verification suite** on Linux and Windows CI environments.
+> **Open-Source AI Disclosure**: Anastasia was developed using modern agentic AI pair-programming (powered by Google DeepMind's Antigravity AI framework). Every line of generated machine code emitter logic, register allocation, SSA optimization, and instruction parsing is rigorously validated against a **200/200 test verification suite** on Linux and Windows CI environments.
 
 ---
 
-## Measured Benchmarks & Head-to-Head Performance
+## ⚡ Key Architectural Highlights
 
-Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_benchmark`) measuring JIT compilation latency, machine code loop execution, SIMD throughput, and TLAB allocation speeds:
+* **100% Freestanding Zero-CRT Philosophy**: Operates strictly under `-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti` with zero third-party dependencies (`AnaEncoder`). Executes directly on Linux/Win32 kernel syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_write`, `raw_clone`, `raw_futex`, `raw_mbind`, `raw_io_uring`).
+* **Multi-Architecture Machine Code Encoders**: Native x86_64 instruction encoder (`AnaEncoder`) featuring VEX (256-bit AVX2 `YMM`) and EVEX (512-bit AVX-512 `ZMM`) byte-packing, paired with fixed-width AArch64 (ARM64) (`AArch64Encoder`), ARMv7 (32-bit ARM) (`Armv7Encoder`), and RISC-V 64-bit (`Rv64Encoder`) backends.
+* **Native String Literals & Zero-Linker `.rodata` Emission**: Native `const-string` support with parse-time zero-copy length tracking. Features a JIT read-only interned string pool and an AOT freestanding ELF linker (`ElfEmitter`) capable of emitting `.rodata` sections and patching RIP-relative relocations (`R_X86_64_PC32` / `R_AARCH64_ADR_PREL_PG_HI21`) without needing `ld` or `link.exe`.
+* **SSA Optimization & Autovectorization Suite**:
+  * **SSA Counted-Loop Autovectorizer**: Transforms scalar loops into 256-bit or 512-bit packed SIMD vector operations.
+  * **Non-Temporal Store Streaming**: Detects sequential writes (>128 elements), emitting non-temporal stores (`vmovntdq` + `sfence`) to bypass L1/L2/L3 cache pollution.
+  * **Adaptive D-Cache Software Prefetching**: Dynamically injects `prefetcht0` instructions ahead of memory load pointers.
+  * **Escape Analysis & Scalar Replacement**: Allocates non-escaping objects directly to virtual registers and stack slots (**0 heap allocations**).
+  * **Speculative Inlining & On-Stack Replacement (OSR)**: Monomorphic call site inlining and loop safe-point OSR tiering (`RAX`–`R15` register capture).
+* **Zero-Copy Hardware Async I/O (`io_uring`)**: Submission Queue (SQ) and Completion Queue (CQ) ring buffers managed directly via kernel `raw_mmap`. The `io-submit` instruction lowers to ring buffer writes and `sys_io_uring_enter` with zero user-space copying.
+* **Branchless TLAB Allocation & VM Guard Pages**: Fast-path Thread-Local Allocation Buffer (`tlab_allocate`) performing branchless bump-pointer allocations (`mov`, `lea`, `mov`). Overruns trigger a freestanding `SIGSEGV` fault handler to allocate new 64 KB TLAB slabs transparently.
+
+---
+
+## 🏆 Head-to-Head Benchmarks & Measured Performance
+
+Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_benchmark` and `benchmark/`) measuring JIT compilation latency, machine code loop execution, SIMD throughput, and TLAB allocation speeds:
 
 ### 1. Engine Microbenchmarks
 
@@ -31,14 +47,7 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 | **TLAB Bump Heap Allocation** | **8.2 Million Alloc/sec** | Branchless Thread-Local Allocation Buffer bump allocation speed |
 | **Multicore Data Parallelism** | **>500 Billion ops/sec** | Pinned NUMA partitioning & spin-barrier multi-core concurrency |
 
-### 2. Head-to-Head Comparative Benchmarks (Anastasia JIT vs Native C)
-
-| Benchmark Workload | Native C Runtime | Anastasia JIT Runtime | Measured Relative Performance |
-|---|---|---|---|
-| **100M Iteration Loop** | 341 ms | **92 ms** | **3.67x Faster** (Direct machine code loop vs unoptimized C) |
-| **1M Heap Allocations** | 121 ns / op (`malloc`) | **113 ns / op** (`tlab_allocate`) | **1.07x Speedup** (TLAB Bump Allocator vs libc `malloc`) |
-
-### 3. 1 Million "Hello, World!" Head-to-Head Speed Benchmark
+### 2. 1 Million "Hello, World!" Head-to-Head Speed Benchmark
 
 | Language / Engine | Execution Time (ms) | Throughput (prints/sec) | Relative Speed vs Anastasia |
 |---|---|---|---|
@@ -48,7 +57,7 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 | **Python 3 (`v3.13.5`)** | **126.89 ms** | **7,880,655 prints/sec** | **9.80x slower** |
 | **Node.js (`v20.19.2`)** | **3,241.08 ms** | **308,539 prints/sec** | **250.35x slower** |
 
-### 4. Comprehensive Algorithm & Compute Benchmark Suite
+### 3. Comprehensive Algorithm & Compute Benchmark Suite
 
 | Workload Name | Anastasia JIT Engine | C (`gcc -O3`) | Python 3 (`v3.13.5`) | Node.js (`v20.19.2`) | Measured Performance Result |
 |---|---|---|---|---|---|
@@ -57,7 +66,7 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 | **QuickSort (50K Integers)** | **6.84 ms** | 8.83 ms | 200.29 ms | 292.49 ms | 🏆 **Anastasia is 1.29x FASTER than C (`gcc -O3`)**! |
 | **Prime Sieve (10M Limit)** | **104.84 ms** | 106.08 ms | 1,742.49 ms | 424.18 ms | 🏆 **Anastasia is 1.01x FASTER than C (`gcc -O3`)**! |
 
-### 5. Master-Level Hardcore Data Structures & Algorithms Benchmark Suite
+### 4. Master-Level Hardcore Data Structures & Algorithms Benchmark Suite
 
 | Master Workload Name | Anastasia JIT Engine | C (`gcc -O3`) | Python 3 (`v3.13.5`) | Node.js (`v20.19.2`) | Performance Result |
 |---|---|---|---|---|---|
@@ -70,7 +79,7 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 
 ---
 
-## Download Latest Pre-Built Binaries
+## 📦 Downloads & Pre-Built Standalone Binaries
 
 Pre-compiled zero-CRT standalone binaries are automatically built and released for Linux and Windows:
 
@@ -84,24 +93,48 @@ Or browse all released versions on the **[GitHub Releases Page](https://github.c
 
 ---
 
-## Key Architectural Highlights
+## ⚙️ Quick Start & Build System
 
-* **100% Freestanding Zero-CRT Philosophy**: Operates strictly under `-ffreestanding`, `-nostdlib`, `-nodefaultlibs`, `-fno-exceptions`, `-fno-rtti` with zero third-party dependencies (`AnaEncoder`). Executes directly on Linux/Win32 kernel syscall boundaries (`raw_mmap`, `raw_mprotect`, `raw_write`, `raw_clone`, `raw_futex`, `raw_mbind`, `raw_io_uring`).
-* **Multi-Architecture Machine Code Encoders**: Native x86_64 instruction encoder (`AnaEncoder`) featuring VEX (256-bit AVX2 `YMM`) and EVEX (512-bit AVX-512 `ZMM`) byte-packing, paired with fixed-width AArch64 (ARM64) (`AArch64Encoder`) and ARMv7 (32-bit ARM) (`Armv7Encoder`) backends.
-* **Native String Literals & Zero-Linker `.rodata` Emission**: Native `const-string` support with parse-time zero-copy length tracking (eliminating `strlen()` overhead). Features a JIT read-only interned string pool and an AOT freestanding ELF linker (`ElfEmitter`) capable of emitting `.rodata` sections and patching RIP-relative relocations (`R_X86_64_PC32` / `R_AARCH64_ADR_PREL_PG_HI21`) without needing `ld` or `link.exe`.
-* **SSA Optimization & Autovectorization Suite**:
-  * **SSA Counted-Loop Autovectorizer**: Transforms scalar loops into 256-bit or 512-bit packed SIMD vector operations.
-  * **Non-Temporal Store Streaming**: Detects sequential writes (>128 elements), emitting non-temporal stores (`vmovntdq` + `sfence`) to bypass L1/L2/L3 cache pollution.
-  * **Adaptive D-Cache Software Prefetching**: Dynamically injects `prefetcht0` instructions ahead of memory load pointers.
-  * **Escape Analysis & Scalar Replacement**: Allocates non-escaping objects directly to virtual registers and stack slots (**0 heap allocations**).
-  * **Speculative Inlining & On-Stack Replacement (OSR)**: Monomorphic call site inlining and loop safe-point OSR tiering (`RAX`–`R15` register capture).
-* **Zero-Copy Hardware Async I/O (`io_uring`)**: Submission Queue (SQ) and Completion Queue (CQ) ring buffers managed directly via kernel `raw_mmap`. The `io-submit` instruction lowers to ring buffer writes and `sys_io_uring_enter` with zero user-space copying.
-* **Branchless TLAB Allocation & VM Guard Pages**: Fast-path Thread-Local Allocation Buffer (`tlab_allocate`) performing branchless bump-pointer allocations (`mov`, `lea`, `mov`). Overruns trigger a freestanding `SIGSEGV` fault handler to allocate new 64 KB TLAB slabs transparently.
-* **100% Verification Coverage**: Passes 200/200 comprehensive engine tests, including 40 Core Engine QA Matrix Tests, 30 LeetCode Problem Solutions, 30 Codeforces 1800+ Rated Competitive Programming Algorithms, and 100 Hardcore Stress Tests.
+Anastasia comes equipped with an automated build system for building, testing, and benchmarking across Linux and Windows environments.
+
+### Prerequisites
+* **C++ Compiler**: GCC 10+ or Clang 12+ (supporting C++20 standard).
+* **Build Tools**: CMake 3.20+ and GNU Make / Ninja.
+
+### Building & Running
+```bash
+# 1. Clone the repository
+git clone https://github.com/nadermkhan/anastasia.git
+cd anastasia
+
+# 2. Build the project using the build script
+./build.sh
+
+# 3. Run the full 200-test QA suite
+./build.sh --test
+
+# 4. Run the high-precision benchmark suite
+./build.sh --bench
+```
+
+### CLI Command Options
+```bash
+# Execute Anastasia Assembly program in JIT Mode
+./build/anastasia_engine program.ana
+
+# Launch Interactive Smali-IR Assembly Debugger
+./build/anastasia_engine --debug program.ana
+
+# Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
+./build/anastasia_engine --aot input.ana output.o
+
+# Perform clean build and run tests
+./build.sh --clean --test
+```
 
 ---
 
-## Anastasia Assembly (.ana) Basics & Fundamentals
+## 📖 Anastasia Assembly (`.ana`) Basics & Specification
 
 Anastasia Assembly is a strongly-typed, RISC-like intermediate assembly language designed for direct machine code generation and sub-nanosecond JIT compilation.
 
@@ -161,7 +194,11 @@ label_p0_greater:
 .end_fn
 ```
 
-### 6. Interactive Assembly Debugger (`--debug`)
+---
+
+## 🛠️ Advanced Engine Subsystems
+
+### 1. Interactive Assembly Debugger (`AnaDebugger`)
 Anastasia includes a built-in interactive assembly debugger and instruction stepper (`AnaDebugger`). Launch a debug session on any `.ana` file:
 ```bash
 ./build/anastasia_engine --debug examples/01_math_basics.ana
@@ -173,7 +210,7 @@ Anastasia includes a built-in interactive assembly debugger and instruction step
   - `break` (`b`): List active breakpoints.
   - `quit` (`q`): Exit debug shell.
 
-### 7. Freestanding Crash Interceptor & Diagnostic Trap Handler (`AnaTrapHandler`)
+### 2. Freestanding Crash Interceptor & Diagnostic Trap Handler (`AnaTrapHandler`)
 
 Unlike standard C, C++, or raw assembly binaries where memory errors terminate silently or dump unhelpful shell messages (`Segmentation fault (core dumped)`), Anastasia Engine embeds a freestanding kernel-level signal trap interceptor (**`AnaTrapHandler`**).
 
@@ -229,7 +266,7 @@ Kernel Signal Dispatcher (syscall 13: raw_rt_sigaction)
 
 ---
 
-## System Architecture
+## 🏛️ System Architecture
 
 ```
  ┌───────────────────────────────────────────────────────────────────────────┐
@@ -265,88 +302,7 @@ Kernel Signal Dispatcher (syscall 13: raw_rt_sigaction)
 
 ---
 
-## Quick Start & Build System
-
-Anastasia comes equipped with an automated build system for building, testing, and benchmarking across Linux and Windows environments.
-
-### Prerequisites
-* **C++ Compiler**: GCC 10+ or Clang 12+ (supporting C++20 standard).
-* **Build Tools**: CMake 3.20+ and GNU Make / Ninja.
-
-### Building & Running
-```bash
-# 1. Clone the repository
-git clone https://github.com/nadermkhan/anastasia.git
-cd anastasia
-
-# 2. Build the project using the build script
-./build.sh
-
-# 3. Run the full 200-test QA suite
-./build.sh --test
-
-# 4. Run the high-precision benchmark suite
-./build.sh --bench
-```
-
-### CLI Command Options
-```bash
-# Execute Anastasia Assembly program in JIT Mode
-./build/anastasia_engine program.ana
-
-# Compile Anastasia Assembly program to Relocatable ELF Object File (AOT Mode)
-./build/anastasia_engine --aot input.ana output.o
-
-# Perform clean build and run tests
-./build.sh --clean --test
-```
-
----
-
-## Anastasia Assembly (`.ana`) Code Examples
-
-### 1. High-Performance Loop with Branch Hints & Volatile Sink
-```smali
-.fn compute_factorial(p0: i64) -> i64
-    .registers 3 local
-    move-const v0, 1
-    move-const v1, 1
-
-loop_start:
-    if-ge likely v1, p0, loop_end
-    mul-int/32 v0, v0, v1
-    add-int/64 v1, v1, 1
-    goto loop_start
-
-loop_end:
-    sink-mem v0
-    return-val v0
-.end_fn
-```
-
-### 2. Native String Literals & String Interning
-```smali
-.fn get_engine_status() -> ptr
-    .registers 1 local
-    const-string v0, "Anastasia v7.1 Bare-Metal Engine Active"
-    return-val v0
-.end_fn
-```
-
-### 3. Lock-Free Hardware Atomic Counter
-```smali
-.fn increment_atomic_counter(p0: ptr, p1: i64) -> i64
-    .registers 1 local
-    atomic-add/64 [p0 + 0], p1
-    fence
-    load-mem v0, [p0 + 0]
-    return-val v0
-.end_fn
-```
-
----
-
-## Benchmark & Test Matrix
+## 🧪 Benchmark & Test Matrix
 
 Anastasia includes a comprehensive **200-test verification matrix** covering bare-metal engine subsystems, LeetCode algorithms, Codeforces 1800+ competitive programming solutions, and hardcore algorithm & stress tests:
 
@@ -360,7 +316,7 @@ Anastasia includes a comprehensive **200-test verification matrix** covering bar
 
 ---
 
-## Technical Documentation & Guides
+## 📚 Technical Documentation & Guides
 
 For deep architectural specifications, language grammar, and LLM AI prompt integration, refer to the project documentation:
 
@@ -369,22 +325,22 @@ For deep architectural specifications, language grammar, and LLM AI prompt integ
 
 ---
 
-## Credits & Acknowledgments
+## 👑 Credits & Author Attribution
 
 Anastasia is designed, created, and maintained by:
 
-* **Nader Mahbub Khan** — Author, Creator, and Lead Architect ([GitHub @nadermkhan](https://github.com/nadermkhan))
+* **Nader Mahbub Khan** — Author, Creator, and Lead Systems Architect ([GitHub @nadermkhan](https://github.com/nadermkhan))
 
-### AI Models & Agent Frameworks
+### AI Frameworks & Frontier Model Credits
 Special thanks and full credit to the frontier AI models and agent frameworks utilized during pair-programming, code generation, architecture design, and comprehensive test suite creation:
 
-* **Gemini Flash 3.6 (High)** — Code generation, high-speed synthesis, and instruction parsing.
+* **Gemini Flash 3.6 (High)** — High-speed code generation, instruction parsing, and synthesis.
 * **Claude Opus 5** — Deep architectural reasoning, compiler optimization design, and register allocation logic.
 * **Google DeepMind Antigravity** — Autonomous AI agent system & environment orchestrator.
 
 ---
 
-## License
+## 📜 License
 
 This project is open-source software licensed under the **MIT License**.
 

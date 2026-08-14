@@ -55,6 +55,7 @@ set(SOURCES
     tests/leetcode_suite.cpp
     tests/codeforces_suite.cpp
     tests/hardcore_suite.cpp
+    tests/reliability_suite.cpp
     tests/test_suite.cpp
     examples/example_runner.cpp
     src/main.cpp

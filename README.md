@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/Language-Anastasia%20Assembly%20%7C%20C%2B%2B20-blue.svg" alt="Language">
   <img src="https://img.shields.io/badge/Dependencies-Zero%20%28100%25%20Freestanding%20Zero--CRT%29-brightgreen.svg" alt="Dependencies">
   <img src="https://img.shields.io/badge/Architecture-x86__64%20%7C%20AArch64%20%7C%20ARMv7%20%7C%20RISC--V-orange.svg" alt="Architecture">
-  <img src="https://img.shields.io/badge/Tests-200%2F200%20Passed%20%28100%25%20Matrix%29-success.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-300%2F300%20Passed%20%28100%25%20Matrix%29-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </p>
 
@@ -301,7 +301,7 @@ Kernel Signal Dispatcher (syscall 13: raw_rt_sigaction)
 
 ## Benchmark & Test Matrix
 
-Anastasia includes a comprehensive **200-test verification matrix** covering bare-metal engine subsystems, LeetCode algorithms, Codeforces 1800+ competitive programming solutions, and hardcore algorithm & stress tests:
+Anastasia includes a comprehensive **300-test verification matrix** covering bare-metal engine subsystems, LeetCode algorithms, Codeforces 1800+ competitive programming solutions, hardcore stress tests, and hardware trap reliability & chaos resilience:
 
 | Test Suite | Total Tests | Pass Rate | Coverage |
 |---|---|---|---|
@@ -309,7 +309,8 @@ Anastasia includes a comprehensive **200-test verification matrix** covering bar
 | **LeetCode Algorithm Suite** | 30 | **100% (30/30)** | Two Sum, Kadane, Boyer-Moore, Binary Search, Palindromes, Fast Power |
 | **Codeforces 1800+ Suite** | 30 | **100% (30/30)** | Segment Tree, LIS, DSU, Dijkstra, Matrix Exp, KMP, Z-Algo, FWHT, 2-SAT |
 | **Hardcore Stress Suite** | 100 | **100% (100/100)** | HLD, Centroid, Dinic, Push-Relabel, FFT/NTT, SAM, AES, SHA256, RSA, 30-Reg Spilling |
-| **Total Ecosystem Matrix** | **200** | **100% (200/200)** | **Complete JIT & AOT Functional Verification** |
+| **Hardcore Reliability & Chaos Matrix** | 100 | **100% (100/100)** | Memory OOM, TLAB Overflow, Atomic Contention, W^X Protection, Traps & Signal Interception |
+| **Total Ecosystem Matrix** | **300** | **100% (300/300)** | **Complete JIT, AOT, Fault Tolerance & Memory Resilience Verification** |
 
 ---
 

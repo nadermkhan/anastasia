@@ -2,6 +2,7 @@
 #include "leetcode_suite.h"
 #include "codeforces_suite.h"
 #include "hardcore_suite.h"
+#include "reliability_suite.h"
 #include "../src/sys/sys_raw.h"
 #include "../src/sys/cpu_features.h"
 #include "../src/frontend/arena_allocator.h"
@@ -1669,12 +1670,13 @@ bool run_all_tests() {
     ok &= run_leetcode_tests();
     ok &= run_codeforces_tests();
     ok &= run_hardcore_tests();
+    ok &= run_reliability_suite();
 
     print_msg("=======================================================\n");
     if (ok) {
-        print_msg("    ALL 40 QA MATRIX TESTS SUCCEEDED PERFECTLY!\n");
+        print_msg("    ALL 300 ECOSYSTEM TESTS SUCCEEDED PERFECTLY!\n");
     } else {
-        print_msg("    QA MATRIX TEST SUITE FAILED\n");
+        print_msg("    ECOSYSTEM TEST SUITE FAILED\n");
     }
     print_msg("=======================================================\n\n");
     return ok;

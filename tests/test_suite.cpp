@@ -670,6 +670,8 @@ static bool test_aot_elf_compilation() {
     uint16_t expected_mach = 183;
 #elif defined(__arm__) || defined(_M_ARM) || defined(__armv7__)
     uint16_t expected_mach = 40;
+#elif defined(__riscv) || defined(__riscv__)
+    uint16_t expected_mach = 243;
 #else
     uint16_t expected_mach = 62;
 #endif

@@ -8,6 +8,7 @@
 #include "inline_cache.h"
 #include "aarch64_backend.h"
 #include "armv7_backend.h"
+#include "rv64_backend.h"
 
 namespace ana {
 namespace backend {
@@ -55,6 +56,9 @@ void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* pr
 #elif defined(__arm__) || defined(_M_ARM) || defined(__armv7__)
     Armv7TargetBackend armv7_backend(&runtime_);
     return armv7_backend.compile_function(fn, prog);
+#elif defined(__riscv) || defined(__riscv__)
+    Rv64TargetBackend rv64_backend(&runtime_);
+    return rv64_backend.compile_function(fn, prog);
 #else
 
     AnaRegAlloc* regalloc = new AnaRegAlloc();

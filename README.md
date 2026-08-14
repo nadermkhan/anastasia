@@ -3,7 +3,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Language-Anastasia%20Assembly%20%7C%20C%2B%2B20-blue.svg" alt="Language">
   <img src="https://img.shields.io/badge/Dependencies-Zero%20%28100%25%20Freestanding%20Zero--CRT%29-brightgreen.svg" alt="Dependencies">
-  <img src="https://img.shields.io/badge/Architecture-x86__64%20%7C%20AArch64%20%7C%20ARMv7-orange.svg" alt="Architecture">
+  <img src="https://img.shields.io/badge/Architecture-x86__64%20%7C%20AArch64%20%7C%20ARMv7%20%7C%20RISC--V-orange.svg" alt="Architecture">
   <img src="https://img.shields.io/badge/AI--Assisted-Built%20with%20Google%20Antigravity%20AI-purple.svg" alt="AI Assisted">
   <img src="https://img.shields.io/badge/Tests-200%2F200%20Passed%20%28100%25%20Matrix%29-success.svg" alt="Tests">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
@@ -11,7 +11,7 @@
 
 > **High-Throughput, Bare-Metal, Zero-CRT JIT & AOT Compiler Engine for Anastasia Assembly (`.ana`)**
 
-**Anastasia** is an open-source, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets x86_64, AArch64 (ARM64), and ARMv7 (32-bit ARM) at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
+**Anastasia** is an open-source, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets x86_64, AArch64 (ARM64), ARMv7 (32-bit ARM), and RISC-V (RV64) at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
 
 > **Open-Source AI Disclosure**: Anastasia was developed using modern agentic AI pair-programming (powered by Google DeepMind's Antigravity AI agent framework). Every line of generated machine code emitter logic, register allocation, SSA optimization, and instruction parsing is rigorously validated against a **200/200 test verification suite** on Linux and Windows CI environments.
 

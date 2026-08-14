@@ -11,7 +11,8 @@ namespace backend {
 enum class TargetArch {
     X86_64,
     AARCH64,
-    ARMV7
+    ARMV7,
+    RISCV64
 };
 
 class AnaTargetBackend {

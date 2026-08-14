@@ -1,6 +1,9 @@
 #include "tlab_provider.h"
 #include "object_heap.h"
-#include <signal.h>
+
+#ifndef ANA_SIGSEGV
+#define ANA_SIGSEGV 11
+#endif
 
 namespace ana {
 namespace sys {
@@ -25,14 +28,15 @@ TLAB* get_thread_tlab() {
 }
 
 #if defined(__linux__) && defined(__x86_64__)
+struct siginfo_t_dummy;
 struct k_sigaction {
-    void (*handler)(int, siginfo_t*, void*);
+    void (*handler)(int, siginfo_t_dummy*, void*);
     unsigned long flags;
     void (*restorer)(void);
     unsigned long mask;
 };
 
-static void sigsegv_tlab_handler(int sig, siginfo_t* info, void* ucontext) {
+static void sigsegv_tlab_handler(int sig, siginfo_t_dummy* info, void* ucontext) {
     (void)sig; (void)info; (void)ucontext;
     TLAB* tlab = get_thread_tlab();
     
@@ -56,13 +60,13 @@ void init_tlab_subsystem() {
     k_sigaction sa;
     freestanding_memset(&sa, 0, sizeof(sa));
     sa.handler = sigsegv_tlab_handler;
-    sa.flags = SA_SIGINFO | SA_NODEFER;
+    sa.flags = 0x00000004 | 0x40000000; // SA_SIGINFO | SA_NODEFER
 
     int64_t ret;
     __asm__ __volatile__(
         "syscall"
         : "=a"(ret)
-        : "a"(13), "D"(SIGSEGV), "S"(&sa), "d"((void*)0), "r"(8UL)
+        : "a"(13), "D"(ANA_SIGSEGV), "S"(&sa), "d"((void*)0), "r"(8UL)
         : "rcx", "r11", "memory"
     );
 #endif

@@ -89,8 +89,8 @@ extern "C" {
 extern "C" {
 
 #ifndef _WIN32
-uintptr_t __stack_chk_guard = 0xdeadbeefcafebabeULL;
-uintptr_t __security_cookie = 0xdeadbeefcafebabeULL;
+uintptr_t __stack_chk_guard = static_cast<uintptr_t>(0xdeadbeefcafebabeULL);
+uintptr_t __security_cookie = static_cast<uintptr_t>(0xdeadbeefcafebabeULL);
 
 void __stack_chk_fail(void) {
     ana::sys::raw_write(2, "Stack check failed!\n", 20);

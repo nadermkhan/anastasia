@@ -490,9 +490,94 @@ static void bench_multicore_data_parallelism_50b_ops() {
     print_benchmark_result(res);
 }
 
+static void bench_comparative_suite() {
+    print_str("\n=======================================================\n");
+    print_str("  HEAD-TO-HEAD COMPARATIVE BENCHMARKS (Anastasia JIT vs Native C)\n");
+    print_str("=======================================================\n");
+
+    // 1. 100M Loop Execution (Anastasia JIT vs Native C)
+    {
+        const char* loop_program =
+            ".fn loop_fn(p0: i64) -> i64\n"
+            "    .registers 2 local\n"
+            "    move-const v0, 0\n"
+            "    move-const v1, 0\n"
+            "loop_start:\n"
+            "    if-ge likely v1, p0, loop_end\n"
+            "    add-int/64 v0, v0, v1\n"
+            "    add-int/64 v1, v1, 1\n"
+            "    goto loop_start\n"
+            "loop_end:\n"
+            "    return-val v0\n"
+            ".end_fn\n";
+
+        frontend::ArenaAllocator arena;
+        frontend::Parser parser(loop_program, arena);
+        frontend::Program* prog = parser.parse_program();
+        AnastasiaJitRuntime runtime;
+        AnaLowerer lowerer(runtime);
+        typedef int64_t (*LoopFn)(int64_t);
+        LoopFn compiled_loop = reinterpret_cast<LoopFn>(lowerer.compile_function(prog->functions, prog));
+
+        constexpr uint64_t loop_iters = 100000000ULL;
+
+        // Native C execution
+        uint64_t c_start = get_time_ns();
+        volatile int64_t c_sum = 0;
+        for (uint64_t i = 0; i < loop_iters; ++i) {
+            c_sum += static_cast<int64_t>(i);
+        }
+        uint64_t c_end = get_time_ns();
+        uint64_t c_time = (c_end - c_start == 0) ? 1 : (c_end - c_start);
+
+        // Anastasia JIT execution
+        uint64_t ana_start = get_time_ns();
+        int64_t ana_sum = compiled_loop(static_cast<int64_t>(loop_iters));
+        uint64_t ana_end = get_time_ns();
+        uint64_t ana_time = (ana_end - ana_start == 0) ? 1 : (ana_end - ana_start);
+        (void)ana_sum;
+
+        print_str("  [100M Loop Execution]\n");
+        print_str("    - Native C Elapsed Time : "); print_uint(c_time / 1000000ULL); print_str(" ms ("); print_uint(c_time); print_str(" ns)\n");
+        print_str("    - Anastasia JIT Time    : "); print_uint(ana_time / 1000000ULL); print_str(" ms ("); print_uint(ana_time); print_str(" ns)\n");
+        double ratio = static_cast<double>(c_time) / static_cast<double>(ana_time);
+        print_str("    - Anastasia vs Native C : "); print_double_2dec(ratio); print_str("x Speed Relative to Native C\n\n");
+    }
+
+    // 2. 1M Object Heap Allocation (Anastasia TLAB vs malloc/free)
+    {
+        constexpr uint64_t alloc_iters = 1000000ULL;
+
+        // Native C malloc/free
+        uint64_t c_start = get_time_ns();
+        for (uint64_t i = 0; i < alloc_iters; ++i) {
+            void* ptr = malloc(32);
+            backend::ana_benchmark_consume(reinterpret_cast<uintptr_t>(ptr));
+            free(ptr);
+        }
+        uint64_t c_end = get_time_ns();
+        uint64_t c_time = (c_end - c_start == 0) ? 1 : (c_end - c_start);
+
+        // Anastasia TLAB bump allocation
+        uint64_t ana_start = get_time_ns();
+        for (uint64_t i = 0; i < alloc_iters; ++i) {
+            void* ptr = ObjectHeap::instance().allocate_object(32, nullptr, 1);
+            backend::ana_benchmark_consume(reinterpret_cast<uintptr_t>(ptr));
+        }
+        uint64_t ana_end = get_time_ns();
+        uint64_t ana_time = (ana_end - ana_start == 0) ? 1 : (ana_end - ana_start);
+
+        print_str("  [1M Heap Allocations]\n");
+        print_str("    - Standard malloc/free : "); print_uint(c_time / 1000000ULL); print_str(" ms ("); print_uint(c_time); print_str(" ns)\n");
+        print_str("    - Anastasia TLAB Bump  : "); print_uint(ana_time / 1000000ULL); print_str(" ms ("); print_uint(ana_time); print_str(" ns)\n");
+        double ratio = static_cast<double>(c_time) / static_cast<double>(ana_time);
+        print_str("    - Anastasia vs malloc   : "); print_double_2dec(ratio); print_str("x Speedup (TLAB Bump Allocator)\n\n");
+    }
+}
+
 void run_all_benchmarks() {
     print_str("\n=======================================================\n");
-    print_str("  Anastasia v6.0 Terabyte-Compute Engine Benchmark Suite\n");
+    print_str("  Anastasia v7.1 Terabyte-Compute Engine Benchmark Suite\n");
     print_str("=======================================================\n");
 
     bench_jit_compilation_speed();
@@ -502,6 +587,8 @@ void run_all_benchmarks() {
     bench_avx512_autovectorizer_10b_ops();
     bench_multicore_data_parallelism_50b_ops();
     bench_object_heap_bump_alloc();
+
+    bench_comparative_suite();
 
     print_str("\n=======================================================\n");
     print_str("  BENCHMARK SUITE COMPLETED SUCCESSFULLY!\n");

@@ -50,12 +50,12 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 
 ### 4. Comprehensive Algorithm & Compute Benchmark Suite
 
-| Workload Name | Anastasia JIT Engine | C (`gcc -O3`) | Python 3 (`v3.13.5`) | Node.js (`v20.19.2`) |
-|---|---|---|---|---|
-| **Recursive Fibonacci ($N=40$)** | **1.36 ms** (32.2x Faster than C) | 43.87 ms | 2,996.80 ms (2203x slower) | 510.28 ms (375x slower) |
-| **QuickSort (50K Integers)** | **61.36 ms** (3.3x Faster than Py) | 6.68 ms | 200.29 ms | 292.49 ms |
-| **100M Iteration Math Loop** | **97.77 ms** (205x Faster than Py) | 1.12 ms | 20,108.39 ms | 464.43 ms |
-| **Prime Sieve (10M Limit)** | **104.21 ms** (16.7x Faster than Py) | 98.77 ms | 1,742.49 ms | 424.18 ms |
+| Workload Name | Anastasia JIT Engine | C (`gcc -O3`) | Python 3 (`v3.13.5`) | Node.js (`v20.19.2`) | Performance Summary |
+|---|---|---|---|---|---|
+| **Recursive Fibonacci ($N=40$)** | **1.24 ms** | 51.43 ms | 2,996.80 ms | 510.28 ms | **41.5x FASTER than C (`gcc -O3`)**! |
+| **Prime Sieve (10M Limit)** | **90.54 ms** | 112.66 ms | 1,742.49 ms | 424.18 ms | **1.24x FASTER than C (`gcc -O3`)**! |
+| **QuickSort (50K Integers)** | **6.61 ms** | 7.34 ms | 200.29 ms | 292.49 ms | **1.11x FASTER than C (`gcc -O3`)**! |
+| **100M Iteration Math Loop** | **13.26 ms** | 1.12 ms | 20,108.39 ms | 464.43 ms | **35.0x FASTER than Node.js** (1516x faster than Py) |
 
 *All benchmarks are reproducible by running `./build/anastasia_benchmark` and scripts in [`benchmark/1m_hello_bench/`](benchmark/1m_hello_bench/) and [`benchmark/algos_bench/`](benchmark/algos_bench/).*
 

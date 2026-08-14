@@ -173,8 +173,59 @@ Anastasia includes a built-in interactive assembly debugger and instruction step
   - `break` (`b`): List active breakpoints.
   - `quit` (`q`): Exit debug shell.
 
-### 7. Freestanding Crash Interceptor (`AnaTrapHandler`)
-Unlike C or Assembly where memory faults crash silently (`Segmentation fault`), Anastasia uses freestanding system call signal handlers (`raw_rt_sigaction`) to intercept hardware traps (`SIGSEGV`, `SIGFPE`, `SIGILL`, `SIGBUS`), print a structured CPU register diagnostic dump (`RIP`, `RSP`, `RAX`..`R15`), and safely halt execution to prevent data corruption.
+### 7. Freestanding Crash Interceptor & Diagnostic Trap Handler (`AnaTrapHandler`)
+
+Unlike standard C, C++, or raw assembly binaries where memory errors terminate silently or dump unhelpful shell messages (`Segmentation fault (core dumped)`), Anastasia Engine embeds a freestanding kernel-level signal trap interceptor (**`AnaTrapHandler`**).
+
+```
+===================================================================================
+                  ANASTASIA FREESTANDING FAULT INTERCEPTION
+===================================================================================
+Hardware Fault (e.g. NULL Pointer Dereference / Div-by-Zero)
+                          │
+                          ▼
+Kernel Signal Dispatcher (syscall 13: raw_rt_sigaction)
+                          │
+                          ▼
+             AnaTrapHandler Signal Interceptor
+                          │
+   ┌──────────────────────┴──────────────────────┐
+   ▼                                             ▼
+[CPU Register State Dump]            [Memory Address & Signal Info]
+  RIP: 0x00007ffff7fc1b04              Fault Addr: 0x0000000000000000
+  RSP: 0x00007fffffffe410              Signal: SIGSEGV (11)
+  RAX: 0x0000000000000000              Code: SEGV_MAPERR (1)
+  RBX..R15 Register Dump               Stack Frame Backtrace
+```
+
+#### Key Capabilities & Architecture
+
+1. **Zero-CRT Signal Registration**:
+   - Registers kernel signal handlers directly using raw Linux system calls (`raw_rt_sigaction`, syscall 13 on x86_64) without linking glibc, libuClibc, or standard CRT libraries.
+2. **Interception Matrix**:
+   - **`SIGSEGV` (Signal 11)**: NULL pointer dereferences, wild pointer writes, and out-of-bounds page faults.
+   - **`SIGFPE` (Signal 8)**: Integer division by zero and IEEE 754 floating-point exceptions.
+   - **`SIGILL` (Signal 4)**: Invalid instruction opcodes or corrupt JIT machine code execution.
+   - **`SIGBUS` (Signal 7)**: Unaligned memory accesses or bus faults.
+3. **Structured CPU Register State Diagnostics**:
+   - Prints a formatted diagnostic report containing:
+     - Exact faulting instruction address (`RIP` / `PC`).
+     - Current stack frame pointer (`RSP` / `SP`).
+     - General-purpose register values (`RAX`, `RBX`, `RCX`, `RDX`, `RSI`, `RDI`, `RBP`, `R8`–`R15`).
+     - Target faulting memory address (`siginfo_t.si_addr`).
+4. **Programmatic Usage**:
+   ```cpp
+   #include "sys/ana_trap_handler.h"
+
+   int main() {
+       // Enable freestanding crash interception
+       ana::sys::AnaTrapHandler::init();
+
+       // Any hardware fault now generates structured diagnostics
+       int* null_ptr = nullptr;
+       *null_ptr = 42; // Caught by AnaTrapHandler (SIGSEGV)
+   }
+   ```
 
 ---
 

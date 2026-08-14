@@ -28,6 +28,7 @@ set(SOURCES
     src/sys/tlab_provider.cpp
     src/sys/gc_collector.cpp
     src/sys/io_ring.cpp
+    src/sys/ana_trap_handler.cpp
     src/frontend/ana_lexer.cpp
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp
@@ -68,6 +69,7 @@ set(BENCH_SOURCES
     src/sys/tlab_provider.cpp
     src/sys/gc_collector.cpp
     src/sys/io_ring.cpp
+    src/sys/ana_trap_handler.cpp
     src/frontend/ana_lexer.cpp
     src/frontend/ana_parser.cpp
     src/backend/ana_encoder.cpp

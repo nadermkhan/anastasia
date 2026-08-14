@@ -145,6 +145,9 @@ Anastasia includes a built-in interactive assembly debugger and instruction step
   - `break` (`b`): List active breakpoints.
   - `quit` (`q`): Exit debug shell.
 
+### 7. Freestanding Crash Interceptor (`AnaTrapHandler`)
+Unlike C or Assembly where memory faults crash silently (`Segmentation fault`), Anastasia uses freestanding system call signal handlers (`raw_rt_sigaction`) to intercept hardware traps (`SIGSEGV`, `SIGFPE`, `SIGILL`, `SIGBUS`), print a structured CPU register diagnostic dump (`RIP`, `RSP`, `RAX`..`R15`), and safely halt execution to prevent data corruption.
+
 ---
 
 ## System Architecture

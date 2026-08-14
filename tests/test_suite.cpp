@@ -24,6 +24,7 @@
 #include "../src/backend/pe_emitter.h"
 #include "../src/optimizer/pgo_profiler.h"
 #include "../src/debugger/ana_debugger.h"
+#include "../src/sys/ana_trap_handler.h"
 #include "leetcode_suite.h"
 #include <fcntl.h>
 #ifndef _WIN32
@@ -792,6 +793,12 @@ static bool test_aarch64_instruction_encoding() {
             print_msg("FAILED (Debugger Step Execution Result)\n");
             return false;
         }
+    }
+
+    // Verify AnaTrapHandler Freestanding Signal Registration
+    if (!sys::AnaTrapHandler::init()) {
+        print_msg("FAILED (AnaTrapHandler Signal Registration)\n");
+        return false;
     }
 
     free(header);

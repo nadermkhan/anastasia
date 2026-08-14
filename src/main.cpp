@@ -27,8 +27,11 @@ static void print_cli_msg(const char* s) {
 
 
 #include "debugger/ana_debugger.h"
+#include "sys/ana_trap_handler.h"
 
 int ana_main(int argc, char** argv) {
+    ana::sys::init_trap_handler();
+
     if (argc >= 3 && streq_check(argv[1], "--debug")) {
         ana::debugger::AnaDebugger dbg;
         if (!dbg.load_program_from_file(argv[2])) {

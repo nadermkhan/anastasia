@@ -67,6 +67,11 @@ extern "C" {
         (void)arg; (void)func; (void)dso;
         return 0;
     }
+    int raise(int sig) {
+        ana::sys::raw_write(2, "[AnaTrap] Signal raised via libgcc stub\n", 40);
+        ana::sys::raw_exit(128 + sig);
+        return 0;
+    }
     int __cxa_guard_acquire(int64_t* guard) {
         volatile char* g = reinterpret_cast<volatile char*>(guard);
         char* in_progress = reinterpret_cast<char*>(guard) + 1;

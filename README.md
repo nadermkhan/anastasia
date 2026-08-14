@@ -13,11 +13,11 @@
 
 **Anastasia** is an open-source, high-throughput, bare-metal compiler ecosystem and adaptive execution runtime engineered from the ground up to eliminate dynamic runtime overhead, third-party libraries, and standard C runtime (`libc` / `libstdc++`) dependencies. Compiling **Anastasia Assembly** (`.ana`) instructions directly into native machine code, Anastasia targets x86_64, AArch64 (ARM64), and ARMv7 (32-bit ARM) at runtime (**JIT**) or emits standalone relocatable ELF object files (`.o`) and PE32+ executables (`.exe`) (**AOT**).
 
-> **🤖 Open-Source AI Disclosure**: Anastasia was developed using modern agentic AI pair-programming (powered by Google DeepMind's Antigravity AI agent framework). Every line of generated machine code emitter logic, register allocation, SSA optimization, and instruction parsing is rigorously validated against a **200/200 test verification suite** on Linux and Windows CI environments.
+> **Open-Source AI Disclosure**: Anastasia was developed using modern agentic AI pair-programming (powered by Google DeepMind's Antigravity AI agent framework). Every line of generated machine code emitter logic, register allocation, SSA optimization, and instruction parsing is rigorously validated against a **200/200 test verification suite** on Linux and Windows CI environments.
 
 ---
 
-## ⚡ Measured Benchmarks & Head-to-Head Performance
+## Measured Benchmarks & Head-to-Head Performance
 
 Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_benchmark`) measuring JIT compilation latency, machine code loop execution, SIMD throughput, and TLAB allocation speeds:
 
@@ -272,6 +272,21 @@ For deep architectural specifications, language grammar, and LLM AI prompt integ
 
 * **[Engine Specification (`doc/doc.md`)](doc/doc.md)**: In-depth technical specification, register spilling model, opcode dictionary, and ISA lowering pipelines.
 * **[AI LLM Instruction Manual (`llm_instructions_learn_anastasia_for_ai.md`)](llm_instructions_learn_anastasia_for_ai.md)**: Zero-hallucination EBNF grammar rules, type system guidelines, and LLM prompt specifications for generating `.ana` code.
+
+---
+
+## Credits & Acknowledgments
+
+Anastasia is designed, created, and maintained by:
+
+* **Nader Mahbub Khan** — Author, Creator, and Lead Architect ([GitHub @nadermkhan](https://github.com/nadermkhan))
+
+### AI Models & Agent Frameworks
+Special thanks and full credit to the frontier AI models and agent frameworks utilized during pair-programming, code generation, architecture design, and comprehensive test suite creation:
+
+* **Gemini Flash 3.6 (High)** — Code generation, high-speed synthesis, and instruction parsing.
+* **Claude Opus 5** — Deep architectural reasoning, compiler optimization design, and register allocation logic.
+* **Google DeepMind Antigravity** — Autonomous AI agent system & environment orchestrator.
 
 ---
 

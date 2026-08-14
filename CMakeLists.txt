@@ -49,6 +49,7 @@ set(SOURCES
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
     src/optimizer/pgo_profiler.cpp
+    src/debugger/ana_debugger.cpp
     tests/leetcode_suite.cpp
     tests/codeforces_suite.cpp
     tests/hardcore_suite.cpp

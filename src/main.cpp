@@ -26,7 +26,21 @@ static void print_cli_msg(const char* s) {
 
 
 
+#include "debugger/ana_debugger.h"
+
 int ana_main(int argc, char** argv) {
+    if (argc >= 3 && streq_check(argv[1], "--debug")) {
+        ana::debugger::AnaDebugger dbg;
+        if (!dbg.load_program_from_file(argv[2])) {
+            print_cli_msg("[AnaDebugger ERROR] Failed to load program from file: ");
+            print_cli_msg(argv[2]);
+            print_cli_msg("\n");
+            return 1;
+        }
+        dbg.run_interactive_repl();
+        return 0;
+    }
+
     // `--aot` with too few arguments used to fall through and silently run the
     // whole test suite instead of reporting a usage error.
     if (argc >= 2 && streq_check(argv[1], "--aot") && argc < 4) {

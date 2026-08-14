@@ -133,6 +133,18 @@ label_p0_greater:
 .end_fn
 ```
 
+### 6. Interactive Assembly Debugger (`--debug`)
+Anastasia includes a built-in interactive assembly debugger and instruction stepper (`AnaDebugger`). Launch a debug session on any `.ana` file:
+```bash
+./build/anastasia_engine --debug examples/01_math_basics.ana
+```
+- **Commands**:
+  - `step` (`s`): Step single instruction forward.
+  - `continue` (`c`): Continue execution until breakpoint or return.
+  - `regs` (`r`): Inspect parameters `p0`..`p7` and virtual registers `v0`..`v31`.
+  - `break` (`b`): List active breakpoints.
+  - `quit` (`q`): Exit debug shell.
+
 ---
 
 ## System Architecture

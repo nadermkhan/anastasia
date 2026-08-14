@@ -23,6 +23,7 @@
 #include "../src/backend/host_interop.h"
 #include "../src/backend/pe_emitter.h"
 #include "../src/optimizer/pgo_profiler.h"
+#include "../src/debugger/ana_debugger.h"
 #include "leetcode_suite.h"
 #include <fcntl.h>
 #ifndef _WIN32
@@ -766,6 +767,31 @@ static bool test_aarch64_instruction_encoding() {
         print_msg(")\n");
         free(header);
         return false;
+    }
+
+    // Verify AnaDebugger Step Execution & Register State
+    {
+        ana::debugger::AnaDebugger dbg;
+        bool loaded = dbg.load_program_from_source(
+            ".fn test_dbg(p0: i64) -> i64\n"
+            ".registers 2 local\n"
+            "move-const v0, 100\n"
+            "add-int/64 v1, p0, v0\n"
+            "return-val v1\n"
+            ".end_fn\n"
+        );
+        if (!loaded) {
+            print_msg("FAILED (Debugger Load Program)\n");
+            return false;
+        }
+        dbg.set_param(0, 50);
+        dbg.step(); // move-const v0, 100
+        dbg.step(); // add-int/64 v1, p0, v0
+        dbg.step(); // return-val v1 -> 150
+        if (dbg.get_register(0) != 150) {
+            print_msg("FAILED (Debugger Step Execution Result)\n");
+            return false;
+        }
     }
 
     free(header);

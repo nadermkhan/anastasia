@@ -94,6 +94,11 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
 int   raw_mprotect(void* addr, size_t length, int prot);
 int   raw_munmap(void* addr, size_t length);
 int64_t raw_write(int fd, const void* buf, size_t count);
+struct raw_iovec {
+    void*  iov_base;
+    size_t iov_len;
+};
+int64_t raw_writev(int fd, const raw_iovec* iov, int iovcnt);
 int64_t raw_read(int fd, void* buf, size_t count);
 int   raw_open(const char* pathname, int flags, int mode);
 int   raw_close(int fd);

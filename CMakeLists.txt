@@ -50,6 +50,7 @@ set(SOURCES
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
     src/optimizer/pgo_profiler.cpp
+    src/optimizer/sys_coalescer.cpp
     src/debugger/ana_debugger.cpp
     tests/leetcode_suite.cpp
     tests/codeforces_suite.cpp
@@ -90,6 +91,7 @@ set(BENCH_SOURCES
     src/backend/ana_lowerer.cpp
     src/optimizer/ana_ssa.cpp
     src/optimizer/pgo_profiler.cpp
+    src/optimizer/sys_coalescer.cpp
     benchmark/bench_suite.cpp
     benchmark/bench_main.cpp
 )

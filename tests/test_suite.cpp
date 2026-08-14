@@ -25,6 +25,7 @@
 #include "../src/optimizer/pgo_profiler.h"
 #include "../src/debugger/ana_debugger.h"
 #include "../src/sys/ana_trap_handler.h"
+#include "../src/optimizer/sys_coalescer.h"
 #include "leetcode_suite.h"
 
 namespace ana {
@@ -795,6 +796,16 @@ static bool test_aarch64_instruction_encoding() {
     if (!sys::AnaTrapHandler::init()) {
         print_msg("FAILED (AnaTrapHandler Signal Registration)\n");
         return false;
+    }
+
+    // Verify raw_writev & SyscallCoalescer Pass
+    {
+        ana::sys::raw_iovec iov[1];
+        char msg[] = "";
+        iov[0].iov_base = msg;
+        iov[0].iov_len = 0;
+        (void)ana::sys::raw_writev(1, iov, 1);
+        (void)optimizer::SyscallCoalescer::coalesce_program_syscalls(nullptr);
     }
 
     free(header);

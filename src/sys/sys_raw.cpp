@@ -326,16 +326,51 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
     }
     return static_cast<int64_t>(done);
 #elif defined(_WIN32) || defined(_WIN64)
-    (void)fd;
-    HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+    HANDLE h = (fd == 1) ? GetStdHandle(STD_OUTPUT_HANDLE) :
+               (fd == 2) ? GetStdHandle(STD_ERROR_HANDLE) : reinterpret_cast<HANDLE>(static_cast<intptr_t>(fd));
     DWORD written = 0;
-    if (WriteFile(h_out, buf, static_cast<DWORD>(count), &written, nullptr)) {
-        return written;
-    }
-    return -1;
+    WriteFile(h, buf, static_cast<DWORD>(count), &written, NULL);
+    return static_cast<int64_t>(written);
 #else
     (void)fd; (void)buf; (void)count;
     return -1;
+#endif
+}
+
+int64_t raw_writev(int fd, const raw_iovec* iov, int iovcnt) {
+#if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
+    int64_t ret;
+    int64_t fd64 = static_cast<int64_t>(fd);
+    int64_t cnt64 = static_cast<int64_t>(iovcnt);
+    __asm__ __volatile__(
+        "syscall"
+        : "=a"(ret)
+        : "a"(20), "D"(fd64), "S"(iov), "d"(cnt64)
+        : "rcx", "r11", "memory"
+    );
+    return ret;
+#elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))
+    register int64_t x8 __asm__("x8") = 66; // __NR_writev
+    register int64_t x0 __asm__("x0") = static_cast<int64_t>(fd);
+    register int64_t x1 __asm__("x1") = reinterpret_cast<int64_t>(iov);
+    register int64_t x2 __asm__("x2") = static_cast<int64_t>(iovcnt);
+
+    __asm__ __volatile__(
+        "svc #0"
+        : "+r"(x0)
+        : "r"(x8), "r"(x1), "r"(x2)
+        : "memory"
+    );
+    return x0;
+#else
+    int64_t total = 0;
+    for (int i = 0; i < iovcnt; ++i) {
+        if (iov[i].iov_base && iov[i].iov_len > 0) {
+            int64_t res = raw_write(fd, iov[i].iov_base, iov[i].iov_len);
+            if (res > 0) total += res;
+        }
+    }
+    return total;
 #endif
 }
 

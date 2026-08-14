@@ -26,10 +26,6 @@
 #include "../src/debugger/ana_debugger.h"
 #include "../src/sys/ana_trap_handler.h"
 #include "leetcode_suite.h"
-#include <fcntl.h>
-#ifndef _WIN32
-#include <unistd.h>
-#endif
 
 namespace ana {
 namespace tests {

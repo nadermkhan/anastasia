@@ -129,6 +129,9 @@ static void posix_signal_handler(int sig, kernel_siginfo_t* info, void* ucontext
     AnaTrapHandler::print_crash_report(sig, sig_name, info ? info->si_addr : nullptr, ucontext);
     raw_exit(128 + sig);
 }
+static void mark_posix_signal_handler_used() {
+    (void)&posix_signal_handler;
+}
 #endif
 
 bool AnaTrapHandler::init() {

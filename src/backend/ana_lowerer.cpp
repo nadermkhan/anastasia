@@ -47,6 +47,10 @@ static bool is_i32_op(frontend::Opcode op) {
     }
 }
 
+static void mark_is_i32_op_used() {
+    (void)&is_i32_op;
+}
+
 void* AnaLowerer::compile_function(frontend::Function* fn, frontend::Program* prog) {
     if (!fn) return nullptr;
 

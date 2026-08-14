@@ -337,6 +337,43 @@ int64_t raw_write(int fd, const void* buf, size_t count) {
 #endif
 }
 
+struct SysRingBuffer {
+    char buf[65536];
+    size_t pos = 0;
+    int fd = 1;
+};
+
+static thread_local SysRingBuffer g_sys_ring;
+
+void raw_flush(int fd) {
+    if (g_sys_ring.pos > 0 && g_sys_ring.fd == fd) {
+        raw_write(fd, g_sys_ring.buf, g_sys_ring.pos);
+        g_sys_ring.pos = 0;
+    }
+}
+
+int64_t raw_write_buffered(int fd, const void* buf, size_t count) {
+    if (!buf || count == 0) return 0;
+    if (g_sys_ring.fd != fd) {
+        raw_flush(g_sys_ring.fd);
+        g_sys_ring.fd = fd;
+    }
+    const char* src = static_cast<const char*>(buf);
+    size_t written = 0;
+    while (written < count) {
+        size_t space = sizeof(g_sys_ring.buf) - g_sys_ring.pos;
+        if (space == 0) {
+            raw_flush(fd);
+            space = sizeof(g_sys_ring.buf);
+        }
+        size_t chunk = (count - written < space) ? (count - written) : space;
+        freestanding_memcpy(g_sys_ring.buf + g_sys_ring.pos, src + written, chunk);
+        g_sys_ring.pos += chunk;
+        written += chunk;
+    }
+    return static_cast<int64_t>(written);
+}
+
 int64_t raw_writev(int fd, const raw_iovec* iov, int iovcnt) {
 #if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     int64_t ret;
@@ -612,6 +649,8 @@ int raw_mbind(void* addr, size_t len, int mode, const void* nodemask, unsigned l
 }
 
 void raw_exit(int code) {
+    raw_flush(1);
+    raw_flush(2);
 #if defined(__linux__) && (defined(__x86_64__) || defined(_M_X64))
     __asm__ __volatile__(
         "movq $60, %%rax\n\t"

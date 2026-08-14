@@ -44,8 +44,9 @@ int ana_main(int argc, char** argv) {
     // Stream 1,000,000 "Hello, World!\n" buffers freestanding
     const char msg[] = "Hello, World!\n";
     for (int64_t i = 0; i < iterations; ++i) {
-        ana::sys::raw_write(1, msg, 14);
+        ana::sys::raw_write_buffered(1, msg, 14);
     }
+    ana::sys::raw_flush(1);
 
     return 0;
 }

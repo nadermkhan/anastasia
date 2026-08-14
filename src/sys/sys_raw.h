@@ -94,6 +94,8 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
 int   raw_mprotect(void* addr, size_t length, int prot);
 int   raw_munmap(void* addr, size_t length);
 int64_t raw_write(int fd, const void* buf, size_t count);
+int64_t raw_write_buffered(int fd, const void* buf, size_t count);
+void    raw_flush(int fd);
 struct raw_iovec {
     void*  iov_base;
     size_t iov_len;

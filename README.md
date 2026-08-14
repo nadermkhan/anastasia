@@ -42,11 +42,11 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 
 | Language / Engine | Execution Time (ms) | Throughput (prints/sec) | Relative Speed vs Anastasia |
 |---|---|---|---|
-| **Anastasia Engine (64 KiB Stream Buffer)** | **12.92 ms** | **77,376,738 prints/sec** | **1.00x (Fastest)** |
-| **C (`gcc -O3` / `fwrite`)** | **31.18 ms** | **32,076,863 prints/sec** | **2.41x slower** |
-| **Python 3 (`v3.13.5`)** | **131.28 ms** | **7,617,450 prints/sec** | **10.16x slower** |
-| **Anastasia Engine (Raw Unbuffered Syscalls)** | **781.16 ms** | **1,280,149 prints/sec** | **60.44x slower** |
-| **Node.js (`v20.19.2`)** | **3,124.91 ms** | **320,009 prints/sec** | **241.80x slower** |
+| **Anastasia Engine (64 KiB Stream Buffer)** | **12.95 ms** | **77,242,038 prints/sec** | **1.00x (Fastest)** |
+| **Anastasia Engine (Raw Unbuffered Syscalls)** | **21.69 ms** | **46,095,744 prints/sec** | **1.68x slower** |
+| **C (`gcc -O3` / `fwrite`)** | **30.75 ms** | **32,516,458 prints/sec** | **2.38x slower** |
+| **Python 3 (`v3.13.5`)** | **126.89 ms** | **7,880,655 prints/sec** | **9.80x slower** |
+| **Node.js (`v20.19.2`)** | **3,241.08 ms** | **308,539 prints/sec** | **250.35x slower** |
 
 *All benchmarks are reproducible by running `./build/anastasia_benchmark` and scripts in [`benchmark/1m_hello_bench/`](benchmark/1m_hello_bench/).*
 

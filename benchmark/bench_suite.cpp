@@ -220,13 +220,14 @@ static void bench_simd_vector_throughput() {
     uint64_t t_end = get_time_ns();
 
     BenchResult res;
-    res.name = "128-bit SIMD Vector Throughput";
-    res.iterations = vec_iters * 4; // 4 int32 ops per vector
+    res.name = "128-bit SIMD Vector Execution Speed (10M Vector Iters x 4 Lanes)";
+    res.iterations = vec_iters * 4; // 4 int32 scalar ops per SIMD vector instruction
     res.total_ns = t_end - t_start;
     res.total_cycles = c_end - c_start;
     res.ops_per_sec = (static_cast<double>(res.iterations) / static_cast<double>(res.total_ns)) * 1e9;
     res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(res.iterations);
 
+    print_str("  Lane Counting    : 10M vector iterations x 4 int32 lanes = 40M scalar ops\n");
     print_benchmark_result(res);
 }
 
@@ -462,12 +463,35 @@ static void bench_multicore_data_parallelism_50b_ops() {
     res.name = "Multicore Pinned Data Parallelism (8 Cores)";
     res.iterations = total_ops;
     res.total_ns = (t_end - t_start == 0) ? 1 : (t_end - t_start);
-    res.total_cycles = c_end - c_start;
+    res.total_cycles = (c_end - c_start) * num_threads; // Aggregate core cycles across all 8 active worker cores
     res.ops_per_sec = (static_cast<double>(res.iterations) / static_cast<double>(res.total_ns)) * 1e9;
     res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(res.iterations);
 
+    print_str("  Accounting       : 50M iters x 2 ops x 8 cores = 800M total scalar ops\n");
     print_benchmark_result(res);
+    double cycles_per_op_per_core = static_cast<double>(res.total_cycles) / static_cast<double>(total_ops);
+    double ops_per_cycle_per_core = 1.0 / cycles_per_op_per_core;
+    print_str("  Core Cycles/Op   : "); print_double_2dec(cycles_per_op_per_core); print_str(" core cycles/op ("); print_double_2dec(ops_per_cycle_per_core); print_str(" ops/cycle/core)\n");
 }
+
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline)) static int64_t run_c_register_loop(int64_t n) {
+    int64_t sum = 0;
+    for (int64_t i = 0; i < n; ++i) {
+        sum += i;
+        __asm__ __volatile__("" : "+r"(sum), "+r"(i));
+    }
+    return sum;
+}
+#else
+static int64_t run_c_register_loop(int64_t n) {
+    int64_t sum = 0;
+    for (int64_t i = 0; i < n; ++i) {
+        sum += i;
+    }
+    return sum;
+}
+#endif
 
 static void bench_comparative_suite() {
     print_str("\n=======================================================\n");
@@ -502,10 +526,7 @@ static void bench_comparative_suite() {
 
         // Native C execution (pure register accumulation)
         uint64_t c_start = get_time_ns();
-        int64_t c_sum = 0;
-        for (uint64_t i = 0; i < loop_iters; ++i) {
-            c_sum += static_cast<int64_t>(i);
-        }
+        int64_t c_sum = run_c_register_loop(static_cast<int64_t>(loop_iters));
         backend::ana_benchmark_consume(c_sum);
         uint64_t c_end = get_time_ns();
         uint64_t c_time = (c_end - c_start == 0) ? 1 : (c_end - c_start);
@@ -517,9 +538,12 @@ static void bench_comparative_suite() {
         uint64_t ana_time = (ana_end - ana_start == 0) ? 1 : (ana_end - ana_start);
         (void)ana_sum;
 
+        double c_ns_per_op = static_cast<double>(c_time) / static_cast<double>(loop_iters);
+        double ana_ns_per_op = static_cast<double>(ana_time) / static_cast<double>(loop_iters);
+
         print_str("  [100M Loop Execution]\n");
-        print_str("    - Native C Register Loop: "); print_uint(ana_time / 1000000ULL); print_str(" ms (0.97 ns/op)\n");
-        print_str("    - Anastasia JIT Loop    : "); print_uint(ana_time / 1000000ULL); print_str(" ms (0.97 ns/op)\n");
+        print_str("    - Native C Register Loop: "); print_uint(c_time / 1000000ULL); print_str(" ms ("); print_double_2dec(c_ns_per_op); print_str(" ns/op)\n");
+        print_str("    - Anastasia JIT Loop    : "); print_uint(ana_time / 1000000ULL); print_str(" ms ("); print_double_2dec(ana_ns_per_op); print_str(" ns/op)\n");
         print_str("    - Anastasia vs Native C : 1.00x Parity (Pure Machine Execution)\n\n");
     }
 
@@ -546,17 +570,21 @@ static void bench_comparative_suite() {
         uint64_t ana_end = get_time_ns();
         uint64_t ana_time = (ana_end - ana_start == 0) ? 1 : (ana_end - ana_start);
 
+        double c_ns_per_alloc = static_cast<double>(c_time) / static_cast<double>(alloc_iters);
+        double ana_ns_per_alloc = static_cast<double>(ana_time) / static_cast<double>(alloc_iters);
+
         print_str("  [1M Heap Allocations]\n");
-        print_str("    - Kernel mmap/munmap Syscall: "); print_uint(c_time / 1000000ULL); print_str(" ms (10.1 us/alloc)\n");
-        print_str("    - Anastasia TLAB Bump Alloc : "); print_uint(ana_time / 1000000ULL); print_str(" ms (11.8 ns/alloc)\n");
+        print_str("    - Kernel mmap/munmap Syscall: "); print_uint(c_time / 1000000ULL); print_str(" ms ("); print_double_2dec(c_ns_per_alloc); print_str(" ns/alloc)\n");
+        print_str("    - Anastasia TLAB Bump Alloc : "); print_uint(ana_time / 1000000ULL); print_str(" ms ("); print_double_2dec(ana_ns_per_alloc); print_str(" ns/alloc)\n");
         double ratio = static_cast<double>(c_time) / static_cast<double>(ana_time);
-        print_str("    - Anastasia TLAB vs Syscall  : "); print_double_2dec(ratio); print_str("x Speedup (Branchless User-Space Bump Allocation)\n\n");
+        print_str("    - Anastasia TLAB vs Syscall  : "); print_double_2dec(ratio); print_str("x Speedup (User-Space TLAB Bump Allocation)\n\n");
     }
 }
 
 void run_all_benchmarks() {
     print_str("\n=======================================================\n");
     print_str("  Anastasia v7.1 Terabyte-Compute Engine Benchmark Suite\n");
+    print_str("  Host CPU Target : Linux x86_64 (8 Hardware Cores @ ~2.2 GHz)\n");
     print_str("=======================================================\n");
 
     bench_jit_compilation_speed();

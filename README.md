@@ -38,21 +38,18 @@ Anastasia includes built-in reproducible benchmark tools (`./build/anastasia_ben
 
 | Benchmark Metric | Measured Result | Description |
 |---|---|---|
-| **JIT Compilation Throughput** | **~10,300 Compiles / sec** | Full Lexing, Smali-IR Parsing, SSA RegAlloc, & Machine Code Emission |
-| **Machine Code Loop Speed** | **1.01 ns / op** (984M ops/sec) | Direct 64-bit integer register loop execution speed |
-| **128-bit SIMD Throughput** | **0.88 ns / op** (1.13B ops/sec) | Packed SSE2 vector integer addition throughput |
-| **TLAB Bump Heap Allocation** | **8.2 Million Alloc/sec** | Branchless Thread-Local Allocation Buffer bump allocation speed |
-| **Multicore Data Parallelism** | **>500 Billion ops/sec** | Pinned NUMA partitioning & spin-barrier multi-core concurrency |
+| **JIT Compilation Throughput** | **~9,810 Compiles / sec** | Full Lexing, Smali-IR Parsing, SSA RegAlloc, & Machine Code Emission |
+| **Machine Code Loop Speed** | **1.04 ns / op** (961M ops/sec) | Direct 64-bit integer register loop execution speed (2.28 cycles/op) |
+| **128-bit SIMD Throughput** | **0.86 ns / op** (1.15B ops/sec) | Packed SSE2 vector integer addition throughput (1.90 cycles/op) |
+| **Multicore Data Parallelism** | **10.41 Billion ops / sec** | Pinned NUMA partitioning & spin-barrier multi-core concurrency (0.21 cycles/op) |
+| **TLAB Bump Heap Allocation** | **8.68 Million Alloc / sec** | Fast-path Thread-Local Allocation Buffer bump allocation speed |
 
-### 2. 1 Million "Hello, World!" Head-to-Head Speed Benchmark
+### 2. Head-to-Head Comparative Benchmarks (Anastasia JIT vs Native C)
 
-| Language / Engine | Execution Time (ms) | Throughput (prints/sec) | Relative Speed vs Anastasia |
+| Benchmark Workload | Native C Runtime (`gcc -O3`) | Anastasia JIT Runtime | Measured Relative Performance |
 |---|---|---|---|
-| **Anastasia Engine (64 KiB Stream Buffer)** | **12.95 ms** | **77,242,038 prints/sec** | **1.00x (Fastest)** |
-| **Anastasia Engine (Raw Unbuffered Syscalls)** | **21.69 ms** | **46,095,744 prints/sec** | **1.68x slower** |
-| **C (`gcc -O3` / `fwrite`)** | **30.75 ms** | **32,516,458 prints/sec** | **2.38x slower** |
-| **Python 3 (`v3.13.5`)** | **126.89 ms** | **7,880,655 prints/sec** | **9.80x slower** |
-| **Node.js (`v20.19.2`)** | **3,241.08 ms** | **308,539 prints/sec** | **250.35x slower** |
+| **100M Iteration Loop** | **1.04 ns / op** (104 ms) | **1.04 ns / op** (104 ms) | **1.00x Parity** (Pure native machine execution) |
+| **1M Heap Allocations** | 10.1 µs / alloc (`mmap` syscall) | **115 ns / alloc** (`tlab_allocate`) | **User-space bump allocation speedup** over kernel syscalls |
 
 ### 3. Comprehensive Algorithm & Compute Benchmark Suite
 

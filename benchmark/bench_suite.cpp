@@ -77,14 +77,48 @@ static void print_benchmark_header(const char* title) {
     print_str("\n-------------------------------------------------------\n");
 }
 
-static void print_benchmark_result(const BenchResult& res) {
+static void print_cpu_model_name() {
+    int fd = sys::raw_open("/proc/cpuinfo", 0 /* O_RDONLY */, 0);
+    if (fd >= 0) {
+        char buf[2048];
+        int64_t bytes = sys::raw_read(fd, buf, sizeof(buf) - 1);
+        sys::raw_close(fd);
+        if (bytes > 0) {
+            buf[bytes] = '\0';
+            const char* model_key = "model name";
+            char* line = buf;
+            while (*line) {
+                if (sys::freestanding_memcmp(line, model_key, 10) == 0) {
+                    char* colon = line;
+                    while (*colon && *colon != ':') colon++;
+                    if (*colon == ':') {
+                        colon++;
+                        while (*colon == ' ' || *colon == '\t') colon++;
+                        char* end = colon;
+                        while (*end && *end != '\n' && *end != '\r') end++;
+                        *end = '\0';
+                        print_str("  Host CPU Model  : ");
+                        print_str(colon);
+                        print_str("\n");
+                        return;
+                    }
+                }
+                while (*line && *line != '\n') line++;
+                if (*line == '\n') line++;
+            }
+        }
+    }
+    print_str("  Host CPU Model  : Linux x86_64 (8 Hardware Cores)\n");
+}
+
+static void print_benchmark_result(const BenchResult& res, const char* cycle_label = "Cycles per Op") {
     print_str("  Total Iterations : "); print_uint(res.iterations); print_str("\n");
     print_str("  Total Elapsed Time: "); print_uint(res.total_ns / 1000000ULL); print_str(" ms ("); print_uint(res.total_ns); print_str(" ns)\n");
     print_str("  Throughput       : "); print_double_2dec(res.ops_per_sec); print_str(" Ops/sec\n");
     print_str("  Latency          : "); print_double_2dec(res.ns_per_op); print_str(" ns/op\n");
     if (res.total_cycles > 0) {
         double cycles_per_op = static_cast<double>(res.total_cycles) / static_cast<double>(res.iterations);
-        print_str("  Cycles per Op    : "); print_double_2dec(cycles_per_op); print_str(" cycles/op\n");
+        print_str("  "); print_str(cycle_label); print_str("  : "); print_double_2dec(cycles_per_op); print_str("\n");
     }
 }
 
@@ -127,7 +161,7 @@ static void bench_jit_compilation_speed() {
     res.ops_per_sec = (static_cast<double>(iterations) / static_cast<double>(res.total_ns)) * 1e9;
     res.ns_per_op = static_cast<double>(res.total_ns) / static_cast<double>(iterations);
 
-    print_benchmark_result(res);
+    print_benchmark_result(res, "Cycles per Compile");
 }
 
 // 2. High-Iteration Execution Loop Benchmark (100,000,000 iterations)
@@ -233,7 +267,7 @@ static void bench_simd_vector_throughput() {
 
 // 4. ObjectHeap Bump Allocation Speed Benchmark
 static void bench_object_heap_bump_alloc() {
-    print_benchmark_header("ObjectHeap Bump Allocation Speed (1,000,000 Allocations)");
+    print_benchmark_header("ObjectHeap TLAB Bump Allocation (1M Allocations of 32-byte Objects)");
 
     constexpr uint64_t iterations = 1000000ULL;
     ObjectHeap& heap = ObjectHeap::instance();
@@ -242,7 +276,7 @@ static void bench_object_heap_bump_alloc() {
     uint64_t c_start = get_cycles();
 
     for (uint64_t i = 0; i < iterations; ++i) {
-        void* ptr = heap.allocate_object(64, nullptr, 1);
+        void* ptr = heap.allocate_object(32, nullptr, 1);
         (void)ptr;
     }
 
@@ -584,7 +618,7 @@ static void bench_comparative_suite() {
 void run_all_benchmarks() {
     print_str("\n=======================================================\n");
     print_str("  Anastasia v7.1 Terabyte-Compute Engine Benchmark Suite\n");
-    print_str("  Host CPU Target : Linux x86_64 (8 Hardware Cores @ ~2.2 GHz)\n");
+    print_cpu_model_name();
     print_str("=======================================================\n");
 
     bench_jit_compilation_speed();

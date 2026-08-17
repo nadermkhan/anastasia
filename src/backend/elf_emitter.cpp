@@ -116,7 +116,8 @@ uint32_t ElfEmitter::add_symbol(const char* name, uint8_t binding, uint8_t type,
     if (machine_arch_ == EM_XTENSA || machine_arch_ == EM_ARM) {
         Elf32Sym sym;
         sym.st_name = name_off;
-        sym.st_value = static_cast<uint32_t>(value);
+        uint32_t base_addr = (machine_arch_ == EM_XTENSA) ? 0x40370000U : 0U;
+        sym.st_value = base_addr + static_cast<uint32_t>(value);
         sym.st_size = static_cast<uint32_t>(size);
         sym.st_info = ELF64_ST_INFO(binding, type);
         sym.st_other = 0;
@@ -196,10 +197,12 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
         ehdr.e_ident[6] = 1; // EV_CURRENT
         ehdr.e_ident[7] = 0; // ELFOSABI_SYSV
 
+        uint32_t xtensa_base = (machine_arch_ == EM_XTENSA) ? 0x40370000U : 0U;
+
         ehdr.e_type = ET_REL;
         ehdr.e_machine = machine_arch_;
         ehdr.e_version = EV_CURRENT;
-        ehdr.e_entry = 0;
+        ehdr.e_entry = xtensa_base;
         ehdr.e_phoff = 0;
         ehdr.e_shoff = static_cast<uint32_t>(shoff);
         ehdr.e_flags = 0;
@@ -220,7 +223,7 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
         shdrs[1].sh_name = name_text;
         shdrs[1].sh_type = SHT_PROGBITS;
         shdrs[1].sh_flags = SHF_ALLOC | SHF_EXECINSTR;
-        shdrs[1].sh_addr = 0;
+        shdrs[1].sh_addr = xtensa_base;
         shdrs[1].sh_offset = static_cast<uint32_t>(text_offset);
         shdrs[1].sh_size = static_cast<uint32_t>(text_section_->size());
         shdrs[1].sh_addralign = 4;

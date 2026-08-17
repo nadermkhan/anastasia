@@ -113,26 +113,48 @@ uint32_t ElfEmitter::add_symbol(const char* name, uint8_t binding, uint8_t type,
     if (!strtab_section_ || !symtab_section_) return 0;
     uint32_t name_off = strtab_section_->write_string(name);
 
-    Elf64Sym sym;
-    sym.st_name = name_off;
-    sym.st_info = ELF64_ST_INFO(binding, type);
-    sym.st_other = 0;
-    sym.st_shndx = section_idx;
-    sym.st_value = value;
-    sym.st_size = size;
+    if (machine_arch_ == EM_XTENSA || machine_arch_ == EM_ARM) {
+        Elf32Sym sym;
+        sym.st_name = name_off;
+        sym.st_value = static_cast<uint32_t>(value);
+        sym.st_size = static_cast<uint32_t>(size);
+        sym.st_info = ELF64_ST_INFO(binding, type);
+        sym.st_other = 0;
+        sym.st_shndx = section_idx;
 
-    uint32_t sym_index = static_cast<uint32_t>(symtab_section_->size() / sizeof(Elf64Sym));
-    symtab_section_->write(&sym, sizeof(sym));
-    return sym_index;
+        uint32_t sym_index = static_cast<uint32_t>(symtab_section_->size() / sizeof(Elf32Sym));
+        symtab_section_->write(&sym, sizeof(sym));
+        return sym_index;
+    } else {
+        Elf64Sym sym;
+        sym.st_name = name_off;
+        sym.st_info = ELF64_ST_INFO(binding, type);
+        sym.st_other = 0;
+        sym.st_shndx = section_idx;
+        sym.st_value = value;
+        sym.st_size = size;
+
+        uint32_t sym_index = static_cast<uint32_t>(symtab_section_->size() / sizeof(Elf64Sym));
+        symtab_section_->write(&sym, sizeof(sym));
+        return sym_index;
+    }
 }
 
 void ElfEmitter::add_relocation(uint64_t offset, uint32_t symbol_idx, uint32_t type, int64_t addend) {
     if (!rela_section_) return;
-    Elf64Rela rela;
-    rela.r_offset = offset;
-    rela.r_info = ELF64_R_INFO(symbol_idx, type);
-    rela.r_addend = addend;
-    rela_section_->write(&rela, sizeof(rela));
+    if (machine_arch_ == EM_XTENSA || machine_arch_ == EM_ARM) {
+        Elf32Rela rela;
+        rela.r_offset = static_cast<uint32_t>(offset);
+        rela.r_info = ELF32_R_INFO(symbol_idx, type);
+        rela.r_addend = static_cast<int32_t>(addend);
+        rela_section_->write(&rela, sizeof(rela));
+    } else {
+        Elf64Rela rela;
+        rela.r_offset = offset;
+        rela.r_info = ELF64_R_INFO(symbol_idx, type);
+        rela.r_addend = addend;
+        rela_section_->write(&rela, sizeof(rela));
+    }
 }
 
 bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* text_bytes, size_t text_size) {
@@ -153,6 +175,129 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     uint32_t name_rela_text = has_rela ? shstrtab_section_->write_string(".rela.text") : 0;
 
     uint16_t num_sections = 5 + (has_rodata ? 1 : 0) + (has_rela ? 1 : 0);
+
+    bool is_32bit = (machine_arch_ == EM_XTENSA || machine_arch_ == EM_ARM);
+
+    if (is_32bit) {
+        size_t header_size = sizeof(Elf32Ehdr);
+        size_t text_offset = header_size;
+        size_t rodata_offset = text_offset + text_section_->size();
+        size_t shstrtab_offset = rodata_offset + (has_rodata ? rodata_section_->size() : 0);
+        size_t strtab_offset = shstrtab_offset + shstrtab_section_->size();
+        size_t symtab_offset = strtab_offset + strtab_section_->size();
+        size_t rela_offset = symtab_offset + symtab_section_->size();
+        size_t shoff = ((has_rela ? rela_offset + rela_section_->size() : symtab_offset + symtab_section_->size()) + 3) & ~3UL;
+
+        alignas(16) Elf32Ehdr ehdr;
+        sys::freestanding_memset(&ehdr, 0, sizeof(ehdr));
+        ehdr.e_ident[0] = 0x7f; ehdr.e_ident[1] = 'E'; ehdr.e_ident[2] = 'L'; ehdr.e_ident[3] = 'F';
+        ehdr.e_ident[4] = 1; // ELFCLASS32
+        ehdr.e_ident[5] = 1; // ELFDATA2LSB
+        ehdr.e_ident[6] = 1; // EV_CURRENT
+        ehdr.e_ident[7] = 0; // ELFOSABI_SYSV
+
+        ehdr.e_type = ET_REL;
+        ehdr.e_machine = machine_arch_;
+        ehdr.e_version = EV_CURRENT;
+        ehdr.e_entry = 0;
+        ehdr.e_phoff = 0;
+        ehdr.e_shoff = static_cast<uint32_t>(shoff);
+        ehdr.e_flags = 0;
+        ehdr.e_ehsize = sizeof(Elf32Ehdr); // 52 (0x34)
+        ehdr.e_phentsize = 32; // 0x20
+        ehdr.e_phnum = 0;
+        ehdr.e_shentsize = sizeof(Elf32Shdr); // 40 (0x28)
+        ehdr.e_shnum = num_sections;
+        ehdr.e_shstrndx = has_rodata ? 3 : 2;
+
+        Elf32Shdr* shdrs = static_cast<Elf32Shdr*>(malloc(sizeof(Elf32Shdr) * num_sections));
+        if (!shdrs) return false;
+        sys::freestanding_memset(shdrs, 0, sizeof(Elf32Shdr) * num_sections);
+
+        shdrs[0].sh_name = name_null;
+        shdrs[0].sh_type = SHT_NULL;
+
+        shdrs[1].sh_name = name_text;
+        shdrs[1].sh_type = SHT_PROGBITS;
+        shdrs[1].sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+        shdrs[1].sh_addr = 0;
+        shdrs[1].sh_offset = static_cast<uint32_t>(text_offset);
+        shdrs[1].sh_size = static_cast<uint32_t>(text_section_->size());
+        shdrs[1].sh_addralign = 4;
+
+        uint16_t cur_sec = 2;
+        if (has_rodata) {
+            shdrs[cur_sec].sh_name = name_rodata;
+            shdrs[cur_sec].sh_type = SHT_PROGBITS;
+            shdrs[cur_sec].sh_flags = SHF_ALLOC;
+            shdrs[cur_sec].sh_addr = 0;
+            shdrs[cur_sec].sh_offset = static_cast<uint32_t>(rodata_offset);
+            shdrs[cur_sec].sh_size = static_cast<uint32_t>(rodata_section_->size());
+            shdrs[cur_sec].sh_addralign = 4;
+            cur_sec++;
+        }
+
+        shdrs[cur_sec].sh_name = name_shstrtab;
+        shdrs[cur_sec].sh_type = SHT_STRTAB;
+        shdrs[cur_sec].sh_offset = static_cast<uint32_t>(shstrtab_offset);
+        shdrs[cur_sec].sh_size = static_cast<uint32_t>(shstrtab_section_->size());
+        shdrs[cur_sec].sh_addralign = 1;
+        cur_sec++;
+
+        shdrs[cur_sec].sh_name = name_strtab;
+        shdrs[cur_sec].sh_type = SHT_STRTAB;
+        shdrs[cur_sec].sh_offset = static_cast<uint32_t>(strtab_offset);
+        shdrs[cur_sec].sh_size = static_cast<uint32_t>(strtab_section_->size());
+        shdrs[cur_sec].sh_addralign = 1;
+        uint16_t strtab_idx = cur_sec;
+        cur_sec++;
+
+        shdrs[cur_sec].sh_name = name_symtab;
+        shdrs[cur_sec].sh_type = SHT_SYMTAB;
+        shdrs[cur_sec].sh_offset = static_cast<uint32_t>(symtab_offset);
+        shdrs[cur_sec].sh_size = static_cast<uint32_t>(symtab_section_ ? symtab_section_->size() : 0);
+        shdrs[cur_sec].sh_link = strtab_idx;
+        shdrs[cur_sec].sh_info = 3;
+        shdrs[cur_sec].sh_addralign = 4;
+        shdrs[cur_sec].sh_entsize = sizeof(Elf32Sym);
+        uint16_t symtab_idx = cur_sec;
+        cur_sec++;
+
+        if (has_rela) {
+            shdrs[cur_sec].sh_name = name_rela_text;
+            shdrs[cur_sec].sh_type = SHT_RELA;
+            shdrs[cur_sec].sh_flags = 0;
+            shdrs[cur_sec].sh_offset = static_cast<uint32_t>(rela_offset);
+            shdrs[cur_sec].sh_size = static_cast<uint32_t>(rela_section_->size());
+            shdrs[cur_sec].sh_link = symtab_idx;
+            shdrs[cur_sec].sh_info = 1;
+            shdrs[cur_sec].sh_addralign = 4;
+            shdrs[cur_sec].sh_entsize = sizeof(Elf32Rela);
+        }
+
+        int fd = sys::raw_open(output_filename, 577, 0666);
+        if (fd < 0) { free(shdrs); return false; }
+
+        sys::raw_write(fd, &ehdr, sizeof(ehdr));
+        if (text_section_->size() > 0) sys::raw_write(fd, text_section_->data(), text_section_->size());
+        if (has_rodata && rodata_section_->size() > 0) sys::raw_write(fd, rodata_section_->data(), rodata_section_->size());
+        if (shstrtab_section_->size() > 0) sys::raw_write(fd, shstrtab_section_->data(), shstrtab_section_->size());
+        if (strtab_section_->size() > 0) sys::raw_write(fd, strtab_section_->data(), strtab_section_->size());
+        if (symtab_section_->size() > 0) sys::raw_write(fd, symtab_section_->data(), symtab_section_->size());
+        if (has_rela && rela_section_->size() > 0) sys::raw_write(fd, rela_section_->data(), rela_section_->size());
+
+        size_t current_len = header_size + text_section_->size() + (has_rodata ? rodata_section_->size() : 0) + shstrtab_section_->size() + strtab_section_->size() + (symtab_section_ ? symtab_section_->size() : 0) + (has_rela ? rela_section_->size() : 0);
+        uint8_t zero_byte = 0;
+        while (current_len < shoff) {
+            sys::raw_write(fd, &zero_byte, 1);
+            current_len++;
+        }
+
+        sys::raw_write(fd, shdrs, sizeof(Elf32Shdr) * num_sections);
+        free(shdrs);
+        sys::raw_close(fd);
+        return true;
+    }
 
     size_t header_size = sizeof(Elf64Ehdr);
     size_t text_offset = header_size;

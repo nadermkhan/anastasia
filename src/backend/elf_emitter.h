@@ -7,10 +7,62 @@
 namespace ana {
 namespace backend {
 
-// Freestanding 64-bit ELF Constants & Standard Definitions
+// Freestanding 32-bit & 64-bit ELF Constants & Standard Definitions
 #define EI_NIDENT 16
+#define ELFCLASS32 1
+#define ELFCLASS64 2
+#define ELFDATA2LSB 1
 
-// ELF File Header (64-bit)
+// ELF File Header (32-bit) - 52 bytes
+struct Elf32Ehdr {
+    unsigned char e_ident[EI_NIDENT];
+    uint16_t      e_type;
+    uint16_t      e_machine;
+    uint32_t      e_version;
+    uint32_t      e_entry;
+    uint32_t      e_phoff;
+    uint32_t      e_shoff;
+    uint32_t      e_flags;
+    uint16_t      e_ehsize;
+    uint16_t      e_phentsize;
+    uint16_t      e_phnum;
+    uint16_t      e_shentsize;
+    uint16_t      e_shnum;
+    uint16_t      e_shstrndx;
+};
+
+// Section Header (32-bit) - 40 bytes
+struct Elf32Shdr {
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint32_t sh_flags;
+    uint32_t sh_addr;
+    uint32_t sh_offset;
+    uint32_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint32_t sh_addralign;
+    uint32_t sh_entsize;
+};
+
+// Symbol Table Entry (32-bit) - 16 bytes
+struct Elf32Sym {
+    uint32_t      st_name;
+    uint32_t      st_value;
+    uint32_t      st_size;
+    unsigned char st_info;
+    unsigned char st_other;
+    uint16_t      st_shndx;
+};
+
+// Relocation Entry with Addend (32-bit) - 12 bytes
+struct Elf32Rela {
+    uint32_t r_offset;
+    uint32_t r_info;
+    int32_t  r_addend;
+};
+
+// ELF File Header (64-bit) - 64 bytes
 struct Elf64Ehdr {
     unsigned char e_ident[EI_NIDENT];
     uint16_t      e_type;
@@ -28,7 +80,7 @@ struct Elf64Ehdr {
     uint16_t      e_shstrndx;
 };
 
-// Section Header (64-bit)
+// Section Header (64-bit) - 64 bytes
 struct Elf64Shdr {
     uint32_t   sh_name;
     uint32_t   sh_type;
@@ -42,7 +94,7 @@ struct Elf64Shdr {
     uint64_t   sh_entsize;
 };
 
-// Symbol Table Entry (64-bit)
+// Symbol Table Entry (64-bit) - 24 bytes
 struct Elf64Sym {
     uint32_t      st_name;
     unsigned char st_info;
@@ -52,7 +104,7 @@ struct Elf64Sym {
     uint64_t      st_size;
 };
 
-// Relocation Entry with Addend (64-bit)
+// Relocation Entry with Addend (64-bit) - 24 bytes
 struct Elf64Rela {
     uint64_t r_offset;
     uint64_t r_info;
@@ -91,6 +143,7 @@ struct Elf64Rela {
 #define STT_SECTION 3
 
 // Relocation Info Helpers
+#define ELF32_R_INFO(s,t) (((uint32_t)(s)<<8)+((uint32_t)(t)&0xff))
 #define ELF64_R_INFO(s,t) (((uint64_t)(s)<<32)+((uint64_t)(t)&0xffffffffUL))
 #define R_X86_64_NONE 0
 #define R_X86_64_64 1

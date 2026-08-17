@@ -250,3 +250,30 @@ Before outputting Anastasia Assembly code, perform this mandatory verification:
 4. [ ] Are all branch target labels properly declared as `name:` and referenced accurately?
 5. [ ] Does every exit path terminate with `return-val` (for non-void) or `return-void` (for void)?
 6. [ ] Are all opcodes 100% present in Section 4? (Zero synthetic or hallucinated instructions allowed).
+
+---
+
+## 8. Anastasia AOT Backend Engine Bug Diagnosis & Resolution Reference
+
+When debugging Anastasia AOT compilation, LLMs should reference these 5 foundational backend fixes:
+
+1. **Missing Opcode Lowering**:
+   - *Symptom*: Output binary exits code `0` immediately.
+   - *Root Cause*: Instruction lowerer (`ana_lowerer.cpp`) missing opcode handling (`call-extern`, `load-fn-ptr`, `load-mem`, `store-mem`, `mul/div/xor`, `move`, `if-z/nz`, `goto`, `new-instance`). Unhandled instructions fell through to `default: break;`.
+   - *Fix*: Implemented System V AMD64 ABI machine lowerers & `R_X86_64_PLT32` / `R_X86_64_PC32` ELF relocations.
+2. **Memory-Ref Parameter Register Allocation**:
+   - *Symptom*: SEGFAULT at `mov 0x8(%rax), %rbx`.
+   - *Root Cause*: `check_p` in `ana_regalloc.cpp` skipped `OperandKind::MEM_OFFSET` (`[p1 + 8]`), causing `p1` to fall back to callee-saved slot `R12`.
+   - *Fix*: Inspected `MEM_OFFSET` base registers in `check_p` and fixed AST linkage.
+3. **Sub-Call Parameter Preservation**:
+   - *Symptom*: External call crashes (e.g., GLib assertion `argc == 0 || argv != NULL`).
+   - *Root Cause*: `CALL_EXTERN` missing from `has_call` check in `AnaRegAlloc`, causing outgoing calls to overwrite incoming parameter registers `RDI` and `RSI`.
+   - *Fix*: Added `CALL_EXTERN` to `has_call` check, forcing parameter registers to be preserved in dedicated stack slots (`-0x30(rbp)`, `-0x38(rbp)`).
+4. **Parser Token Hash Skipping**:
+   - *Symptom*: Assembly instructions silently ignored during parsing.
+   - *Root Cause*: Missing keyword token mappings for `call-extern` and `load-fn-ptr`.
+   - *Fix*: Added token definitions and AST parsing nodes in `ana_ast.h`, `ana_lexer.cpp`, and `ana_parser.cpp`.
+5. **ELF Relative Call PLT Relocation Addend**:
+   - *Symptom*: Misaligned PLT call addresses.
+   - *Root Cause*: x86_64 `call rel32` (`0xE8`) displacement computes relative to instruction end (4 bytes after opcode), missing `-4` addend.
+   - *Fix*: Added `-4` addend adjustment to `call_rel32_symbol` and `lea_reg_symbol_rip` in `ana_encoder.cpp`.

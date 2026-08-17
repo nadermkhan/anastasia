@@ -198,6 +198,18 @@ label_p0_greater:
 
 ## Advanced Engine Subsystems
 
+### 1. AOT Compiler Engineering & Bug Resolution Matrix
+
+During the development and hardening of Anastasia's System V AMD64 AOT backend (`AnaLowerer` / `ElfEmitter`), five critical compiler bugs were identified, diagnosed, and resolved:
+
+| Bug Category | Symptom | Diagnostic Root Cause | Resolved Architectural Fix |
+|---|---|---|---|
+| **1. Missing Opcode Lowering** | Executables exited immediately with code `0` without running event loop | `compile_program_to_elf` in `ana_lowerer.cpp` lacked handlers for `call-extern`, `load-fn-ptr`, `load-mem`, `store-mem`, `mul/div/xor`, `move`, `if-z/nz`, `goto`, `new-instance`, causing instructions to fall through to `default: break;` and be omitted | Implemented complete System V AMD64 ABI lowerers & `R_X86_64_PLT32` / `R_X86_64_PC32` relocation table generators for all opcodes |
+| **2. Memory-Ref Param RegAlloc** | SEGFAULT at offset `0x259b` (`mov 0x8(%rax), %rbx`) | In `ana_regalloc.cpp`, parameter scanner `check_p` only checked `OperandKind::REGISTER` and skipped `MEM_OFFSET` (such as `[p1 + 8]`), causing `p1` to fall back to slot for callee-saved `R12` | Updated `check_p` to inspect `MEM_OFFSET` base registers and fixed AST parameter linkage in `ana_parser.cpp` |
+| **3. Sub-Call Reg Preservation** | `g_application_run` failed with GLib assertion `'argc == 0 || argv != NULL'` | `CALL_EXTERN` was missing from `has_call` check in `AnaRegAlloc`, causing outgoing calls to overwrite incoming parameter registers `RDI` (`argc`) and `RSI` (`argv`) | Added `CALL_EXTERN` to `has_call` check in `ana_regalloc.cpp`, forcing parameter registers to be preserved in dedicated stack slots |
+| **4. Parser Token Hash Skipping** | Instructions like `call-extern` were silently ignored | Lexer and parser lacked keyword token mappings for `call-extern` and `load-fn-ptr`, causing parser to skip unmatched tokens | Added token definitions and AST parsing nodes in `ana_ast.h`, `ana_lexer.cpp`, and `ana_parser.cpp` |
+| **5. ELF Relative Call PLT Addend** | Linker emitted misaligned PLT call addresses | x86_64 `call rel32` (`0xE8`) displacement computes relative to instruction end (4 bytes after opcode), but relocations omitted `-4` addend | Added `-4` addend adjustment to `call_rel32_symbol` and `lea_reg_symbol_rip` in `ana_encoder.cpp` |
+
 ### 1. Interactive Assembly Debugger (`AnaDebugger`)
 Anastasia includes a built-in interactive assembly debugger and instruction stepper (`AnaDebugger`). Launch a debug session on any `.ana` file:
 ```bash

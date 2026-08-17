@@ -71,7 +71,8 @@ if [ -z "$PORT" ]; then
 fi
 
 echo "[4/5] Flashing '$BIN_FILE' to ESP32-S3 on port $PORT..."
-$ESPTOOL_CMD --chip esp32s3 -p "$PORT" -b 921600 write_flash 0x10000 "$BIN_FILE"
+# Note: On bare-metal ESP32-S3 binaries without ESP-IDF partition table, flashing to 0x0000 boots directly from ROM.
+$ESPTOOL_CMD --chip esp32s3 -p "$PORT" -b 921600 write-flash 0x0 "$BIN_FILE"
 
 echo "======================================================="
 echo "🎉 Flashed cleanly to ESP32-S3!"

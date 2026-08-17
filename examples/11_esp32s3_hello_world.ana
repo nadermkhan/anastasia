@@ -1,19 +1,25 @@
 .fn esp32s3_hello_world(p0: i64) -> i64
     .registers 6 local
 
-    ; Disable ESP32-S3 Timer Group 0 Watchdog Timer (TIMG0_WDTCONFIG0_REG = 0x6001F048 = 1610739784)
+    ; 1. Unlock & Disable ESP32-S3 Timer Group 0 Watchdog (TIMG0 WDT)
+    ; Magic write protection key: 0x50D83AA1 = 1356348065
+    move-const v0, 1610739812     ; 0x6001F064 = TIMG0_WDTWPROTECT_REG
+    move-const v1, 1356348065     ; 0x50D83AA1 = TIMG_WDT_WKEY
+    store-mem [v0 + 0], v1
     move-const v0, 1610739784     ; 0x6001F048 = TIMG0_WDTCONFIG0_REG
     move-const v1, 0              ; 0 = Disable Watchdog
     store-mem [v0 + 0], v1
 
-    ; Disable RTC Watchdog Timer (RTC_CNTL_WDTCONFIG0_REG = 0x60008098 = 1610645656)
+    ; 2. Unlock & Disable RTC Watchdog (RTC WDT)
+    move-const v0, 1610645668     ; 0x600080A4 = RTC_CNTL_WDTWPROTECT_REG
+    move-const v1, 1356348065     ; 0x50D83AA1 = RTC_WDT_WKEY
+    store-mem [v0 + 0], v1
     move-const v0, 1610645656     ; 0x60008098 = RTC_CNTL_WDTCONFIG0_REG
+    move-const v1, 0              ; 0 = Disable RTC Watchdog
     store-mem [v0 + 0], v1
 
-    ; Base MMIO Register for ESP32-S3 UART0 FIFO Register (0x60000000 = 1610612736)
+    ; 3. Stream "Hello World from Anastasia on ESP32-S3!\r\n" to UART0 FIFO (0x60000000)
     move-const v0, 1610612736     ; 0x60000000 = UART0 FIFO
-
-    ; Stream "Hello World from Anastasia on ESP32-S3!\r\n" to UART0 FIFO
     move-const v1, 72             ; 'H'
     store-mem [v0 + 0], v1
     move-const v1, 101            ; 'e'
@@ -97,7 +103,7 @@
     move-const v1, 10             ; '\n'
     store-mem [v0 + 0], v1
 
-    ; Bare-metal park loop: Park CPU cleanly to prevent jumping into unmapped memory
+    ; 4. Bare-metal park loop: Park CPU endlessly in J .
 park_loop:
     goto park_loop
 

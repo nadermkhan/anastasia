@@ -3,6 +3,7 @@
 #include "frontend/ana_lexer.h"
 #include "frontend/ana_parser.h"
 #include "backend/ana_lowerer.h"
+#include "backend/xtensa_lx7_backend.h"
 #include "backend/vmem_provider.h"
 #include "../tests/test_suite.h"
 #include "../examples/example_runner.h"
@@ -145,10 +146,15 @@ int ana_main(int argc, char** argv) {
             return 1;
         }
 
-        ana::backend::AnastasiaJitRuntime runtime;
-        ana::backend::AnaLowerer lowerer(runtime);
-
-        bool success = lowerer.compile_to_elf(prog, out_obj);
+        bool success = false;
+        if (argc >= 5 && (streq_check(argv[4], "--xtensa") || streq_check(argv[4], "--esp32s3"))) {
+            ana::backend::XtensaLX7TargetBackend xtensa_backend;
+            success = xtensa_backend.compile_to_elf(prog, out_obj);
+        } else {
+            ana::backend::AnastasiaJitRuntime runtime;
+            ana::backend::AnaLowerer lowerer(runtime);
+            success = lowerer.compile_to_elf(prog, out_obj);
+        }
         // Freed only after lowering: AST nodes may still reference the source.
         if (success) {
             print_cli_msg("[AOT Compiler SUCCESS] Emitted relocatable ELF object file: ");

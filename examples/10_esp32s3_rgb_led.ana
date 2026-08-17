@@ -1,0 +1,17 @@
+.fn esp32s3_rgb_led_on(p0: i64) -> i64
+    .registers 6 local
+
+    ; Base MMIO Register for ESP32-S3 GPIO1 Enable W1TS (GPIO 32-48)
+    ; GPIO 48 corresponds to bit (48 - 32) = 16 (0x10000 = 65536)
+    move_const v0, 1610629168     ; 0x60004030 = GPIO_ENABLE1_W1TS_REG
+    move_const v1, 65536          ; 1 << 16 (GPIO 48 Enable Bit)
+    store-mem [v0 + 0], v1
+
+    ; GPIO1 Output Set Register (GPIO_OUT1_W1TS_REG = 0x60004014 = 1610629140)
+    move_const v2, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG
+    store-mem [v2 + 0], v1
+
+    ; Return 1 to indicate successful hardware pin activation
+    move_const v3, 1
+    return-val v3
+.end_fn

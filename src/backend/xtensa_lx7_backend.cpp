@@ -106,9 +106,10 @@ void XtensaLX7Encoder::srli_reg_imm(XtensaReg rr, XtensaReg rt, uint8_t sa) {
     emit24(encode_rrr(0, 1, 4, static_cast<uint8_t>(rr), sa & 0xF, static_cast<uint8_t>(rt)));
 }
 
-// 24-bit Add Immediate (ADDI): [imm8][r=0/2][s][t][op0=2]
+// 24-bit Add Immediate (ADDI): [imm8][r=0xC][s][t][op0=2]
 void XtensaLX7Encoder::addi_reg_imm(XtensaReg rt, XtensaReg rs, int8_t imm8) {
     uint32_t insn = (0x2) |
+                   (0xC << 4) |
                    ((static_cast<uint32_t>(rt) & 0xF) << 8) |
                    ((static_cast<uint32_t>(rs) & 0xF) << 12) |
                    ((static_cast<uint32_t>(static_cast<uint8_t>(imm8))) << 16);
@@ -119,6 +120,7 @@ void XtensaLX7Encoder::movi_reg_imm(XtensaReg rt, int32_t imm12) {
     int8_t low8 = static_cast<int8_t>(imm12 & 0xFF);
     uint8_t high4 = static_cast<uint8_t>((imm12 >> 8) & 0xF);
     uint32_t insn = (0x2) |
+                   (0xA << 4) |
                    ((static_cast<uint32_t>(rt) & 0xF) << 8) |
                    ((static_cast<uint32_t>(high4 & 0xF)) << 12) |
                    ((static_cast<uint32_t>(static_cast<uint8_t>(low8))) << 16);
@@ -127,6 +129,7 @@ void XtensaLX7Encoder::movi_reg_imm(XtensaReg rt, int32_t imm12) {
 
 void XtensaLX7Encoder::l32i_reg_mem(XtensaReg rt, XtensaReg rs, uint16_t offset8_words) {
     uint32_t insn = (0x2) |
+                   (0x2 << 4) |
                    ((static_cast<uint32_t>(rt) & 0xF) << 8) |
                    ((static_cast<uint32_t>(rs) & 0xF) << 12) |
                    ((static_cast<uint32_t>(offset8_words & 0xFF)) << 16);
@@ -135,7 +138,7 @@ void XtensaLX7Encoder::l32i_reg_mem(XtensaReg rt, XtensaReg rs, uint16_t offset8
 
 void XtensaLX7Encoder::s32i_reg_mem(XtensaReg rt, XtensaReg rs, uint16_t offset8_words) {
     uint32_t insn = (0x2) |
-                   (0x4 << 4) |
+                   (0x6 << 4) |
                    ((static_cast<uint32_t>(rt) & 0xF) << 8) |
                    ((static_cast<uint32_t>(rs) & 0xF) << 12) |
                    ((static_cast<uint32_t>(offset8_words & 0xFF)) << 16);
@@ -167,13 +170,13 @@ void XtensaLX7Encoder::div_s(XtensaFpReg fr, XtensaFpReg fs, XtensaFpReg ft) {
     emit24(encode_rrr(0, 10, 3, static_cast<uint8_t>(fr), static_cast<uint8_t>(fs), static_cast<uint8_t>(ft)));
 }
 
-// ESP32-S3 / DSP SIMD TIE Extension
+// ESP32-S3 DSP SIMD TIE Extension
 void XtensaLX7Encoder::ee_vadd_s32(XtensaReg rr, XtensaReg rs, XtensaReg rt) {
-    emit24(encode_rrr(0, 14, 0, static_cast<uint8_t>(rr), static_cast<uint8_t>(rs), static_cast<uint8_t>(rt)));
+    emit24(encode_rrr(4, 0, 0, static_cast<uint8_t>(rr), static_cast<uint8_t>(rs), static_cast<uint8_t>(rt)));
 }
 
 void XtensaLX7Encoder::ee_vmul_s32(XtensaReg rr, XtensaReg rs, XtensaReg rt) {
-    emit24(encode_rrr(0, 14, 2, static_cast<uint8_t>(rr), static_cast<uint8_t>(rs), static_cast<uint8_t>(rt)));
+    emit24(encode_rrr(4, 1, 0, static_cast<uint8_t>(rr), static_cast<uint8_t>(rs), static_cast<uint8_t>(rt)));
 }
 
 // Control Flow
@@ -224,7 +227,7 @@ void XtensaLX7Encoder::callx0_reg(XtensaReg rs) {
 }
 
 void XtensaLX7Encoder::ret_call0() {
-    emit24(0x000000); // RET (or JX A0)
+    emit16(0xF00D); // RET.N
 }
 
 void XtensaLX7Encoder::nop() {
@@ -236,7 +239,14 @@ void XtensaLX7Encoder::mov_reg_imm32(XtensaReg rt, uint32_t val) {
     if (imm12 >= -2048 && imm12 <= 2047) {
         movi_reg_imm(rt, imm12);
     } else {
-        movi_reg_imm(rt, static_cast<int16_t>(val & 0xFFF));
+        uint32_t high16 = (val >> 16) & 0xFFFF;
+        uint32_t low16 = val & 0xFFFF;
+        movi_reg_imm(rt, static_cast<int32_t>(static_cast<int16_t>(high16)));
+        slli_reg_imm(rt, rt, 16);
+        if (low16 != 0) {
+            movi_reg_imm(XtensaReg::A10, static_cast<int32_t>(static_cast<int16_t>(low16)));
+            add_reg_reg(rt, rt, XtensaReg::A10);
+        }
     }
 }
 
@@ -256,6 +266,128 @@ void XtensaLX7Encoder::pop_frame(uint32_t bytes) {
     addi_reg_imm(XtensaReg::A1, XtensaReg::A1, static_cast<int8_t>(stack_disp));
 }
 
+static inline XtensaReg op_to_xtensa(const frontend::Operand& op) {
+    if (op.kind == frontend::OperandKind::REGISTER) {
+        if (op.reg.type == frontend::RegisterType::PARAM) {
+            switch (op.reg.index) {
+                case 0: return XtensaReg::A2;
+                case 1: return XtensaReg::A3;
+                case 2: return XtensaReg::A4;
+                case 3: return XtensaReg::A5;
+                case 4: return XtensaReg::A6;
+                case 5: return XtensaReg::A7;
+                default: return XtensaReg::A2;
+            }
+        } else { // LOCAL (v0..vN)
+            switch (op.reg.index) {
+                case 0: return XtensaReg::A2;
+                case 1: return XtensaReg::A3;
+                case 2: return XtensaReg::A4;
+                case 3: return XtensaReg::A5;
+                case 4: return XtensaReg::A6;
+                case 5: return XtensaReg::A7;
+                case 6: return XtensaReg::A8;
+                case 7: return XtensaReg::A9;
+                case 8: return XtensaReg::A10;
+                case 9: return XtensaReg::A11;
+                default: return XtensaReg::A2;
+            }
+        }
+    }
+    return XtensaReg::A2;
+}
+
+static void lower_xtensa_insn(XtensaLX7Encoder& enc, frontend::Instruction* insn, bool is_baremetal) {
+    if (!insn) return;
+    switch (insn->op) {
+        case frontend::Opcode::MOVE_CONST:
+            if (insn->src1.kind == frontend::OperandKind::CONST_INT) {
+                enc.mov_reg_imm32(op_to_xtensa(insn->dest), static_cast<uint32_t>(insn->src1.const_val));
+            }
+            break;
+        case frontend::Opcode::MOVE:
+            enc.mov_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1));
+            break;
+        case frontend::Opcode::ADD_I32:
+        case frontend::Opcode::ADD_I64:
+            enc.add_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::SUB_I32:
+        case frontend::Opcode::SUB_I64:
+            enc.sub_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::MUL_I32:
+        case frontend::Opcode::MUL_I64:
+            enc.mull_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::DIV_I32:
+        case frontend::Opcode::DIV_I64:
+            enc.quos_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::AND_I32:
+        case frontend::Opcode::AND_I64:
+            enc.and_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::OR_I32:
+        case frontend::Opcode::OR_I64:
+            enc.or_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::XOR_I32:
+        case frontend::Opcode::XOR_I64:
+            enc.xor_reg_reg(op_to_xtensa(insn->dest), op_to_xtensa(insn->src1), op_to_xtensa(insn->src2));
+            break;
+        case frontend::Opcode::STORE_MEM:
+            if (insn->dest.kind == frontend::OperandKind::MEM_OFFSET) {
+                XtensaReg base_reg = (insn->dest.mem.base.type == frontend::RegisterType::PARAM) ?
+                    XtensaReg::A2 : op_to_xtensa(frontend::Operand::make_reg(insn->dest.mem.base.type, insn->dest.mem.base.index));
+                XtensaReg val_reg = op_to_xtensa(insn->src1);
+                enc.s32i_reg_mem(val_reg, base_reg, static_cast<uint16_t>(insn->dest.mem.offset / 4));
+            }
+            break;
+        case frontend::Opcode::LOAD_MEM:
+            if (insn->src1.kind == frontend::OperandKind::MEM_OFFSET) {
+                XtensaReg base_reg = (insn->src1.mem.base.type == frontend::RegisterType::PARAM) ?
+                    XtensaReg::A2 : op_to_xtensa(frontend::Operand::make_reg(insn->src1.mem.base.type, insn->src1.mem.base.index));
+                XtensaReg dest_reg = op_to_xtensa(insn->dest);
+                enc.l32i_reg_mem(dest_reg, base_reg, static_cast<uint16_t>(insn->src1.mem.offset / 4));
+            }
+            break;
+        case frontend::Opcode::GOTO:
+            enc.emit24(0x000006); // J . (self loop)
+            break;
+        case frontend::Opcode::ADD_FLOAT_32:
+            enc.add_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+            break;
+        case frontend::Opcode::SUB_FLOAT_64:
+            enc.sub_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+            break;
+        case frontend::Opcode::MUL_FLOAT_64:
+            enc.mul_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+            break;
+        case frontend::Opcode::DIV_FLOAT_64:
+            enc.div_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+            break;
+        case frontend::Opcode::ADD_VECTOR_I32X4:
+            enc.ee_vadd_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+            break;
+        case frontend::Opcode::MUL_VECTOR_I32X8:
+            enc.ee_vmul_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+            break;
+        case frontend::Opcode::RETURN_VAL:
+        case frontend::Opcode::RETURN_VOID:
+            if (is_baremetal) {
+                enc.emit24(0x000006); // J . (park CPU)
+            } else {
+                enc.pop_frame(32);
+                enc.ret_call0();
+            }
+            break;
+        default:
+            enc.nop();
+            break;
+    }
+}
+
 XtensaLX7TargetBackend::XtensaLX7TargetBackend() : runtime_(nullptr) {}
 XtensaLX7TargetBackend::XtensaLX7TargetBackend(AnastasiaJitRuntime* runtime) : runtime_(runtime) {}
 XtensaLX7TargetBackend::~XtensaLX7TargetBackend() {}
@@ -268,50 +400,7 @@ void* XtensaLX7TargetBackend::compile_function(frontend::Function* fn, frontend:
 
     for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
         for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
-            switch (insn->op) {
-                case frontend::Opcode::ADD_I32:
-                case frontend::Opcode::ADD_I64:
-                    enc.add_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                    break;
-                case frontend::Opcode::SUB_I32:
-                case frontend::Opcode::SUB_I64:
-                    enc.sub_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                    break;
-                case frontend::Opcode::MUL_I32:
-                case frontend::Opcode::MUL_I64:
-                    enc.mull_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                    break;
-                case frontend::Opcode::DIV_I32:
-                case frontend::Opcode::DIV_I64:
-                    enc.quos_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                    break;
-                case frontend::Opcode::ADD_FLOAT_32:
-                    enc.add_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                    break;
-                case frontend::Opcode::SUB_FLOAT_64:
-                    enc.sub_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                    break;
-                case frontend::Opcode::MUL_FLOAT_64:
-                    enc.mul_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                    break;
-                case frontend::Opcode::DIV_FLOAT_64:
-                    enc.div_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                    break;
-                case frontend::Opcode::ADD_VECTOR_I32X4:
-                    enc.ee_vadd_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                    break;
-                case frontend::Opcode::MUL_VECTOR_I32X8:
-                    enc.ee_vmul_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                    break;
-                case frontend::Opcode::RETURN_VAL:
-                case frontend::Opcode::RETURN_VOID:
-                    enc.pop_frame(32);
-                    enc.ret_call0();
-                    break;
-                default:
-                    enc.nop();
-                    break;
-            }
+            lower_xtensa_insn(enc, insn, false);
         }
     }
 
@@ -342,50 +431,7 @@ bool XtensaLX7TargetBackend::compile_to_elf(frontend::Program* prog, const char*
 
         for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
             for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
-                switch (insn->op) {
-                    case frontend::Opcode::ADD_I32:
-                    case frontend::Opcode::ADD_I64:
-                        enc.add_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::SUB_I32:
-                    case frontend::Opcode::SUB_I64:
-                        enc.sub_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::MUL_I32:
-                    case frontend::Opcode::MUL_I64:
-                        enc.mull_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::DIV_I32:
-                    case frontend::Opcode::DIV_I64:
-                        enc.quos_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::ADD_FLOAT_32:
-                        enc.add_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::SUB_FLOAT_64:
-                        enc.sub_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::MUL_FLOAT_64:
-                        enc.mul_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::DIV_FLOAT_64:
-                        enc.div_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::ADD_VECTOR_I32X4:
-                        enc.ee_vadd_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::MUL_VECTOR_I32X8:
-                        enc.ee_vmul_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::RETURN_VAL:
-                    case frontend::Opcode::RETURN_VOID:
-                        enc.pop_frame(32);
-                        enc.ret_call0();
-                        break;
-                    default:
-                        enc.nop();
-                        break;
-                }
+                lower_xtensa_insn(enc, insn, false);
             }
         }
 
@@ -405,54 +451,10 @@ bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const
 
     for (frontend::Function* fn = prog->functions; fn != nullptr; fn = fn->next) {
         XtensaLX7Encoder enc;
-        enc.push_frame(32);
 
         for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
             for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
-                switch (insn->op) {
-                    case frontend::Opcode::ADD_I32:
-                    case frontend::Opcode::ADD_I64:
-                        enc.add_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::SUB_I32:
-                    case frontend::Opcode::SUB_I64:
-                        enc.sub_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::MUL_I32:
-                    case frontend::Opcode::MUL_I64:
-                        enc.mull_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::DIV_I32:
-                    case frontend::Opcode::DIV_I64:
-                        enc.quos_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::ADD_FLOAT_32:
-                        enc.add_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::SUB_FLOAT_64:
-                        enc.sub_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::MUL_FLOAT_64:
-                        enc.mul_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::DIV_FLOAT_64:
-                        enc.div_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
-                        break;
-                    case frontend::Opcode::ADD_VECTOR_I32X4:
-                        enc.ee_vadd_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::MUL_VECTOR_I32X8:
-                        enc.ee_vmul_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
-                        break;
-                    case frontend::Opcode::RETURN_VAL:
-                    case frontend::Opcode::RETURN_VOID:
-                        enc.pop_frame(32);
-                        enc.ret_call0();
-                        break;
-                    default:
-                        enc.nop();
-                        break;
-                }
+                lower_xtensa_insn(enc, insn, true);
             }
         }
 

@@ -114,6 +114,7 @@ public:
     virtual TargetArch arch() const override { return TargetArch::XTENSA_LX7; }
     virtual void* compile_function(frontend::Function* fn, frontend::Program* prog) override;
     virtual bool compile_to_elf(frontend::Program* prog, const char* out_filename) override;
+    bool compile_to_esp32_bin(frontend::Program* prog, const char* out_bin_path);
 
 private:
     AnastasiaJitRuntime* runtime_;

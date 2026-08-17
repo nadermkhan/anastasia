@@ -398,5 +398,113 @@ bool XtensaLX7TargetBackend::compile_to_elf(frontend::Program* prog, const char*
     return elf.write_elf_object(out_filename, text_buf.data(), text_buf.size());
 }
 
+bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const char* out_bin_path) {
+    if (!prog || !out_bin_path) return false;
+
+    SimpleByteBuffer text_buf;
+
+    for (frontend::Function* fn = prog->functions; fn != nullptr; fn = fn->next) {
+        XtensaLX7Encoder enc;
+        enc.push_frame(32);
+
+        for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+            for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+                switch (insn->op) {
+                    case frontend::Opcode::ADD_I32:
+                    case frontend::Opcode::ADD_I64:
+                        enc.add_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+                        break;
+                    case frontend::Opcode::SUB_I32:
+                    case frontend::Opcode::SUB_I64:
+                        enc.sub_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+                        break;
+                    case frontend::Opcode::MUL_I32:
+                    case frontend::Opcode::MUL_I64:
+                        enc.mull_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+                        break;
+                    case frontend::Opcode::DIV_I32:
+                    case frontend::Opcode::DIV_I64:
+                        enc.quos_reg_reg(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+                        break;
+                    case frontend::Opcode::ADD_FLOAT_32:
+                        enc.add_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+                        break;
+                    case frontend::Opcode::SUB_FLOAT_64:
+                        enc.sub_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+                        break;
+                    case frontend::Opcode::MUL_FLOAT_64:
+                        enc.mul_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+                        break;
+                    case frontend::Opcode::DIV_FLOAT_64:
+                        enc.div_s(XtensaFpReg::F0, XtensaFpReg::F0, XtensaFpReg::F1);
+                        break;
+                    case frontend::Opcode::ADD_VECTOR_I32X4:
+                        enc.ee_vadd_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+                        break;
+                    case frontend::Opcode::MUL_VECTOR_I32X8:
+                        enc.ee_vmul_s32(XtensaReg::A2, XtensaReg::A2, XtensaReg::A3);
+                        break;
+                    case frontend::Opcode::RETURN_VAL:
+                    case frontend::Opcode::RETURN_VOID:
+                        enc.pop_frame(32);
+                        enc.ret_call0();
+                        break;
+                    default:
+                        enc.nop();
+                        break;
+                }
+            }
+        }
+
+        size_t func_sz = enc.code_size();
+        text_buf.write(enc.code_bytes(), func_sz);
+    }
+
+    if (text_buf.size() == 0) return false;
+
+    // ESP32-S3 Flash Image Header (24 bytes)
+    uint8_t header[24];
+    sys::freestanding_memset(header, 0, sizeof(header));
+    header[0] = 0xE9; // Magic byte
+    header[1] = 1;    // 1 segment
+    header[2] = 0x02; // SPI Flash mode DIO
+    header[3] = 0x20; // 40MHz, 16MB
+    uint32_t entry_addr = 0x40370000;
+    *reinterpret_cast<uint32_t*>(&header[4]) = entry_addr;
+    *reinterpret_cast<uint32_t*>(&header[8]) = 0xEE; // WP Pin / SPI config
+    header[15] = 9;   // Chip ID: ESP32-S3 (9)
+
+    // Segment 0 Header (8 bytes)
+    uint8_t seg_header[8];
+    *reinterpret_cast<uint32_t*>(&seg_header[0]) = entry_addr;
+    *reinterpret_cast<uint32_t*>(&seg_header[4]) = static_cast<uint32_t>(text_buf.size());
+
+    // Calculate exact 8-bit XOR Checksum starting at 0xEF
+    uint8_t checksum = 0xEF;
+    const uint8_t* code_bytes = text_buf.data();
+    for (size_t i = 0; i < text_buf.size(); i++) {
+        checksum ^= code_bytes[i];
+    }
+
+    int fd = sys::raw_open(out_bin_path, 577 /* O_WRONLY|O_CREAT|O_TRUNC */, 0666);
+    if (fd < 0) return false;
+
+    sys::raw_write(fd, header, sizeof(header));
+    sys::raw_write(fd, seg_header, sizeof(seg_header));
+    sys::raw_write(fd, text_buf.data(), text_buf.size());
+
+    // Pad file so that (file_size % 16) == 15, then append the checksum byte
+    size_t payload_len = sizeof(header) + sizeof(seg_header) + text_buf.size();
+    size_t pad_len = (15 - (payload_len % 16)) % 16;
+    uint8_t zero_byte = 0;
+    for (size_t i = 0; i < pad_len; i++) {
+        sys::raw_write(fd, &zero_byte, 1);
+    }
+    sys::raw_write(fd, &checksum, 1);
+
+    sys::raw_close(fd);
+    return true;
+}
+
 } // namespace backend
 } // namespace ana

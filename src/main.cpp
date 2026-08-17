@@ -147,7 +147,21 @@ int ana_main(int argc, char** argv) {
         }
 
         bool success = false;
-        if (argc >= 5 && (streq_check(argv[4], "--xtensa") || streq_check(argv[4], "--esp32s3"))) {
+        if (argc >= 5 && streq_check(argv[4], "--esp32s3-bin")) {
+            ana::backend::XtensaLX7TargetBackend xtensa_backend;
+            success = xtensa_backend.compile_to_esp32_bin(prog, out_obj);
+            if (success) {
+                print_cli_msg("[AOT Compiler SUCCESS] Emitted native ESP32-S3 flash binary: ");
+                print_cli_msg(out_obj);
+                print_cli_msg("\n");
+                free(code_buf);
+                return 0;
+            } else {
+                print_cli_msg("[AOT Compiler ERROR] Failed to generate ESP32-S3 binary\n");
+                free(code_buf);
+                return 1;
+            }
+        } else if (argc >= 5 && (streq_check(argv[4], "--xtensa") || streq_check(argv[4], "--esp32s3"))) {
             ana::backend::XtensaLX7TargetBackend xtensa_backend;
             success = xtensa_backend.compile_to_elf(prog, out_obj);
         } else {

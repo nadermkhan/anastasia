@@ -24,102 +24,186 @@
     move-const v1, 1              ; 1 = Feed RTC Watchdog
     store-mem [v0 + 0], v1
 
-    ; 3. Turn Onboard WS2812 RGB LED VIBRANT GREEN (GPIO 48 & GPIO 38)
-    ; Enable GPIO 48 (bit 16) & GPIO 38 (bit 6) outputs (mask = 65600)
+    ; 3. Configure GPIOs for Discrete RGB + WS2812
+    ; Enable GPIO 48 (bit 16), GPIO 47 (bit 15), GPIO 38 (bit 6)
+    ; Mask = 65536 + 32768 + 64 = 98368
     move-const v0, 1610629164     ; 0x6000402C = GPIO_ENABLE1_W1TS_REG
-    move-const v4, 65600          ; bit 16 | bit 6
-    store-mem [v0 + 0], v4
+    move-const v1, 98368
+    store-mem [v0 + 0], v1
 
+    ; Enable GPIO 21 (bit 21 = 2097152)
+    move-const v0, 1610629156     ; 0x60004024 = GPIO_ENABLE_W1TS_REG
+    move-const v1, 2097152
+    store-mem [v0 + 0], v1
+
+    ; Discrete LED mode: Set GPIO 47 (Green) HIGH, Set GPIO 48 (Blue) & GPIO 21 (Red) LOW
     move-const v0, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG (Set HIGH)
-    move-const v3, 1610629144     ; 0x60004018 = GPIO_OUT1_W1TC_REG (Clear LOW)
+    move-const v1, 32768          ; GPIO 47 HIGH (Green)
+    store-mem [v0 + 0], v1
+
+    move-const v0, 1610629144     ; 0x60004018 = GPIO_OUT1_W1TC_REG (Clear LOW)
+    move-const v1, 65536          ; GPIO 48 LOW (Blue)
+    store-mem [v0 + 0], v1
+
+    move-const v0, 1610629136     ; 0x60004010 = GPIO_OUT_W1TC_REG (Clear LOW)
+    move-const v1, 2097152        ; GPIO 21 LOW (Red)
+    store-mem [v0 + 0], v1
+
+    ; 4. WS2812 Timing Generation for GPIO 48 & GPIO 38
+    move-const v0, 1610629140     ; Set HIGH reg
+    move-const v3, 1610629144     ; Clear LOW reg
+    move-const v4, 65600          ; GPIO 48 | GPIO 38
+
+    ; Latch Reset (Hold LOW)
+    store-mem [v3 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v3 + 0], v4
+
+    ; Send 8 bits of '1's for GREEN channel (Green = 0x20 / 0xFF)
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    store-mem [v3 + 0], v4
+
+    ; Send 16 bits of '0's for RED & BLUE channels (0x00)
+    ; For bit '0': immediate LOW then delay
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
+
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    move-const v5, 1
+    move-const v5, 2
+    move-const v5, 3
 
     ; Latch Reset (Hold LOW)
     store-mem [v3 + 0], v4
 
-    ; Send 8 bits of '1's for GREEN channel (Green = 0xFF = 255)
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    ; Send 8 bits of '0's for RED channel (Red = 0x00 = 0)
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    ; Send 8 bits of '0's for BLUE channel (Blue = 0x00 = 0)
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-    store-mem [v0 + 0], v4
-    store-mem [v3 + 0], v4
-
-    ; Latch Reset (Hold LOW > 50us)
-    store-mem [v3 + 0], v4
-
-    ; 4. Stream "Hello World from Anastasia on ESP32-S3!\r\n"
-    ; Write to BOTH UART0 (0x60000000) AND USB-Serial-JTAG (0x60043000 for /dev/ttyACM0)
+    ; 5. Stream "Hello World from Anastasia on ESP32-S3!\r\n"
     move-const v0, 1610612736     ; 0x60000000 = UART0 FIFO
-    move-const v2, 1610887168     ; 0x60043000 = USB-Serial-JTAG FIFO (native USB on /dev/ttyACM0)
+    move-const v2, 1610887168     ; 0x60043000 = USB-Serial-JTAG FIFO
 
     move-const v1, 72             ; 'H'
     store-mem [v0 + 0], v1
@@ -250,7 +334,7 @@
     move-const v1, 1              ; Flush packet
     store-mem [v0 + 0], v1
 
-    ; 5. Bare-metal park loop: Continuously feed watchdog in a loop
+    ; 6. Bare-metal park loop: Continuously feed watchdog in a loop
 park_loop:
     move-const v0, 1610739808     ; 0x6001F060 = TIMG0_WDTFEED_REG
     move-const v1, 1              ; 1 = Feed Watchdog

@@ -235,18 +235,53 @@ void XtensaLX7Encoder::nop() {
 }
 
 void XtensaLX7Encoder::mov_reg_imm32(XtensaReg rt, uint32_t val) {
-    int32_t imm12 = static_cast<int32_t>(val);
-    if (imm12 >= -2048 && imm12 <= 2047) {
-        movi_reg_imm(rt, imm12);
-    } else {
-        uint32_t high16 = (val >> 16) & 0xFFFF;
-        uint32_t low16 = val & 0xFFFF;
-        movi_reg_imm(rt, static_cast<int32_t>(static_cast<int16_t>(high16)));
-        slli_reg_imm(rt, rt, 16);
-        if (low16 != 0) {
-            movi_reg_imm(XtensaReg::A10, static_cast<int32_t>(static_cast<int16_t>(low16)));
+    int32_t imm = static_cast<int32_t>(val);
+    if (imm >= -2048 && imm <= 2047) {
+        movi_reg_imm(rt, imm);
+        return;
+    }
+
+    if ((val & 0xFF000000) == val) {
+        uint8_t b3 = static_cast<uint8_t>(val >> 24);
+        movi_reg_imm(rt, b3);
+        slli_reg_imm(rt, rt, 24);
+        return;
+    }
+
+    if ((val & 0xFFFF0000) == val) {
+        uint8_t b3 = static_cast<uint8_t>(val >> 24);
+        uint8_t b2 = static_cast<uint8_t>((val >> 16) & 0xFF);
+        movi_reg_imm(rt, b3);
+        slli_reg_imm(rt, rt, 8);
+        if (b2 != 0) {
+            movi_reg_imm(XtensaReg::A10, b2);
             add_reg_reg(rt, rt, XtensaReg::A10);
         }
+        slli_reg_imm(rt, rt, 16);
+        return;
+    }
+
+    // General 32-bit constant: build via 4 bytes (all <= 255, guaranteed to fit in movi)
+    uint8_t b3 = static_cast<uint8_t>((val >> 24) & 0xFF);
+    uint8_t b2 = static_cast<uint8_t>((val >> 16) & 0xFF);
+    uint8_t b1 = static_cast<uint8_t>((val >> 8) & 0xFF);
+    uint8_t b0 = static_cast<uint8_t>(val & 0xFF);
+
+    movi_reg_imm(rt, b3);
+    slli_reg_imm(rt, rt, 8);
+    if (b2 != 0) {
+        movi_reg_imm(XtensaReg::A10, b2);
+        add_reg_reg(rt, rt, XtensaReg::A10);
+    }
+    slli_reg_imm(rt, rt, 8);
+    if (b1 != 0) {
+        movi_reg_imm(XtensaReg::A10, b1);
+        add_reg_reg(rt, rt, XtensaReg::A10);
+    }
+    slli_reg_imm(rt, rt, 8);
+    if (b0 != 0) {
+        movi_reg_imm(XtensaReg::A10, b0);
+        add_reg_reg(rt, rt, XtensaReg::A10);
     }
 }
 
@@ -451,6 +486,12 @@ bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const
 
     for (frontend::Function* fn = prog->functions; fn != nullptr; fn = fn->next) {
         XtensaLX7Encoder enc;
+
+        // Bare-metal CRT0 setup:
+        // 1. Initialize Stack Pointer A1 to valid DRAM stack 0x3FCEB6F0
+        enc.mov_reg_imm32(XtensaReg::A1, 0x3FCEB6F0);
+        // 2. Clear return frame A0
+        enc.movi_reg_imm(XtensaReg::A0, 0);
 
         for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
             for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {

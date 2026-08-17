@@ -80,7 +80,9 @@ enum class Opcode {
     LOAD_VECTOR_512,
     SINK_MEM,
     CONST_STRING,
-    STR_LEN
+    STR_LEN,
+    CALL_EXTERN,
+    LOAD_FN_PTR
 };
 
 enum class RegisterType {

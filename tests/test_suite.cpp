@@ -601,10 +601,17 @@ static bool test_aot_elf_compilation() {
     print_msg("[Test 14/40] AOT Relocatable ELF Object File Emitter (ElfEmitter)... ");
     const char* code =
         ".fn aot_demo(p0: i64, p1: i64) -> i64\n"
-        ".registers 2 local\n"
+        ".registers 6 local\n"
         "add-int/64 v0, p0, p1\n"
         "sub-int/64 v1, v0, p0\n"
-        "return-val v1\n"
+        "mul-int/64 v2, v1, p1\n"
+        "xor-int/64 v3, v2, v0\n"
+        "shl-int/64 v4, v3, 4\n"
+        "move v5, v4\n"
+        "if-eq v5, v4, loop_end\n"
+        "goto loop_end\n"
+        "loop_end:\n"
+        "return-val v5\n"
         ".end_fn\n";
 
     frontend::ArenaAllocator arena;

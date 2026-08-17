@@ -949,6 +949,312 @@ bool AnaLowerer::compile_to_elf(frontend::Program* prog, const char* out_filenam
                         store_operand(insn->dest.reg, dst_reg);
                         break;
                     }
+                    case frontend::Opcode::MOVE: {
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        store_operand(insn->dest.reg, s1);
+                        break;
+                    }
+                    case frontend::Opcode::LOAD_MEM: {
+                        X86Reg base = load_operand(frontend::Operand::make_reg(insn->src1.mem.base.type, insn->src1.mem.base.index), X86Reg::RAX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
+                        enc->mov_reg_mem(dst_reg, base, insn->src1.mem.offset);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::STORE_MEM: {
+                        X86Reg base = load_operand(frontend::Operand::make_reg(insn->dest.mem.base.type, insn->dest.mem.base.index), X86Reg::RAX);
+                        X86Reg src = load_operand(insn->src1, X86Reg::R11);
+                        enc->mov_mem_reg(base, insn->dest.mem.offset, src);
+                        break;
+                    }
+                    case frontend::Opcode::MUL_I32:
+                    case frontend::Opcode::MUL_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        if (s2 != X86Reg::R11) enc->mov_reg_reg(X86Reg::R11, s2);
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        enc->mov_reg_reg(dst_reg, s1);
+                        enc->imul_reg_reg(dst_reg, X86Reg::R11);
+                        if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::DIV_I32:
+                    case frontend::Opcode::DIV_I64: {
+                        X86Reg dst_phys = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                          ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
+                        bool push_rdx = (dst_phys != X86Reg::RDX);
+                        if (push_rdx) enc->push_reg(X86Reg::RDX);
+
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        if (s2 != X86Reg::R11) enc->mov_reg_reg(X86Reg::R11, s2);
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        if (s1 != X86Reg::RAX) enc->mov_reg_reg(X86Reg::RAX, s1);
+
+                        uint32_t lbl_zero = enc->new_label();
+                        uint32_t lbl_neg1 = enc->new_label();
+                        uint32_t lbl_done = enc->new_label();
+
+                        enc->test_reg_reg(X86Reg::R11, X86Reg::R11);
+                        enc->jz_label(lbl_zero);
+                        enc->cmp_reg_imm32(X86Reg::R11, -1);
+                        enc->je_label(lbl_neg1);
+
+                        if (insn->op == frontend::Opcode::DIV_I32) {
+                            enc->cdq();
+                            enc->idiv_reg32(X86Reg::R11);
+                            enc->movsxd_reg_reg(X86Reg::RAX, X86Reg::RAX);
+                        } else {
+                            enc->cqo();
+                            enc->idiv_reg(X86Reg::R11);
+                        }
+                        enc->jmp_label(lbl_done);
+
+                        enc->bind_label(lbl_zero);
+                        enc->mov_reg_imm32(X86Reg::RAX, 0);
+                        enc->jmp_label(lbl_done);
+
+                        enc->bind_label(lbl_neg1);
+                        enc->imul_reg_imm32(X86Reg::RAX, X86Reg::RAX, -1);
+                        if (insn->op == frontend::Opcode::DIV_I32) {
+                            enc->movsxd_reg_reg(X86Reg::RAX, X86Reg::RAX);
+                        }
+
+                        enc->bind_label(lbl_done);
+
+                        if (dst_phys != X86Reg::RAX) enc->mov_reg_reg(dst_phys, X86Reg::RAX);
+                        store_operand(insn->dest.reg, dst_phys);
+
+                        if (push_rdx) enc->pop_reg(X86Reg::RDX);
+                        break;
+                    }
+                    case frontend::Opcode::AND_I32:
+                    case frontend::Opcode::AND_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                            enc->mov_reg_reg(X86Reg::R11, s2);
+                            s2 = X86Reg::R11;
+                        }
+                        enc->mov_reg_reg(dst_reg, s1);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->and_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
+                        } else {
+                            enc->and_reg_reg(dst_reg, s2);
+                        }
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::OR_I32:
+                    case frontend::Opcode::OR_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                            enc->mov_reg_reg(X86Reg::R11, s2);
+                            s2 = X86Reg::R11;
+                        }
+                        enc->mov_reg_reg(dst_reg, s1);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->or_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
+                        } else {
+                            enc->or_reg_reg(dst_reg, s2);
+                        }
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::XOR_I32:
+                    case frontend::Opcode::XOR_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RCX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                        if (dst_reg == s2 && s2 != X86Reg::R11 && insn->src2.kind != frontend::OperandKind::CONST_INT) {
+                            enc->mov_reg_reg(X86Reg::R11, s2);
+                            s2 = X86Reg::R11;
+                        }
+                        enc->mov_reg_reg(dst_reg, s1);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->xor_reg_imm32(dst_reg, static_cast<int32_t>(insn->src2.const_val));
+                        } else {
+                            enc->xor_reg_reg(dst_reg, s2);
+                        }
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::SHL_I32:
+                    case frontend::Opcode::SHL_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
+                        if (insn->src2.kind != frontend::OperandKind::CONST_INT && s2 != X86Reg::RCX) {
+                            enc->mov_reg_reg(X86Reg::RCX, s2);
+                        }
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
+                        enc->mov_reg_reg(dst_reg, s1);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->shl_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
+                        } else {
+                            enc->shl_reg_cl(dst_reg);
+                        }
+                        if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::SHR_I32:
+                    case frontend::Opcode::SHR_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
+                        if (insn->src2.kind != frontend::OperandKind::CONST_INT && s2 != X86Reg::RCX) {
+                            enc->mov_reg_reg(X86Reg::RCX, s2);
+                        }
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
+                        enc->mov_reg_reg(dst_reg, s1);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->sar_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
+                        } else {
+                            enc->sar_reg_cl(dst_reg);
+                        }
+                        if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::USHR_I32:
+                    case frontend::Opcode::USHR_I64: {
+                        X86Reg s2 = load_operand(insn->src2, X86Reg::RCX);
+                        if (insn->src2.kind != frontend::OperandKind::CONST_INT && s2 != X86Reg::RCX) {
+                            enc->mov_reg_reg(X86Reg::RCX, s2);
+                        }
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                         ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RAX;
+                        enc->mov_reg_reg(dst_reg, s1);
+                        if (insn->op == frontend::Opcode::USHR_I32) enc->movzxd_reg_reg(dst_reg, dst_reg);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->shr_reg_imm8(dst_reg, static_cast<uint8_t>(insn->src2.const_val));
+                        } else {
+                            enc->shr_reg_cl(dst_reg);
+                        }
+                        if (is_i32_op(insn->op)) enc->movsxd_reg_reg(dst_reg, dst_reg);
+                        store_operand(insn->dest.reg, dst_reg);
+                        break;
+                    }
+                    case frontend::Opcode::GOTO: {
+                        if (insn->target_label) {
+                            bool is_next = (bb->next && bb->next->label && streq_impl(bb->next->label, insn->target_label));
+                            if (!is_next) {
+                                uint32_t target_lbl = get_block_label(insn->target_label, nullptr);
+                                enc->jmp_label(target_lbl);
+                            }
+                        }
+                        break;
+                    }
+                    case frontend::Opcode::IF_EQ:
+                    case frontend::Opcode::IF_NE:
+                    case frontend::Opcode::IF_LT:
+                    case frontend::Opcode::IF_GE: {
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        if (insn->src2.kind == frontend::OperandKind::CONST_INT) {
+                            enc->cmp_reg_imm32(s1, static_cast<int32_t>(insn->src2.const_val));
+                        } else {
+                            X86Reg s2 = load_operand(insn->src2, X86Reg::R11);
+                            enc->cmp_reg_reg(s1, s2);
+                        }
+
+                        uint32_t target_lbl = get_block_label(insn->target_label, nullptr);
+                        if (insn->op == frontend::Opcode::IF_EQ) enc->je_label(target_lbl);
+                        else if (insn->op == frontend::Opcode::IF_NE) enc->jne_label(target_lbl);
+                        else if (insn->op == frontend::Opcode::IF_LT) enc->jl_label(target_lbl);
+                        else if (insn->op == frontend::Opcode::IF_GE) enc->jge_label(target_lbl);
+                        break;
+                    }
+                    case frontend::Opcode::IF_Z:
+                    case frontend::Opcode::IF_NZ: {
+                        X86Reg s1 = load_operand(insn->src1, X86Reg::RAX);
+                        enc->test_reg_reg(s1, s1);
+                        uint32_t target_lbl = get_block_label(insn->target_label, nullptr);
+                        if (insn->op == frontend::Opcode::IF_Z) enc->jz_label(target_lbl);
+                        else if (insn->op == frontend::Opcode::IF_NZ) enc->jnz_label(target_lbl);
+                        break;
+                    }
+                    case frontend::Opcode::CALL_EXTERN: {
+                        if (insn->target_label) {
+                            uint32_t sym_idx = elf->add_symbol(insn->target_label, STB_GLOBAL, STT_NOTYPE, 0, 0, 0);
+                            uint32_t patch_off = static_cast<uint32_t>(enc->code_size() + 1);
+                            enc->call_rel32_disp(0);
+                            elf->add_relocation(func_offset + patch_off, sym_idx, 4 /* R_X86_64_PLT32 */, -4);
+                            if (insn->dest.kind == frontend::OperandKind::REGISTER) {
+                                store_operand(insn->dest.reg, X86Reg::RAX);
+                            }
+                        }
+                        break;
+                    }
+                    case frontend::Opcode::LOAD_FN_PTR: {
+                        if (insn->target_label) {
+                            uint32_t sym_idx = elf->add_symbol(insn->target_label, STB_GLOBAL, STT_FUNC, 0, 0, 0);
+                            X86Reg dst_reg = (regalloc.get_reg_loc(insn->dest.reg).kind == RegLocKind::PHYSICAL_REG)
+                                             ? regalloc.get_reg_loc(insn->dest.reg).phys_reg : X86Reg::RCX;
+                            uint32_t patch_off = static_cast<uint32_t>(enc->code_size() + 3);
+                            enc->lea_reg_rip_disp32(dst_reg, 0);
+                            store_operand(insn->dest.reg, dst_reg);
+                            elf->add_relocation(func_offset + patch_off, sym_idx, 2 /* R_X86_64_PC32 */, -4);
+                        }
+                        break;
+                    }
+                    case frontend::Opcode::NEW_INSTANCE: {
+                        uint32_t inst_size = 16;
+                        if (prog && insn->target_label) {
+                            for (frontend::ClassDecl* c = prog->classes; c != nullptr; c = c->next) {
+                                if (c->name && streq_impl(c->name, insn->target_label)) {
+                                    inst_size = c->size > 0 ? c->size : 16;
+                                    break;
+                                }
+                            }
+                        }
+                        uint32_t sym_idx = elf->add_symbol("tlab_allocate", STB_GLOBAL, STT_NOTYPE, 0, 0, 0);
+                        enc->mov_reg_imm32(X86Reg::RDI, static_cast<int32_t>(inst_size));
+                        enc->mov_reg_imm64(X86Reg::RSI, 0);
+                        enc->mov_reg_imm32(X86Reg::RDX, 1);
+                        uint32_t patch_off = static_cast<uint32_t>(enc->code_size() + 1);
+                        enc->call_rel32_disp(0);
+                        elf->add_relocation(func_offset + patch_off, sym_idx, 4 /* R_X86_64_PLT32 */, -4);
+                        store_operand(insn->dest.reg, X86Reg::RAX);
+                        break;
+                    }
+                    case frontend::Opcode::BIND_VTABLE: {
+                        X86Reg obj = load_operand(insn->src1, X86Reg::RAX);
+                        enc->mov_reg_imm64(X86Reg::R11, insn->src2.const_val);
+                        enc->mov_mem_reg(obj, 0, X86Reg::R11);
+                        break;
+                    }
+                    case frontend::Opcode::CALL_VIRT:
+                    case frontend::Opcode::CALL_VIRT_FAST: {
+                        X86Reg obj = load_operand(insn->src1, X86Reg::RDI);
+                        if (obj != X86Reg::RDI) enc->mov_reg_reg(X86Reg::RDI, obj);
+                        enc->mov_reg_mem(X86Reg::R11, X86Reg::RDI, 0);
+                        enc->mov_reg_mem(X86Reg::R11, X86Reg::R11, insn->vtable_slot * 8);
+                        enc->call_reg(X86Reg::R11);
+                        if (insn->dest.kind == frontend::OperandKind::REGISTER) {
+                            store_operand(insn->dest.reg, X86Reg::RAX);
+                        }
+                        break;
+                    }
+                    case frontend::Opcode::ATOMIC_ADD_I64: {
+                        X86Reg base = load_operand(frontend::Operand::make_reg(insn->dest.mem.base.type, insn->dest.mem.base.index), X86Reg::RDI);
+                        X86Reg src = load_operand(insn->src1, X86Reg::RAX);
+                        enc->lock_add_mem_reg(base, insn->dest.mem.offset, src);
+                        break;
+                    }
+                    case frontend::Opcode::FENCE: {
+                        enc->mfence();
+                        break;
+                    }
                     case frontend::Opcode::RETURN_VAL: {
                         X86Reg ret_reg = load_operand(insn->src1, X86Reg::RAX);
                         if (ret_reg != X86Reg::RAX) {

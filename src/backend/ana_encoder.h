@@ -128,6 +128,7 @@ public:
     void jnz_label(uint32_t label_id);
 
     void call_reg(X86Reg target);
+    void call_rel32_disp(int32_t disp);
     void push_reg(X86Reg reg);
     void pop_reg(X86Reg reg);
     void ret();

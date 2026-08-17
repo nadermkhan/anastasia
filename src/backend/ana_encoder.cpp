@@ -535,6 +535,11 @@ void AnaEncoder::call_reg(X86Reg target) {
     emit_modrm(3, 2, t);
 }
 
+void AnaEncoder::call_rel32_disp(int32_t disp) {
+    emit8(0xE8);
+    emit32(static_cast<uint32_t>(disp));
+}
+
 void AnaEncoder::push_reg(X86Reg reg) {
     uint8_t r = static_cast<uint8_t>(reg);
     if (r >= 8) emit8(0x41);

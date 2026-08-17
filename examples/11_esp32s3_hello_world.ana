@@ -2,105 +2,105 @@
     .registers 6 local
 
     ; Disable ESP32-S3 Timer Group 0 Watchdog Timer (TIMG0_WDTCONFIG0_REG = 0x6001F048 = 1610739784)
-    move_const v0, 1610739784     ; 0x6001F048 = TIMG0_WDTCONFIG0_REG
-    move_const v1, 0              ; 0 = Disable Watchdog
+    move-const v0, 1610739784     ; 0x6001F048 = TIMG0_WDTCONFIG0_REG
+    move-const v1, 0              ; 0 = Disable Watchdog
     store-mem [v0 + 0], v1
 
     ; Disable RTC Watchdog Timer (RTC_CNTL_WDTCONFIG0_REG = 0x60008098 = 1610645656)
-    move_const v0, 1610645656     ; 0x60008098 = RTC_CNTL_WDTCONFIG0_REG
+    move-const v0, 1610645656     ; 0x60008098 = RTC_CNTL_WDTCONFIG0_REG
     store-mem [v0 + 0], v1
 
     ; Base MMIO Register for ESP32-S3 UART0 FIFO Register (0x60000000 = 1610612736)
-    move_const v0, 1610612736     ; 0x60000000 = UART0 FIFO
+    move-const v0, 1610612736     ; 0x60000000 = UART0 FIFO
 
     ; Stream "Hello World from Anastasia on ESP32-S3!\r\n" to UART0 FIFO
-    move_const v1, 72             ; 'H'
+    move-const v1, 72             ; 'H'
     store-mem [v0 + 0], v1
-    move_const v1, 101            ; 'e'
+    move-const v1, 101            ; 'e'
     store-mem [v0 + 0], v1
-    move_const v1, 108            ; 'l'
+    move-const v1, 108            ; 'l'
     store-mem [v0 + 0], v1
-    move_const v1, 108            ; 'l'
+    move-const v1, 108            ; 'l'
     store-mem [v0 + 0], v1
-    move_const v1, 111            ; 'o'
+    move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
-    move_const v1, 32             ; ' '
+    move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
-    move_const v1, 87             ; 'W'
+    move-const v1, 87             ; 'W'
     store-mem [v0 + 0], v1
-    move_const v1, 111            ; 'o'
+    move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
-    move_const v1, 114            ; 'r'
+    move-const v1, 114            ; 'r'
     store-mem [v0 + 0], v1
-    move_const v1, 108            ; 'l'
+    move-const v1, 108            ; 'l'
     store-mem [v0 + 0], v1
-    move_const v1, 100            ; 'd'
+    move-const v1, 100            ; 'd'
     store-mem [v0 + 0], v1
-    move_const v1, 32             ; ' '
+    move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
-    move_const v1, 102            ; 'f'
+    move-const v1, 102            ; 'f'
     store-mem [v0 + 0], v1
-    move_const v1, 114            ; 'r'
+    move-const v1, 114            ; 'r'
     store-mem [v0 + 0], v1
-    move_const v1, 111            ; 'o'
+    move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
-    move_const v1, 109            ; 'm'
+    move-const v1, 109            ; 'm'
     store-mem [v0 + 0], v1
-    move_const v1, 32             ; ' '
+    move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
-    move_const v1, 65             ; 'A'
+    move-const v1, 65             ; 'A'
     store-mem [v0 + 0], v1
-    move_const v1, 110            ; 'n'
+    move-const v1, 110            ; 'n'
     store-mem [v0 + 0], v1
-    move_const v1, 97             ; 'a'
+    move-const v1, 97             ; 'a'
     store-mem [v0 + 0], v1
-    move_const v1, 115            ; 's'
+    move-const v1, 115            ; 's'
     store-mem [v0 + 0], v1
-    move_const v1, 116            ; 't'
+    move-const v1, 116            ; 't'
     store-mem [v0 + 0], v1
-    move_const v1, 97             ; 'a'
+    move-const v1, 97             ; 'a'
     store-mem [v0 + 0], v1
-    move_const v1, 115            ; 's'
+    move-const v1, 115            ; 's'
     store-mem [v0 + 0], v1
-    move_const v1, 105            ; 'i'
+    move-const v1, 105            ; 'i'
     store-mem [v0 + 0], v1
-    move_const v1, 97             ; 'a'
+    move-const v1, 97             ; 'a'
     store-mem [v0 + 0], v1
-    move_const v1, 32             ; ' '
+    move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
-    move_const v1, 111            ; 'o'
+    move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
-    move_const v1, 110            ; 'n'
+    move-const v1, 110            ; 'n'
     store-mem [v0 + 0], v1
-    move_const v1, 32             ; ' '
+    move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
-    move_const v1, 69             ; 'E'
+    move-const v1, 69             ; 'E'
     store-mem [v0 + 0], v1
-    move_const v1, 83             ; 'S'
+    move-const v1, 83             ; 'S'
     store-mem [v0 + 0], v1
-    move_const v1, 80             ; 'P'
+    move-const v1, 80             ; 'P'
     store-mem [v0 + 0], v1
-    move_const v1, 51             ; '3'
+    move-const v1, 51             ; '3'
     store-mem [v0 + 0], v1
-    move_const v1, 52             ; '2'
+    move-const v1, 52             ; '2'
     store-mem [v0 + 0], v1
-    move_const v1, 45             ; '-'
+    move-const v1, 45             ; '-'
     store-mem [v0 + 0], v1
-    move_const v1, 83             ; 'S'
+    move-const v1, 83             ; 'S'
     store-mem [v0 + 0], v1
-    move_const v1, 51             ; '3'
+    move-const v1, 51             ; '3'
     store-mem [v0 + 0], v1
-    move_const v1, 33             ; '!'
+    move-const v1, 33             ; '!'
     store-mem [v0 + 0], v1
-    move_const v1, 13             ; '\r'
+    move-const v1, 13             ; '\r'
     store-mem [v0 + 0], v1
-    move_const v1, 10             ; '\n'
+    move-const v1, 10             ; '\n'
     store-mem [v0 + 0], v1
 
     ; Bare-metal park loop: Park CPU cleanly to prevent jumping into unmapped memory
 park_loop:
     goto park_loop
 
-    move_const v2, 1
+    move-const v2, 1
     return-val v2
 .end_fn

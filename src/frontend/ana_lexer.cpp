@@ -256,15 +256,24 @@ Token Lexer::next_token() {
             case fnv1a_hash("popcount-int/64", 15): tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::POPCOUNT_I64; return tok;
             case fnv1a_hash("lzcnt-int/64", 12):  tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LZCNT_I64; return tok;
             case fnv1a_hash("move", 4):           tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MOVE; return tok;
-            case fnv1a_hash("move-const", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MOVE_CONST; return tok;
-            case fnv1a_hash("sys-call", 8):       tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SYS_CALL; return tok;
-            case fnv1a_hash("load-mem", 8):       tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_MEM; return tok;
-            case fnv1a_hash("store-mem", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::STORE_MEM; return tok;
-            case fnv1a_hash("bind-vtable", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::BIND_VTABLE; return tok;
-            case fnv1a_hash("call-virt", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CALL_VIRT; return tok;
-            case fnv1a_hash("call-virt-fast", 14):tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CALL_VIRT_FAST; return tok;
-            case fnv1a_hash("return-void", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::RETURN_VOID; return tok;
-            case fnv1a_hash("return-val", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::RETURN_VAL; return tok;
+            case fnv1a_hash("move-const", 10):
+            case fnv1a_hash("move_const", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::MOVE_CONST; return tok;
+            case fnv1a_hash("sys-call", 8):
+            case fnv1a_hash("sys_call", 8):       tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::SYS_CALL; return tok;
+            case fnv1a_hash("load-mem", 8):
+            case fnv1a_hash("load_mem", 8):       tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::LOAD_MEM; return tok;
+            case fnv1a_hash("store-mem", 9):
+            case fnv1a_hash("store_mem", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::STORE_MEM; return tok;
+            case fnv1a_hash("bind-vtable", 11):
+            case fnv1a_hash("bind_vtable", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::BIND_VTABLE; return tok;
+            case fnv1a_hash("call-virt", 9):
+            case fnv1a_hash("call_virt", 9):      tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CALL_VIRT; return tok;
+            case fnv1a_hash("call-virt-fast", 14):
+            case fnv1a_hash("call_virt_fast", 14):tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::CALL_VIRT_FAST; return tok;
+            case fnv1a_hash("return-void", 11):
+            case fnv1a_hash("return_void", 11):   tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::RETURN_VOID; return tok;
+            case fnv1a_hash("return-val", 10):
+            case fnv1a_hash("return_val", 10):    tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::RETURN_VAL; return tok;
             case fnv1a_hash("goto", 4):           tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::GOTO; return tok;
             case fnv1a_hash("if-eq", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_EQ; return tok;
             case fnv1a_hash("if-ne", 5):          tok.type = TokenType::TOKEN_OPCODE; tok.opcode = Opcode::IF_NE; return tok;

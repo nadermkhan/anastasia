@@ -180,7 +180,9 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
     bool is_32bit = (machine_arch_ == EM_XTENSA || machine_arch_ == EM_ARM);
 
     if (is_32bit) {
-        size_t header_size = sizeof(Elf32Ehdr);
+        bool has_phdr = (machine_arch_ == EM_XTENSA);
+        size_t phdr_size = has_phdr ? sizeof(Elf32Phdr) : 0;
+        size_t header_size = sizeof(Elf32Ehdr) + phdr_size;
         size_t text_offset = header_size;
         size_t rodata_offset = text_offset + text_section_->size();
         size_t shstrtab_offset = rodata_offset + (has_rodata ? rodata_section_->size() : 0);
@@ -188,6 +190,8 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
         size_t symtab_offset = strtab_offset + strtab_section_->size();
         size_t rela_offset = symtab_offset + symtab_section_->size();
         size_t shoff = ((has_rela ? rela_offset + rela_section_->size() : symtab_offset + symtab_section_->size()) + 3) & ~3UL;
+
+        uint32_t xtensa_base = (machine_arch_ == EM_XTENSA) ? 0x40370000U : 0U;
 
         alignas(16) Elf32Ehdr ehdr;
         sys::freestanding_memset(&ehdr, 0, sizeof(ehdr));
@@ -197,21 +201,32 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
         ehdr.e_ident[6] = 1; // EV_CURRENT
         ehdr.e_ident[7] = 0; // ELFOSABI_SYSV
 
-        uint32_t xtensa_base = (machine_arch_ == EM_XTENSA) ? 0x40370000U : 0U;
-
-        ehdr.e_type = ET_REL;
+        ehdr.e_type = has_phdr ? 2 /* ET_EXEC */ : ET_REL;
         ehdr.e_machine = machine_arch_;
         ehdr.e_version = EV_CURRENT;
         ehdr.e_entry = xtensa_base;
-        ehdr.e_phoff = 0;
+        ehdr.e_phoff = has_phdr ? sizeof(Elf32Ehdr) : 0;
         ehdr.e_shoff = static_cast<uint32_t>(shoff);
         ehdr.e_flags = 0;
         ehdr.e_ehsize = sizeof(Elf32Ehdr); // 52 (0x34)
-        ehdr.e_phentsize = 32; // 0x20
-        ehdr.e_phnum = 0;
+        ehdr.e_phentsize = sizeof(Elf32Phdr); // 32 (0x20)
+        ehdr.e_phnum = has_phdr ? 1 : 0;
         ehdr.e_shentsize = sizeof(Elf32Shdr); // 40 (0x28)
         ehdr.e_shnum = num_sections;
         ehdr.e_shstrndx = has_rodata ? 3 : 2;
+
+        Elf32Phdr phdr;
+        sys::freestanding_memset(&phdr, 0, sizeof(phdr));
+        if (has_phdr) {
+            phdr.p_type = PT_LOAD;
+            phdr.p_offset = static_cast<uint32_t>(text_offset);
+            phdr.p_vaddr = xtensa_base;
+            phdr.p_paddr = xtensa_base;
+            phdr.p_filesz = static_cast<uint32_t>(text_section_->size());
+            phdr.p_memsz = static_cast<uint32_t>(text_section_->size());
+            phdr.p_flags = PF_R | PF_W | PF_X;
+            phdr.p_align = 4;
+        }
 
         Elf32Shdr* shdrs = static_cast<Elf32Shdr*>(malloc(sizeof(Elf32Shdr) * num_sections));
         if (!shdrs) return false;
@@ -282,6 +297,7 @@ bool ElfEmitter::write_elf_object(const char* output_filename, const uint8_t* te
         if (fd < 0) { free(shdrs); return false; }
 
         sys::raw_write(fd, &ehdr, sizeof(ehdr));
+        if (has_phdr) sys::raw_write(fd, &phdr, sizeof(phdr));
         if (text_section_->size() > 0) sys::raw_write(fd, text_section_->data(), text_section_->size());
         if (has_rodata && rodata_section_->size() > 0) sys::raw_write(fd, rodata_section_->data(), rodata_section_->size());
         if (shstrtab_section_->size() > 0) sys::raw_write(fd, shstrtab_section_->data(), shstrtab_section_->size());

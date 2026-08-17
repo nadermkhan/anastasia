@@ -13,6 +13,23 @@ namespace backend {
 #define ELFCLASS64 2
 #define ELFDATA2LSB 1
 
+#define PT_LOAD 1
+#define PF_X 1
+#define PF_W 2
+#define PF_R 4
+
+// ELF Program Header (32-bit) - 32 bytes
+struct Elf32Phdr {
+    uint32_t p_type;
+    uint32_t p_offset;
+    uint32_t p_vaddr;
+    uint32_t p_paddr;
+    uint32_t p_filesz;
+    uint32_t p_memsz;
+    uint32_t p_flags;
+    uint32_t p_align;
+};
+
 // ELF File Header (32-bit) - 52 bytes
 struct Elf32Ehdr {
     unsigned char e_ident[EI_NIDENT];

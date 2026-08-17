@@ -62,6 +62,10 @@ struct Elf64Rela {
 // ELF Types
 #define ET_REL 1
 #define EM_X86_64 62
+#define EM_ARM 40
+#define EM_AARCH64 183
+#define EM_RISCV 243
+#define EM_XTENSA 94
 #define EV_CURRENT 1
 
 // Section Types

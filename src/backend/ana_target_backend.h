@@ -12,7 +12,8 @@ enum class TargetArch {
     X86_64,
     AARCH64,
     ARMV7,
-    RISCV64
+    RISCV64,
+    XTENSA_LX7
 };
 
 class AnaTargetBackend {

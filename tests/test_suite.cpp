@@ -12,6 +12,7 @@
 #include "../src/backend/ana_lowerer.h"
 #include "../src/backend/inline_cache.h"
 #include "../src/backend/aarch64_backend.h"
+#include "../src/backend/xtensa_lx7_backend.h"
 #include "../src/backend/gdb_jit.h"
 #include "../src/backend/dwarf_emitter.h"
 #include "../src/optimizer/ana_ssa.h"
@@ -1628,6 +1629,64 @@ static bool test_v7_string_literals_and_rodata_emission() {
     return true;
 }
 
+static bool test_xtensa_lx7_target_backend() {
+    print_msg("[Test 200/300 Extension] Cadence Tensilica Xtensa LX7 Target Backend (EM_XTENSA)... ");
+    const char* code =
+        ".fn xtensa_demo(p0: i64, p1: i64) -> i64\n"
+        ".registers 4 local\n"
+        "add-int/64 v0, p0, p1\n"
+        "sub-int/64 v1, v0, p0\n"
+        "mul-int/64 v2, v1, p1\n"
+        "return-val v2\n"
+        ".end_fn\n";
+
+    frontend::ArenaAllocator arena;
+    frontend::Parser parser(code, arena);
+    frontend::Program* prog = parser.parse_program();
+
+    if (!prog || !prog->functions) {
+        print_msg("FAILED (AST Parsing)\n");
+        return false;
+    }
+
+    backend::XtensaLX7TargetBackend xtensa_backend;
+    const char* test_obj_path = "test_xtensa_lx7.o";
+    bool success = xtensa_backend.compile_to_elf(prog, test_obj_path);
+    if (!success) {
+        print_msg("FAILED (Xtensa ELF Emitter)\n");
+        return false;
+    }
+
+    int fd = sys::raw_open(test_obj_path, 0, 0);
+    if (fd < 0) {
+        print_msg("FAILED (File Open fd=");
+        print_int(fd);
+        print_msg(")\n");
+        return false;
+    }
+
+    uint8_t header[64];
+    sys::freestanding_memset(header, 0, 64);
+    int64_t read_bytes = sys::raw_read(fd, header, 64);
+    sys::raw_close(fd);
+
+    if (read_bytes < 64) {
+        print_msg("FAILED (Header Size)\n");
+        return false;
+    }
+
+    uint16_t e_machine = *reinterpret_cast<uint16_t*>(&header[18]);
+    if (e_machine != EM_XTENSA) {
+        print_msg("FAILED (e_machine=");
+        print_int(e_machine);
+        print_msg(" expected 94 EM_XTENSA)\n");
+        return false;
+    }
+
+    print_msg("PASSED\n");
+    return true;
+}
+
 bool run_all_tests() {
     print_msg("\n=======================================================\n");
     print_msg("    Anastasia Bare-Metal Engine QA Test Suite\n");
@@ -1674,6 +1733,7 @@ bool run_all_tests() {
     ok &= test_adaptive_prefetch_injection();
     ok &= test_numa_first_touch_and_barriers();
     ok &= test_v7_string_literals_and_rodata_emission();
+    ok &= test_xtensa_lx7_target_backend();
     ok &= run_leetcode_tests();
     ok &= run_codeforces_tests();
     ok &= run_hardcore_tests();

@@ -24,7 +24,14 @@
     move-const v1, 1              ; 1 = Feed RTC Watchdog
     store-mem [v0 + 0], v1
 
-    ; 3. Stream "Hello World from Anastasia on ESP32-S3!\r\n"
+    ; 3. Turn ON GPIO 48 RGB LED on board for instant physical visual confirmation
+    move-const v0, 1610629164     ; 0x6000402C = GPIO_ENABLE1_W1TS_REG (bit 16 = GPIO 48)
+    move-const v1, 65536          ; 1 << 16 = 65536
+    store-mem [v0 + 0], v1
+    move-const v0, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG (bit 16 = GPIO 48)
+    store-mem [v0 + 0], v1
+
+    ; 4. Stream "Hello World from Anastasia on ESP32-S3!\r\n"
     ; Write to BOTH UART0 (0x60000000) AND USB-Serial-JTAG (0x60043000 for /dev/ttyACM0)
     move-const v0, 1610612736     ; 0x60000000 = UART0 FIFO
     move-const v2, 1610887168     ; 0x60043000 = USB-Serial-JTAG FIFO (native USB on /dev/ttyACM0)
@@ -153,12 +160,12 @@
     store-mem [v0 + 0], v1
     store-mem [v2 + 0], v1
 
-    ; Flush USB-Serial-JTAG buffer to PC host (write 1 to USB_SERIAL_JTAG_EP1_CONF_REG = 0x60043004)
+    ; Flush USB-Serial-JTAG buffer to PC host
     move-const v0, 1610887172     ; 0x60043004 = USB_SERIAL_JTAG_EP1_CONF_REG
     move-const v1, 1              ; Flush packet
     store-mem [v0 + 0], v1
 
-    ; 4. Bare-metal park loop: Continuously feed watchdog in a safe loop
+    ; 5. Bare-metal park loop: Continuously feed watchdog in a loop
 park_loop:
     move-const v0, 1610739808     ; 0x6001F060 = TIMG0_WDTFEED_REG
     move-const v1, 1              ; 1 = Feed Watchdog

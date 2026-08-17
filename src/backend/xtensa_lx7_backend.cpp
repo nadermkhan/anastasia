@@ -479,43 +479,94 @@ bool XtensaLX7TargetBackend::compile_to_elf(frontend::Program* prog, const char*
     return elf.write_elf_object(out_filename, text_buf.data(), text_buf.size());
 }
 
+static inline bool label_matches(const char* a, const char* b) {
+    if (a == b) return true;
+    if (!a || !b) return false;
+    while (*a && *b && *a == *b) { a++; b++; }
+    return (*a == *b);
+}
+
 bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const char* out_bin_path) {
     if (!prog || !out_bin_path) return false;
 
     SimpleByteBuffer text_buf;
 
     for (frontend::Function* fn = prog->functions; fn != nullptr; fn = fn->next) {
+        struct LabelEntry {
+            const char* name;
+            size_t offset;
+        };
+        LabelEntry label_table[64];
+        size_t label_count = 0;
+
+        // Pass 1: Measure basic block label offsets
+        XtensaLX7Encoder measure_enc;
+        measure_enc.mov_reg_imm32(XtensaReg::A1, 0x3FCEB6F0);
+        measure_enc.movi_reg_imm(XtensaReg::A0, 0);
+        measure_enc.mov_reg_imm32(XtensaReg::A2, 0x6001F064);
+        measure_enc.mov_reg_imm32(XtensaReg::A3, 0x50D83AA1);
+        measure_enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
+        measure_enc.mov_reg_imm32(XtensaReg::A2, 0x6001F048);
+        measure_enc.movi_reg_imm(XtensaReg::A3, 0);
+        measure_enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
+        measure_enc.mov_reg_imm32(XtensaReg::A2, 0x600080A4);
+        measure_enc.mov_reg_imm32(XtensaReg::A3, 0x50D83AA1);
+        measure_enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
+        measure_enc.mov_reg_imm32(XtensaReg::A2, 0x60008098);
+        measure_enc.movi_reg_imm(XtensaReg::A3, 0);
+        measure_enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
+
+        for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
+            if (bb->label && label_count < 64) {
+                label_table[label_count].name = bb->label;
+                label_table[label_count].offset = measure_enc.code_size();
+                label_count++;
+            }
+            for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
+                lower_xtensa_insn(measure_enc, insn, true);
+            }
+        }
+
+        // Pass 2: Actual emission with exact branch offsets
         XtensaLX7Encoder enc;
-
-        // Bare-metal CRT0 setup:
-        // 1. Initialize Stack Pointer A1 to valid DRAM stack 0x3FCEB6F0
         enc.mov_reg_imm32(XtensaReg::A1, 0x3FCEB6F0);
-        // 2. Clear return frame A0
         enc.movi_reg_imm(XtensaReg::A0, 0);
-
-        // 3. Unlock and Disable Timer Group 0 Watchdog (TIMG0 WDT):
-        //    Write Key 0x50D83AA1 to TIMG_WDTWPROTECT_REG (0x6001F064)
         enc.mov_reg_imm32(XtensaReg::A2, 0x6001F064);
         enc.mov_reg_imm32(XtensaReg::A3, 0x50D83AA1);
         enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
-        //    Write 0 to TIMG_WDTCONFIG0_REG (0x6001F048) to disable TG0 WDT
         enc.mov_reg_imm32(XtensaReg::A2, 0x6001F048);
         enc.movi_reg_imm(XtensaReg::A3, 0);
         enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
-
-        // 4. Unlock and Disable RTC Watchdog (RTC WDT):
-        //    Write Key 0x50D83AA1 to RTC_CNTL_WDTWPROTECT_REG (0x600080A4)
         enc.mov_reg_imm32(XtensaReg::A2, 0x600080A4);
         enc.mov_reg_imm32(XtensaReg::A3, 0x50D83AA1);
         enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
-        //    Write 0 to RTC_CNTL_WDTCONFIG0_REG (0x60008098) to disable RTC WDT
         enc.mov_reg_imm32(XtensaReg::A2, 0x60008098);
         enc.movi_reg_imm(XtensaReg::A3, 0);
         enc.s32i_reg_mem(XtensaReg::A3, XtensaReg::A2, 0);
 
         for (frontend::BasicBlock* bb = fn->first_block; bb != nullptr; bb = bb->next) {
             for (frontend::Instruction* insn = bb->first_insn; insn != nullptr; insn = insn->next) {
-                lower_xtensa_insn(enc, insn, true);
+                if (insn->op == frontend::Opcode::GOTO && insn->target_label) {
+                    size_t target_off = 0;
+                    bool found = false;
+                    for (size_t l = 0; l < label_count; l++) {
+                        if (label_matches(label_table[l].name, insn->target_label)) {
+                            target_off = label_table[l].offset;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        int32_t cur_off = static_cast<int32_t>(enc.code_size());
+                        int32_t disp = static_cast<int32_t>(target_off) - (cur_off + 4);
+                        uint32_t off18 = static_cast<uint32_t>(disp & 0x3FFFF);
+                        enc.emit24(0x6 | (off18 << 6));
+                    } else {
+                        enc.emit24(0x000006);
+                    }
+                } else {
+                    lower_xtensa_insn(enc, insn, true);
+                }
             }
         }
 

@@ -475,15 +475,18 @@ bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const
     header[12] = 0x09; // Chip ID: ESP32-S3 (9 = 0x0009 at offset 12-13)
     header[13] = 0x00;
 
+    size_t raw_code_sz = text_buf.size();
+    size_t aligned_code_sz = (raw_code_sz + 3) & ~3UL;
+
     // Segment 0 Header (8 bytes)
     uint8_t seg_header[8];
     *reinterpret_cast<uint32_t*>(&seg_header[0]) = entry_addr;
-    *reinterpret_cast<uint32_t*>(&seg_header[4]) = static_cast<uint32_t>(text_buf.size());
+    *reinterpret_cast<uint32_t*>(&seg_header[4]) = static_cast<uint32_t>(aligned_code_sz);
 
-    // Calculate exact 8-bit XOR Checksum starting at 0xEF
+    // Calculate exact 8-bit XOR Checksum starting at 0xEF over aligned payload
     uint8_t checksum = 0xEF;
     const uint8_t* code_bytes = text_buf.data();
-    for (size_t i = 0; i < text_buf.size(); i++) {
+    for (size_t i = 0; i < raw_code_sz; i++) {
         checksum ^= code_bytes[i];
     }
 
@@ -492,12 +495,17 @@ bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const
 
     sys::raw_write(fd, header, sizeof(header));
     sys::raw_write(fd, seg_header, sizeof(seg_header));
-    sys::raw_write(fd, text_buf.data(), text_buf.size());
+    sys::raw_write(fd, text_buf.data(), raw_code_sz);
+
+    // Write 4-byte alignment padding for segment if needed
+    uint8_t zero_byte = 0;
+    for (size_t i = raw_code_sz; i < aligned_code_sz; i++) {
+        sys::raw_write(fd, &zero_byte, 1);
+    }
 
     // Pad file so that (file_size % 16) == 15, then append the checksum byte
-    size_t payload_len = sizeof(header) + sizeof(seg_header) + text_buf.size();
+    size_t payload_len = sizeof(header) + sizeof(seg_header) + aligned_code_sz;
     size_t pad_len = (15 - (payload_len % 16)) % 16;
-    uint8_t zero_byte = 0;
     for (size_t i = 0; i < pad_len; i++) {
         sys::raw_write(fd, &zero_byte, 1);
     }

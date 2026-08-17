@@ -11,12 +11,20 @@ typedef int mode_t;
 extern "C" {
 void* malloc(size_t size) {
     if (size == 0) size = 1;
-    return ana::sys::raw_mmap(nullptr, size, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+    size_t total = size + sizeof(size_t);
+    void* ptr = ana::sys::raw_mmap(nullptr, total, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+    if (!ptr || reinterpret_cast<uintptr_t>(ptr) >= static_cast<uintptr_t>(-4095UL)) {
+        return nullptr;
+    }
+    *static_cast<size_t*>(ptr) = size;
+    return static_cast<char*>(ptr) + sizeof(size_t);
 }
 
 void free(void* ptr) {
-    if (ptr && ptr != (void*)-1) {
-        (void)ana::sys::raw_munmap(ptr, 4096);
+    if (ptr && reinterpret_cast<uintptr_t>(ptr) < static_cast<uintptr_t>(-4095UL)) {
+        void* real_ptr = static_cast<char*>(ptr) - sizeof(size_t);
+        size_t size = *static_cast<size_t*>(real_ptr);
+        (void)ana::sys::raw_munmap(real_ptr, size + sizeof(size_t));
     }
 }
 
@@ -26,9 +34,12 @@ void* realloc(void* ptr, size_t size) {
         free(ptr);
         return nullptr;
     }
+    void* real_ptr = static_cast<char*>(ptr) - sizeof(size_t);
+    size_t old_size = *static_cast<size_t*>(real_ptr);
     void* new_ptr = malloc(size);
-    if (new_ptr && new_ptr != (void*)-1) {
-        ana::sys::freestanding_memcpy(new_ptr, ptr, size);
+    if (new_ptr) {
+        size_t copy_size = (old_size < size) ? old_size : size;
+        ana::sys::freestanding_memcpy(new_ptr, ptr, copy_size);
         free(ptr);
     }
     return new_ptr;
@@ -62,6 +73,17 @@ namespace sys {
 void* freestanding_memcpy(void* dest, const void* src, size_t n) {
 #if defined(_WIN32)
     return ::memcpy(dest, src, n);
+#elif defined(__x86_64__) || defined(_M_X64)
+    void* d = dest;
+    const void* s_ptr = src;
+    size_t count = n;
+    __asm__ __volatile__(
+        "rep movsb"
+        : "+D"(d), "+S"(s_ptr), "+c"(count)
+        :
+        : "memory"
+    );
+    return dest;
 #else
     unsigned char* d = static_cast<unsigned char*>(dest);
     const unsigned char* s = static_cast<const unsigned char*>(src);
@@ -73,6 +95,17 @@ void* freestanding_memcpy(void* dest, const void* src, size_t n) {
 void* freestanding_memset(void* s, int c, size_t n) {
 #if defined(_WIN32)
     return ::memset(s, c, n);
+#elif defined(__x86_64__) || defined(_M_X64)
+    void* d = s;
+    size_t count = n;
+    unsigned char val = static_cast<unsigned char>(c);
+    __asm__ __volatile__(
+        "rep stosb"
+        : "+D"(d), "+c"(count)
+        : "a"(val)
+        : "memory"
+    );
+    return s;
 #else
     unsigned char* p = static_cast<unsigned char*>(s);
     for (size_t i = 0; i < n; ++i) p[i] = static_cast<unsigned char>(c);
@@ -138,15 +171,15 @@ void* raw_mmap(void* addr, size_t length, int prot, int flags, int fd, int64_t o
     int64_t f   = static_cast<int64_t>(fd);
     int64_t off = static_cast<int64_t>(offset);
 
-    register int64_t r10 __asm__("r10") = flg;
-    register int64_t r8  __asm__("r8")  = f;
-    register int64_t r9  __asm__("r9")  = off;
-
     __asm__ __volatile__(
+        "movq %[flg], %%r10\n\t"
+        "movq %[f], %%r8\n\t"
+        "movq %[off], %%r9\n\t"
         "syscall"
         : "=a"(ret)
-        : "a"(9), "D"(addr), "S"(length), "d"(prot), "r"(r10), "r"(r8), "r"(r9)
-        : "rcx", "r11", "memory"
+        : "a"(9), "D"(addr), "S"(length), "d"(prot),
+          [flg]"r"(flg), [f]"r"(f), [off]"r"(off)
+        : "rcx", "r11", "r10", "r8", "r9", "memory"
     );
 
     if (static_cast<uintptr_t>(ret) >= static_cast<uintptr_t>(-4095UL)) {
@@ -461,12 +494,12 @@ int raw_open(const char* pathname, int flags, int mode) {
     int64_t flg = static_cast<int64_t>(flags);
     int64_t md  = static_cast<int64_t>(mode);
 
-    register int64_t r10 __asm__("r10") = md;
     __asm__ __volatile__(
+        "movq %[md], %%r10\n\t"
         "syscall"
         : "=a"(ret)
-        : "a"(257), "D"(dfd), "S"(pathname), "d"(flg), "r"(r10)
-        : "rcx", "r11", "memory"
+        : "a"(257), "D"(dfd), "S"(pathname), "d"(flg), [md]"r"(md)
+        : "rcx", "r11", "r10", "memory"
     );
     return static_cast<int>(ret);
 #elif defined(__linux__) && (defined(__aarch64__) || defined(_M_ARM64))

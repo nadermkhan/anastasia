@@ -29,12 +29,23 @@ SimpleByteBuffer::~SimpleByteBuffer() {
 }
 
 void SimpleByteBuffer::write(const void* data, size_t size) {
-    if (!data || size == 0 || !buffer_) return;
-    if (size_ + size > capacity_) return;
-    const uint8_t* src = static_cast<const uint8_t*>(data);
-    for (size_t i = 0; i < size; ++i) {
-        buffer_[size_ + i] = src[i];
+    if (!data || size == 0) return;
+    if (size_ + size > capacity_) {
+        size_t new_cap = (capacity_ == 0) ? 4096 : capacity_ * 2;
+        while (new_cap < size_ + size) new_cap *= 2;
+        void* new_buf = sys::raw_mmap(nullptr, new_cap, ANA_PROT_READ | ANA_PROT_WRITE, ANA_MAP_PRIVATE | ANA_MAP_ANONYMOUS, -1, 0);
+        if (new_buf && new_buf != (void*)-1) {
+            if (buffer_ && size_ > 0) {
+                sys::freestanding_memcpy(new_buf, buffer_, size_);
+                sys::raw_munmap(buffer_, capacity_);
+            }
+            buffer_ = static_cast<uint8_t*>(new_buf);
+            capacity_ = new_cap;
+        } else {
+            return;
+        }
     }
+    sys::freestanding_memcpy(buffer_ + size_, data, size);
     size_ += size;
 }
 

@@ -24,12 +24,97 @@
     move-const v1, 1              ; 1 = Feed RTC Watchdog
     store-mem [v0 + 0], v1
 
-    ; 3. Turn ON GPIO 48 RGB LED on board for instant physical visual confirmation
-    move-const v0, 1610629164     ; 0x6000402C = GPIO_ENABLE1_W1TS_REG (bit 16 = GPIO 48)
-    move-const v1, 65536          ; 1 << 16 = 65536
-    store-mem [v0 + 0], v1
-    move-const v0, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG (bit 16 = GPIO 48)
-    store-mem [v0 + 0], v1
+    ; 3. Turn Onboard WS2812 RGB LED VIBRANT GREEN (GPIO 48 & GPIO 38)
+    ; Enable GPIO 48 (bit 16) & GPIO 38 (bit 6) outputs (mask = 65600)
+    move-const v0, 1610629164     ; 0x6000402C = GPIO_ENABLE1_W1TS_REG
+    move-const v4, 65600          ; bit 16 | bit 6
+    store-mem [v0 + 0], v4
+
+    move-const v0, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG (Set HIGH)
+    move-const v3, 1610629144     ; 0x60004018 = GPIO_OUT1_W1TC_REG (Clear LOW)
+
+    ; Latch Reset (Hold LOW)
+    store-mem [v3 + 0], v4
+
+    ; Send 8 bits of '1's for GREEN channel (Green = 0xFF = 255)
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    ; Send 8 bits of '0's for RED channel (Red = 0x00 = 0)
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    ; Send 8 bits of '0's for BLUE channel (Blue = 0x00 = 0)
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+    store-mem [v0 + 0], v4
+    store-mem [v3 + 0], v4
+
+    ; Latch Reset (Hold LOW > 50us)
+    store-mem [v3 + 0], v4
 
     ; 4. Stream "Hello World from Anastasia on ESP32-S3!\r\n"
     ; Write to BOTH UART0 (0x60000000) AND USB-Serial-JTAG (0x60043000 for /dev/ttyACM0)

@@ -471,8 +471,9 @@ bool XtensaLX7TargetBackend::compile_to_esp32_bin(frontend::Program* prog, const
     header[3] = 0x20; // 40MHz, 16MB
     uint32_t entry_addr = 0x40370000;
     *reinterpret_cast<uint32_t*>(&header[4]) = entry_addr;
-    *reinterpret_cast<uint32_t*>(&header[8]) = 0xEE; // WP Pin / SPI config
-    header[15] = 9;   // Chip ID: ESP32-S3 (9)
+    header[8] = 0xEE; // WP Pin
+    header[12] = 0x09; // Chip ID: ESP32-S3 (9 = 0x0009 at offset 12-13)
+    header[13] = 0x00;
 
     // Segment 0 Header (8 bytes)
     uint8_t seg_header[8];

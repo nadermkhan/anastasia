@@ -1,0 +1,93 @@
+.fn esp32s3_hello_world(p0: i64) -> i64
+    .registers 6 local
+
+    ; Base MMIO Register for ESP32-S3 UART0 FIFO Register (0x60000000 = 1610612736)
+    move_const v0, 1610612736     ; 0x60000000 = UART0 FIFO
+
+    ; Write ASCII string "Hello World from Anastasia on ESP32-S3!\r\n" to UART0 FIFO
+    move_const v1, 72             ; 'H'
+    store-mem [v0 + 0], v1
+    move_const v1, 101            ; 'e'
+    store-mem [v0 + 0], v1
+    move_const v1, 108            ; 'l'
+    store-mem [v0 + 0], v1
+    move_const v1, 108            ; 'l'
+    store-mem [v0 + 0], v1
+    move_const v1, 111            ; 'o'
+    store-mem [v0 + 0], v1
+    move_const v1, 32             ; ' '
+    store-mem [v0 + 0], v1
+    move_const v1, 87             ; 'W'
+    store-mem [v0 + 0], v1
+    move_const v1, 111            ; 'o'
+    store-mem [v0 + 0], v1
+    move_const v1, 114            ; 'r'
+    store-mem [v0 + 0], v1
+    move_const v1, 108            ; 'l'
+    store-mem [v0 + 0], v1
+    move_const v1, 100            ; 'd'
+    store-mem [v0 + 0], v1
+    move_const v1, 32             ; ' '
+    store-mem [v0 + 0], v1
+    move_const v1, 102            ; 'f'
+    store-mem [v0 + 0], v1
+    move_const v1, 114            ; 'r'
+    store-mem [v0 + 0], v1
+    move_const v1, 111            ; 'o'
+    store-mem [v0 + 0], v1
+    move_const v1, 109            ; 'm'
+    store-mem [v0 + 0], v1
+    move_const v1, 32             ; ' '
+    store-mem [v0 + 0], v1
+    move_const v1, 65             ; 'A'
+    store-mem [v0 + 0], v1
+    move_const v1, 110            ; 'n'
+    store-mem [v0 + 0], v1
+    move_const v1, 97             ; 'a'
+    store-mem [v0 + 0], v1
+    move_const v1, 115            ; 's'
+    store-mem [v0 + 0], v1
+    move_const v1, 116            ; 't'
+    store-mem [v0 + 0], v1
+    move_const v1, 97             ; 'a'
+    store-mem [v0 + 0], v1
+    move_const v1, 115            ; 's'
+    store-mem [v0 + 0], v1
+    move_const v1, 105            ; 'i'
+    store-mem [v0 + 0], v1
+    move_const v1, 97             ; 'a'
+    store-mem [v0 + 0], v1
+    move_const v1, 32             ; ' '
+    store-mem [v0 + 0], v1
+    move_const v1, 111            ; 'o'
+    store-mem [v0 + 0], v1
+    move_const v1, 110            ; 'n'
+    store-mem [v0 + 0], v1
+    move_const v1, 32             ; ' '
+    store-mem [v0 + 0], v1
+    move_const v1, 69             ; 'E'
+    store-mem [v0 + 0], v1
+    move_const v1, 83             ; 'S'
+    store-mem [v0 + 0], v1
+    move_const v1, 80             ; 'P'
+    store-mem [v0 + 0], v1
+    move_const v1, 51             ; '3'
+    store-mem [v0 + 0], v1
+    move_const v1, 50             ; '2'
+    store-mem [v0 + 0], v1
+    move_const v1, 45             ; '-'
+    store-mem [v0 + 0], v1
+    move_const v1, 83             ; 'S'
+    store-mem [v0 + 0], v1
+    move_const v1, 51             ; '3'
+    store-mem [v0 + 0], v1
+    move_const v1, 33             ; '!'
+    store-mem [v0 + 0], v1
+    move_const v1, 13             ; '\r'
+    store-mem [v0 + 0], v1
+    move_const v1, 10             ; '\n'
+    store-mem [v0 + 0], v1
+
+    move_const v2, 1
+    return-val v2
+.end_fn

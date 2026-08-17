@@ -9,6 +9,9 @@
     move-const v0, 1610739784     ; 0x6001F048 = TIMG0_WDTCONFIG0_REG
     move-const v1, 0              ; 0 = Disable Watchdog
     store-mem [v0 + 0], v1
+    move-const v0, 1610739808     ; 0x6001F060 = TIMG0_WDTFEED_REG
+    move-const v1, 1              ; 1 = Feed Watchdog
+    store-mem [v0 + 0], v1
 
     ; 2. Unlock & Disable RTC Watchdog (RTC WDT)
     move-const v0, 1610645668     ; 0x600080A4 = RTC_CNTL_WDTWPROTECT_REG
@@ -17,94 +20,149 @@
     move-const v0, 1610645656     ; 0x60008098 = RTC_CNTL_WDTCONFIG0_REG
     move-const v1, 0              ; 0 = Disable RTC Watchdog
     store-mem [v0 + 0], v1
+    move-const v0, 1610645664     ; 0x600080A0 = RTC_CNTL_WDTFEED_REG
+    move-const v1, 1              ; 1 = Feed RTC Watchdog
+    store-mem [v0 + 0], v1
 
-    ; 3. Stream "Hello World from Anastasia on ESP32-S3!\r\n" to UART0 FIFO (0x60000000)
+    ; 3. Stream "Hello World from Anastasia on ESP32-S3!\r\n"
+    ; Write to BOTH UART0 (0x60000000) AND USB-Serial-JTAG (0x60043000 for /dev/ttyACM0)
     move-const v0, 1610612736     ; 0x60000000 = UART0 FIFO
+    move-const v2, 1610887168     ; 0x60043000 = USB-Serial-JTAG FIFO (native USB on /dev/ttyACM0)
+
     move-const v1, 72             ; 'H'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 101            ; 'e'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 108            ; 'l'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 108            ; 'l'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 87             ; 'W'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 114            ; 'r'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 108            ; 'l'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 100            ; 'd'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 102            ; 'f'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 114            ; 'r'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 109            ; 'm'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 65             ; 'A'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 110            ; 'n'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 97             ; 'a'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 115            ; 's'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 116            ; 't'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 97             ; 'a'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 115            ; 's'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 105            ; 'i'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 97             ; 'a'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 111            ; 'o'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 110            ; 'n'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 32             ; ' '
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 69             ; 'E'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 83             ; 'S'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 80             ; 'P'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 51             ; '3'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 52             ; '2'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 45             ; '-'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 83             ; 'S'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 51             ; '3'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 33             ; '!'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 13             ; '\r'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
     move-const v1, 10             ; '\n'
     store-mem [v0 + 0], v1
+    store-mem [v2 + 0], v1
 
-    ; 4. Bare-metal park loop: Park CPU endlessly in J .
+    ; Flush USB-Serial-JTAG buffer to PC host (write 1 to USB_SERIAL_JTAG_EP1_CONF_REG = 0x60043004)
+    move-const v0, 1610887172     ; 0x60043004 = USB_SERIAL_JTAG_EP1_CONF_REG
+    move-const v1, 1              ; Flush packet
+    store-mem [v0 + 0], v1
+
+    ; 4. Bare-metal park loop: Continuously feed watchdog in a safe loop
 park_loop:
+    move-const v0, 1610739808     ; 0x6001F060 = TIMG0_WDTFEED_REG
+    move-const v1, 1              ; 1 = Feed Watchdog
+    store-mem [v0 + 0], v1
     goto park_loop
 
     move-const v2, 1

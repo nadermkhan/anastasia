@@ -1,17 +1,65 @@
 .fn esp32s3_rgb_led_on(p0: i64) -> i64
-    .registers 6 local
+    .registers 8 local
 
-    ; Base MMIO Register for ESP32-S3 GPIO1 Enable W1TS (GPIO 32-48)
-    ; GPIO 48 corresponds to bit (48 - 32) = 16 (0x10000 = 65536)
-    move_const v0, 1610629168     ; 0x60004030 = GPIO_ENABLE1_W1TS_REG
-    move_const v1, 65536          ; 1 << 16 (GPIO 48 Enable Bit)
-    store-mem [v0 + 0], v1
+    ; =========================================================================
+    ; ESP32-S3 Hardware Register Definitions for GPIO 48
+    ; GPIO 48 corresponds to bit 16 in GPIO1 registers (48 - 32 = 16)
+    ; Bitmask: 1 << 16 = 65536 (0x10000)
+    ; =========================================================================
+    move_const v0, 1610629168     ; 0x60004030 = GPIO_ENABLE1_W1TS_REG (Enable Output)
+    move_const v1, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG    (Set Output High)
+    move_const v2, 1610629144     ; 0x60004018 = GPIO_OUT1_W1TC_REG    (Set Output Low)
+    move_const v3, 65536          ; Bitmask for GPIO 48
 
-    ; GPIO1 Output Set Register (GPIO_OUT1_W1TS_REG = 0x60004014 = 1610629140)
-    move_const v2, 1610629140     ; 0x60004014 = GPIO_OUT1_W1TS_REG
-    store-mem [v2 + 0], v1
+    ; Enable GPIO 48 Output
+    store-mem [v0 + 0], v3
 
-    ; Return 1 to indicate successful hardware pin activation
-    move_const v3, 1
-    return-val v3
+    ; Set GPIO 48 Low for >50us Reset
+    store-mem [v2 + 0], v3
+
+    ; Set GPIO 48 High (Activate RGB LED Power/Signal Pin)
+    store-mem [v1 + 0], v3
+
+    move_const v7, 1
+    return-val v7
+.end_fn
+
+.fn esp32s3_ws2812_send_color(p0: i64) -> i64
+    .registers 10 local
+
+    ; Registers for WS2812B 24-bit GRB Protocol on GPIO 48
+    move_const v0, 1610629140     ; GPIO_OUT1_W1TS_REG (High)
+    move_const v1, 1610629144     ; GPIO_OUT1_W1TC_REG (Low)
+    move_const v2, 65536          ; Bitmask (1 << 16) for GPIO 48
+
+    ; Send 24 bits of GRB Color Data
+    move_const v3, 24             ; Bit Counter
+
+bit_loop:
+    if-z v3, send_done
+
+    ; Drive GPIO 48 High
+    store-mem [v0 + 0], v2
+
+    ; T1H Delay (~800ns)
+    move_const v4, 40
+delay_high:
+    sub-int/64 v4, v4, 1
+    if-nz v4, delay_high
+
+    ; Drive GPIO 48 Low
+    store-mem [v1 + 0], v2
+
+    ; T1L Delay (~400ns)
+    move_const v5, 20
+delay_low:
+    sub-int/64 v5, v5, 1
+    if-nz v5, delay_low
+
+    sub-int/64 v3, v3, 1
+    goto bit_loop
+
+send_done:
+    move_const v6, 1
+    return-val v6
 .end_fn
